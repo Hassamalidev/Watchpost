@@ -34,6 +34,11 @@ export interface AuthOptions {
     | { consume(key: string, rule: { window: number; max: number }): Promise<RateLimitDecision> };
   /* Cloudflare Turnstile on sign-up; omitted only outside production. */
   turnstile?: { secretKey: string; siteVerifyURLOverride?: string };
+  /*
+   * Called after Better Auth commits a new organization (workspace). Must be idempotent; a recovery
+   * sweep covers a crash before it runs. Late-bound because modules are created after infra.
+   */
+  onWorkspaceCreated?: (workspaceId: string) => Promise<void>;
 }
 
 export const AUTH_BASE_PATH = "/api/auth";
@@ -92,6 +97,11 @@ export function createAuth(options: AuthOptions) {
         allowUserToCreateOrganization: true,
         requireEmailVerificationOnInvitation: true,
         invitationExpiresIn: INVITATION_EXPIRES_SECONDS,
+        organizationHooks: {
+          afterCreateOrganization: async ({ organization }) => {
+            await options.onWorkspaceCreated?.(organization.id);
+          },
+        },
         sendInvitationEmail: async (data) => {
           await requestEmail("invite", data.email, {
             url: `${options.webOrigin}/invite/${data.id}`,

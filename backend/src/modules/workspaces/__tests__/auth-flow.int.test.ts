@@ -8,84 +8,36 @@ import { once } from "node:events";
 import { randomBytes } from "node:crypto";
 import request from "supertest";
 import type TestAgent from "supertest/lib/agent.js";
-import { pino } from "pino";
-import { createApp } from "../../../app.js";
-import { systemClock } from "../../../core/clock.js";
-import { createAuthService, type AuthService } from "../../../infra/auth/index.js";
-import { createDb, createDbPool, type DbPool } from "../../../infra/db/index.js";
+import { createDbPool, type DbPool } from "../../../infra/db/index.js";
 import { createRedis, type RedisClient } from "../../../infra/redis.js";
-import { createWorkspacesModule } from "../index.js";
 import { TEST_DATABASE_URL, TEST_REDIS_URL } from "../../../__tests__/helpers/test-env.js";
 import { secretFromOtpauthUri, totp } from "../../../__tests__/helpers/totp.js";
+import {
+  PASSWORD,
+  WEB_ORIGIN,
+  buildWorkspaceTestApp,
+  get,
+  lastEmail as lastEmailIn,
+  pathOf,
+  post,
+  signUpAndVerify as signUpAndVerifyIn,
+  type CapturedEmail,
+} from "../../../__tests__/helpers/workspace-app.js";
 
-const WEB_ORIGIN = "http://localhost:3000";
-const PASSWORD = "correct horse battery";
 const run = randomBytes(4).toString("hex");
 const emailFor = (who: string) => `${who}-${run}@example.com`;
-
-interface CapturedEmail {
-  template: string;
-  to: string;
-  data: Record<string, unknown>;
-}
 
 let pool: DbPool;
 let redis: RedisClient;
 const emails: CapturedEmail[] = [];
 
 function buildApp(options: { turnstileVerifyUrl?: string } = {}) {
-  const db = createDb(pool);
-  const authService: AuthService = createAuthService({
-    db,
-    baseURL: "http://localhost:4000",
-    secret: "test-secret-".padEnd(40, "x"),
-    webOrigin: WEB_ORIGIN,
-    requestEmail: async (template, to, data) => {
-      emails.push({ template, to, data });
-    },
-    rateLimit: false,
-    ...(options.turnstileVerifyUrl
-      ? { turnstile: { secretKey: "test", siteVerifyURLOverride: options.turnstileVerifyUrl } }
-      : {}),
-  });
-  const workspaces = createWorkspacesModule({
-    infra: { db, clock: systemClock, auth: authService },
-  });
-  return createApp({
-    config: { webOrigin: WEB_ORIGIN, api: { port: 0, trustProxy: "loopback" } },
-    logger: pino({ level: "silent" }),
-    redis,
-    readinessChecks: {},
-    rawBodyRouters: [{ path: "/", router: authService.router }],
-    routers: workspaces.routers ?? [],
-    ipRateLimit: { windowMs: 60_000, limit: 10_000 },
-  });
+  return buildWorkspaceTestApp({ pool, redis, emails, ...options }).app;
 }
 
-function lastEmail(template: string, to: string): CapturedEmail {
-  const found = emails.filter((e) => e.template === template && e.to === to).at(-1);
-  if (found === undefined) throw new Error(`no ${template} email to ${to}`);
-  return found;
-}
-
-/* Turns an emailed absolute link into a path the test app can request. */
-const pathOf = (url: unknown) => {
-  const u = new URL(String(url));
-  return `${u.pathname}${u.search}`;
-};
-
-const post = (agent: TestAgent, path: string, body: object) =>
-  agent.post(path).set("Origin", WEB_ORIGIN).send(body);
-const get = (agent: TestAgent, path: string) => agent.get(path).set("Origin", WEB_ORIGIN);
-
-async function signUpAndVerify(agent: TestAgent, email: string, name: string) {
-  const signUp = await post(agent, "/api/auth/sign-up/email", { email, password: PASSWORD, name });
-  expect(signUp.status, signUp.text).toBe(200);
-  const verify = await get(agent, pathOf(lastEmail("verify-email", email).data.url));
-  expect([200, 302]).toContain(verify.status);
-  const session = await get(agent, "/api/auth/get-session");
-  expect(session.body?.user?.emailVerified).toBe(true);
-}
+const lastEmail = (template: string, to: string) => lastEmailIn(emails, template, to);
+const signUpAndVerify = (agent: TestAgent, email: string, name: string) =>
+  signUpAndVerifyIn(agent, emails, email, name);
 
 beforeAll(() => {
   pool = createDbPool(TEST_DATABASE_URL, { max: 5 });

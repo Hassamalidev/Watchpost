@@ -26,9 +26,17 @@ export interface Container {
   close(): Promise<void>;
 }
 
+/*
+ * Infra is built before modules, but some infra callbacks (Better Auth hooks) must reach module
+ * code. The container passes this object to infra, then fills it after creating the modules.
+ */
+export interface LateHooks {
+  onWorkspaceCreated: Array<(workspaceId: string) => Promise<void>>;
+}
+
 export function createInfra(
   config: AppConfig,
-  options: { service: "api" | "worker"; logger?: Logger; clock?: Clock },
+  options: { service: "api" | "worker"; logger?: Logger; clock?: Clock; hooks?: LateHooks },
 ): Infra {
   const logger =
     options.logger ??
@@ -48,7 +56,11 @@ export function createInfra(
   const db = createDb(pool);
   const outbox = createOutbox();
   const requestEmail = createEmailRequester({ db, outbox });
+  const hooks = options.hooks ?? { onWorkspaceCreated: [] };
   const auth = createAuthService({
+    onWorkspaceCreated: async (workspaceId) => {
+      for (const hook of hooks.onWorkspaceCreated) await hook(workspaceId);
+    },
     db,
     baseURL: config.auth.baseURL,
     secret: config.auth.secret,
@@ -84,8 +96,13 @@ export function createContainer(
   config: AppConfig,
   options: { service: "api" | "worker"; logger?: Logger; clock?: Clock },
 ): Container {
-  const infra = createInfra(config, options);
+  const hooks: LateHooks = { onWorkspaceCreated: [] };
+  const infra = createInfra(config, { ...options, hooks });
   const modules = createModules(infra);
+  for (const module of modules) {
+    if (module.hooks?.onWorkspaceCreated)
+      hooks.onWorkspaceCreated.push(module.hooks.onWorkspaceCreated);
+  }
 
   const readinessChecks: Record<string, ReadinessCheck> = {
     postgres: () => pingDb(infra.pool),

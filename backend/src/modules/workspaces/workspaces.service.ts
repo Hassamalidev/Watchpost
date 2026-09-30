@@ -1,9 +1,24 @@
-/* Workspace membership rules. Workspaces, members and invitations are created through Better Auth. */
+/*
+ * Workspace rules: memberships (created through Better Auth), settings and incident numbers.
+ * Settings are created once per workspace, together with the workspace.created event, in one
+ * transaction; ensureSettings is idempotent so the creation hook, lazy reads and the recovery
+ * sweep can all call it.
+ */
 import type { Clock } from "../../core/clock.js";
+import { NotFoundError } from "../../core/errors.js";
 import type { SessionContext } from "../../core/session.js";
-import type { WorkspaceRole, WorkspaceScope } from "../../core/workspace-scope.js";
+import {
+  createWorkspaceScope,
+  type WorkspaceRole,
+  type WorkspaceScope,
+} from "../../core/workspace-scope.js";
+import type { Db, DbOrTx } from "../../infra/db/index.js";
+import type { Outbox } from "../../infra/outbox/index.js";
 import { parseMemberRole } from "../../middleware/roles.js";
+import type { WorkspaceSettingsRow } from "./schema/workspace-settings.js";
 import type { WorkspacesRepository } from "./workspaces.repository.js";
+
+export const TRIAL_DAYS = 14;
 
 export interface WorkspaceMember {
   userId: string;
@@ -13,22 +28,48 @@ export interface WorkspaceMember {
   joinedAt: string;
 }
 
+export interface WorkspaceSettings {
+  workspaceId: string;
+  timezone: string;
+  trialEndsAt: string | null;
+  flags: Record<string, boolean>;
+}
+
 export interface WorkspacesService {
-  /* The member's highest role in the workspace, or undefined for non-members. */
   resolveRole(userId: string, workspaceId: string): Promise<WorkspaceRole | undefined>;
   me(
     scope: WorkspaceScope,
     session: SessionContext,
   ): { workspaceId: string; userId: string; email: string; role: WorkspaceScope["role"] };
   listMembers(scope: WorkspaceScope): Promise<WorkspaceMember[]>;
+  /* Creates default settings and emits workspace.created, once. Returns true if it created them. */
+  ensureSettings(workspaceId: string): Promise<boolean>;
+  getSettings(scope: WorkspaceScope): Promise<WorkspaceSettings>;
+  updateSettings(scope: WorkspaceScope, patch: { timezone?: string }): Promise<WorkspaceSettings>;
+  /* Next per-workspace incident number (#1, #2, …); pass the caller's transaction. */
+  nextIncidentNumber(tx: DbOrTx, scope: WorkspaceScope): Promise<number>;
+  /* Recovery: creates settings for workspaces that are missing them. Returns how many. */
+  repairMissingSettings(limit?: number): Promise<number>;
+}
+
+function toSettings(row: WorkspaceSettingsRow): WorkspaceSettings {
+  return {
+    workspaceId: row.workspaceId,
+    timezone: row.timezone,
+    trialEndsAt: row.trialEndsAt?.toISOString() ?? null,
+    flags: row.flags,
+  };
 }
 
 export function createWorkspacesService(deps: {
+  db: Db;
   repository: WorkspacesRepository;
+  outbox: Outbox;
   clock: Clock;
 }): WorkspacesService {
-  const { repository } = deps;
-  return {
+  const { repository, clock } = deps;
+
+  const service: WorkspacesService = {
     async resolveRole(userId, workspaceId) {
       return parseMemberRole(await repository.findMemberRole(userId, workspaceId));
     },
@@ -58,5 +99,61 @@ export function createWorkspacesService(deps: {
         ];
       });
     },
+
+    async ensureSettings(workspaceId) {
+      const trialEndsAt = new Date(clock.now().getTime() + TRIAL_DAYS * 86_400_000);
+      return deps.db.transaction(async (tx) => {
+        const created = await repository.insertSettingsIfMissing(tx, { workspaceId, trialEndsAt });
+        if (created) {
+          await deps.outbox.emit(tx, "workspace.created", { workspaceId }, { workspaceId });
+        }
+        return created;
+      });
+    },
+
+    async getSettings(scope) {
+      let row = await repository.findSettings(scope);
+      if (row === undefined) {
+        await service.ensureSettings(scope.workspaceId);
+        row = await repository.findSettings(scope);
+      }
+      if (row === undefined) throw new NotFoundError("Workspace not found.");
+      return toSettings(row);
+    },
+
+    async updateSettings(scope, patch) {
+      await service.getSettings(scope);
+      const row = await repository.updateSettings(scope, patch);
+      if (row === undefined) throw new NotFoundError("Workspace not found.");
+      return toSettings(row);
+    },
+
+    async nextIncidentNumber(tx, scope) {
+      let number = await repository.nextIncidentNumber(tx, scope);
+      if (number === undefined) {
+        await repository.insertSettingsIfMissing(tx, {
+          workspaceId: scope.workspaceId,
+          trialEndsAt: new Date(clock.now().getTime() + TRIAL_DAYS * 86_400_000),
+        });
+        number = await repository.nextIncidentNumber(tx, scope);
+      }
+      if (number === undefined) throw new NotFoundError("Workspace not found.");
+      return number;
+    },
+
+    async repairMissingSettings(limit = 500) {
+      const missing = await repository.findWorkspacesWithoutSettings(limit);
+      let created = 0;
+      for (const workspaceId of missing) {
+        if (await service.ensureSettings(workspaceId)) created += 1;
+      }
+      return created;
+    },
   };
+  return service;
+}
+
+/* Scope for system work on one workspace (hooks, sweeps). */
+export function systemScope(workspaceId: string): WorkspaceScope {
+  return createWorkspaceScope({ workspaceId });
 }

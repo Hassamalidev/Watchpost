@@ -1,7 +1,7 @@
 # Watchpost — Product Spec and Build Plan (`PRODUCT.md`)
 
 > **Working name:** Watchpost. Replace it and `<domain>` everywhere once the final name and domain are chosen (Open decision #1).
-> **Status:** In progress · **Current phase:** 1 · **Next task:** `P1-T02` · **Last updated:** 2026-09-30 (P1-T01 done; owner action: branch ruleset in `docs/ci.md`)
+> **Status:** In progress · **Current phase:** 1 · **Next task:** `P1-T03` · **Last updated:** 2026-09-30 (P1-T02 done; owner action: branch ruleset in `docs/ci.md`)
 > The build agent keeps this status block current.
 
 **Companion files**
@@ -747,7 +747,7 @@ IDs are UUIDv7 generated in the app. Every tenant table has an indexed `workspac
 
 | Area | Tables (key columns) |
 |---|---|
-| Workspace | `workspace_settings` (org_id PK, timezone, incident_seq, trial_ends_at, flags) |
+| Workspace | `workspace_settings` (workspace_id PK → organization.id, timezone, incident_seq, trial_ends_at, flags) |
 | Monitors | `monitors` (type, name, config jsonb, interval_s, timeout_ms, regions text[], policies jsonb, severity, alert_policy_id, group_id, parent_id, paused, config_seq, secrets_enc) · `monitor_groups` · `tags` · `monitor_tags` · `monitor_config_changes` (seq, monitor_id, op) |
 | State | `monitor_state` (monitor_id PK, status, since, open_incident_id, last_result_at, last_evaluated_at, flapping_until) · `monitor_region_state` (monitor_id, region, status, last_result_at, last_error_code, last_latency_ms) |
 | Results | `check_results` (partitioned by day on checked_at; PK (checked_at, id); monitor_id, region, probe_id, ok, status, error_code, http_status, latency_ms, timings jsonb, ip, tls jsonb, task_id, evidence_key) · `check_events` (failures and state changes) · `rollups_5m`, `rollups_1h`, `rollups_1d` (monitor_id, region, bucket, count, fail_count, latency histogram jsonb) · `downtimes` (monitor_id, started_at, ended_at, kind outage/degraded/maintenance, incident_id) |
@@ -1144,7 +1144,7 @@ Targets assume a start on Monday 2026-10-05 with one developer and a coding agen
 ### Phase 1 — Core monitoring (`phase/1-core-monitoring`)
 - [x] **P1-T01 Auth and workspaces.** Better Auth (email/password, magic link, email verification) with the Drizzle adapter; organization plugin as workspaces (members, invitations, roles owner/admin/member/viewer); TOTP 2FA; Turnstile on signup; `requireWorkspace` and role middleware.
   *AC:* signup → verify → create workspace → invite → accept works end to end; role checks tested.
-- [ ] **P1-T02 Workspace settings.** Timezone, incident number sequence, default alert policy, trial flag.
+- [x] **P1-T02 Workspace settings.** Timezone, incident number sequence, default alert policy, trial flag.
   *AC:* new workspaces get defaults; only admins can edit.
 - [ ] **P1-T03 Shared schemas.** Zod discriminated union for monitor configs (P1 types in §6.1), results, probe protocol, events, error codes (Appendix B).
   *AC:* exported from `@app/shared`; JSON Schema generated for docs.
@@ -1375,6 +1375,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | D-026 | 2026-09-30 | Architecture guardrails: module edges live in one JSON file read by both `architecture.ts` and `.dependency-cruiser.cjs`; `pnpm arch` (`scripts/arch-check.mjs`) cruises backend/shared/probe and the web app separately, each with its own tsconfig, via the dependency-cruiser API (the CLI's `--ts-config` was overridden by the config, and relative `extends` needed an absolute tsconfig path). Outbox timestamps use the database clock (`now()`), so lag and retention don't depend on app-server clocks. The relay coalesces wake-ups and records `attempts`/`last_error` on failed dispatches. Architecture tests run the same rules against scratch fixtures under `backend/.arch-selftest/` (gitignored) and generate a module on a scratch copy to run tsc, ESLint and the rules on it. Generated modules mount at `/api/<name>` until workspace routing lands in P1-T01. | One source of truth for the graph; the AC is proven by tests, not by breaking `main` | Separate `.dependency-cruiser.json` edges; a throwaway CI branch per rule |
 | D-027 | 2026-09-30 | Phase merges happen over SSH: once CI is green on the phase branch head, `git merge --no-ff` into `main` (every commit kept, no squash), push `main`, tag, push the tag. No PR, because the agent has no GitHub token and must not create one (§2.3). Owner-approved. | Same result as "PR, green CI, merge without squashing" with the tools available | Owner opens each PR by hand; skip merging until later |
 | D-028 | 2026-09-30 | Auth (P1-T01): Better Auth 1.7 mounted at `/api/auth/*` before the JSON parser; its IDs are UUIDv7 (`generateId: newId`) in `uuid` columns and its timestamps are `timestamptz`, applied by `scripts/auth-schema-postprocess.ts` after `pnpm auth:generate` so regeneration keeps our conventions. Auth emails go through the outbox (`email.requested`, own transaction) instead of direct enqueue, so a crash can't lose a verification email. Rate limits use Better Auth's atomic `consume` storage in Redis (Lua INCR/PEXPIRE), failing open. Turnstile guards `/sign-up/email` and is required in production. `requireWorkspace` answers non-members with 404 (not 403) so workspace IDs can't be probed; `requireRole` ranks billing < viewer < responder < member < admin < owner. Roles viewer/member/admin/owner defined with Better Auth access control, which also enforces its own endpoints (a member can't invite). Backend test files now run one at a time (`fileParallelism: false`) because they share the outbox table; about 45 s. | Keeps Better Auth's features while holding our ID, time and durability rules; tests cover the full flow, 2FA, magic links and Turnstile | Enqueue emails directly; 403 for non-members; text IDs from Better Auth |
+| D-029 | 2026-09-30 | Workspace settings (P1-T02): created by Better Auth's `afterCreateOrganization` hook through an idempotent `ensureSettings` (insert … on conflict do nothing) that emits `workspace.created` only when it inserts, in the same transaction; lazy creation on first read and a `workspace-settings` recovery sweep cover a crash between Better Auth's commit and our hook. Infra reaches the hook through a hooks object the container fills after creating modules (no global). Incident numbers come from `UPDATE workspace_settings SET incident_seq = incident_seq + 1 … RETURNING` in the caller's transaction (20 concurrent callers get 1..20). New workspaces get a 14-day trial end date and timezone UTC; PATCH `/settings` (admin+) accepts only `timezone`, validated as IANA. The key column is `workspace_id` (not `org_id`) so every tenant table uses the same name. A shared `validate()` middleware now parses body/query/params with Zod into `res.locals.input`. | One idempotent entry point instead of trusting a single hook; the row lock makes numbering race-free | Postgres sequence per workspace; create settings via our own "create workspace" endpoint |
 
 ---
 
@@ -1428,6 +1429,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | 2026-09-30 | §17, §21.1 | P0-T10 split into P0-T10a (done) and P0-T10b (blocked by Windows Application Control); proposal PC-001 | P0-T10 |
 | 2026-09-30 | §17, §20, §23 | PC-001 ✅ (defer): P0-T10b moved to new task P1-T21; D-027 (phase merge over SSH); Phase 0 retro | Phase 0 exit |
 | 2026-09-30 | §7.1 rule 6, §20, Appendix A | Better Auth emails go through the outbox; D-028; `EMAIL_TRANSPORT` accepts `console`/`memory` until Resend lands in P1-T18 | P1-T01 |
+| 2026-09-30 | §8, §20 | `workspace_settings` keyed by `workspace_id`; D-029 | P1-T02 |
 
 ### Phase 0 retro (2026-09-30, `v0.0.1`)
 

@@ -9,10 +9,15 @@ import { createWorkspacesRouter } from "./workspaces.routes.js";
 import { createWorkspacesService, type WorkspacesService } from "./workspaces.service.js";
 import { workspacesProcessors } from "./jobs/index.js";
 
-export type { WorkspaceMember, WorkspacesService } from "./workspaces.service.js";
+export type {
+  WorkspaceMember,
+  WorkspaceSettings,
+  WorkspacesService,
+} from "./workspaces.service.js";
+export { TRIAL_DAYS, systemScope } from "./workspaces.service.js";
 
 export interface WorkspacesModuleDeps {
-  infra: Pick<Infra, "db" | "clock" | "auth">;
+  infra: Pick<Infra, "db" | "clock" | "auth" | "outbox">;
 }
 
 /* Guards other modules put in front of their /api/w/:workspaceId routes. */
@@ -30,7 +35,12 @@ export const WORKSPACE_API_PREFIX = "/api/w/:workspaceId";
 
 export function createWorkspacesModule(deps: WorkspacesModuleDeps): WorkspacesModule {
   const repository = createWorkspacesRepository(deps.infra.db);
-  const service = createWorkspacesService({ repository, clock: deps.infra.clock });
+  const service = createWorkspacesService({
+    db: deps.infra.db,
+    repository,
+    outbox: deps.infra.outbox,
+    clock: deps.infra.clock,
+  });
   const guards: WorkspaceGuards = {
     session: requireSession(deps.infra.auth.getSession),
     workspace: requireWorkspace(service.resolveRole),
@@ -42,5 +52,12 @@ export function createWorkspacesModule(deps: WorkspacesModuleDeps): WorkspacesMo
     guards,
     routers: [{ path: WORKSPACE_API_PREFIX, router: createWorkspacesRouter(controller, guards) }],
     processors: workspacesProcessors,
+    recoverySweeps: [
+      /* Workspaces created by Better Auth whose settings hook never ran (crash in between). */
+      { name: "workspace-settings", run: () => service.repairMissingSettings() },
+    ],
+    hooks: {
+      onWorkspaceCreated: (workspaceId) => service.ensureSettings(workspaceId).then(() => {}),
+    },
   };
 }

@@ -49,4 +49,11 @@ export interface AppModule {
   /* BullMQ processors for this module's own queues and its `<module>-events` queue. */
   processors?: JobProcessor[];
   recoverySweeps?: RecoverySweep[];
+  /* Callbacks from infrastructure that can't depend on modules (for example Better Auth hooks). */
+  hooks?: AppHooks;
+}
+
+export interface AppHooks {
+  /* After Better Auth creates an organization (workspace). Must be idempotent. */
+  onWorkspaceCreated?: (workspaceId: string) => Promise<void>;
 }

@@ -6,5 +6,7 @@ declare module "express-serve-static-core" {
   interface Locals {
     session?: SessionContext;
     scope?: WorkspaceScope;
+    /* Parsed request parts from validate(). */
+    input?: Record<string, unknown>;
   }
 }
