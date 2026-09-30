@@ -95,6 +95,8 @@ const baseEnvSchema = z.object({
    * receivers only (CIDRs, comma-separated). Refused in production.
    */
   OUTBOUND_ALLOW_CIDRS: commaList,
+  /* Public base of heartbeat ping URLs (hb.<domain>); defaults to <BETTER_AUTH_URL>/api/hb. */
+  HEARTBEAT_BASE_URL: z.url().optional(),
   /* Slack app (PRODUCT.md §10); Slack channels are available only when the app is configured. */
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),

@@ -11,6 +11,7 @@ import { createDetectionModule } from "../modules/detection/index.js";
 import { createIncidentsModule } from "../modules/incidents/index.js";
 import { createChannelsModule } from "../modules/channels/index.js";
 import { createAlertingModule } from "../modules/alerting/index.js";
+import { createHeartbeatsModule } from "../modules/heartbeats/index.js";
 /* new-module:imports */
 
 export function createModules(infra: Infra): AppModule[] {
@@ -41,6 +42,14 @@ export function createModules(infra: Infra): AppModule[] {
       results: results.service,
       probes: probes.service,
       incidents: incidents.service,
+    }),
+  );
+  modules.push(
+    createHeartbeatsModule({
+      infra,
+      monitors: monitors.service,
+      incidents: incidents.service,
+      guards: workspaces.guards,
     }),
   );
   const channels = createChannelsModule({ infra, guards: workspaces.guards });

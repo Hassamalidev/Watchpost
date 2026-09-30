@@ -384,6 +384,9 @@ importers:
 
   packages/shared:
     dependencies:
+      cron-parser:
+        specifier: 5.10.1
+        version: 5.10.1
       ipaddr.js:
         specifier: 2.5.0
         version: 2.5.0

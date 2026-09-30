@@ -27,6 +27,8 @@ export interface OpenForMonitorInput {
   causeCode: string | null;
   failingRegions: string[];
   evidence?: Record<string, unknown>;
+  /* Who opens it: detection ("monitor", the default) or the heartbeat sweeper. */
+  source?: "monitor" | "heartbeat";
 }
 
 export interface IncidentView {
@@ -100,7 +102,13 @@ export interface IncidentsService {
   /* System: resolves the monitor's open incident, if any. */
   resolveForMonitor(
     tx: Tx,
-    input: { monitorId: string; auto: boolean; byUserId?: string },
+    input: {
+      monitorId: string;
+      auto: boolean;
+      byUserId?: string;
+      /* Resolve only an incident this source opened (manual incidents stay open). */
+      onlySource?: IncidentRow["source"];
+    },
   ): Promise<IncidentRow | undefined>;
   setFlapping(tx: Tx, incidentId: string, flapping: boolean): Promise<void>;
   findOpenForMonitor(tx: DbOrTx, monitorId: string): Promise<IncidentRow | undefined>;
@@ -267,7 +275,7 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
         id: deps.newId(),
         workspaceId: input.workspaceId,
         number,
-        source: "monitor",
+        source: input.source ?? "monitor",
         monitorId: input.monitorId,
         title: input.title,
         severity: input.severity,
@@ -293,6 +301,7 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
     async resolveForMonitor(tx, input) {
       const open = await repo.findOpenForMonitor(tx, input.monitorId, true);
       if (open === undefined) return undefined;
+      if (input.onlySource !== undefined && open.source !== input.onlySource) return undefined;
       return markResolved(tx, open, input);
     },
 

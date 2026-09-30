@@ -54,6 +54,10 @@ export interface AppModule {
   recoverySweeps?: RecoverySweep[];
   /* Repeating jobs the worker registers on start (re-registering is idempotent). */
   schedules?: ModuleSchedule[];
+  /* Periodic work on the shared `sweeps` queue; the worker dispatches by `kind`. */
+  sweeps?: ModuleSweep[];
+  /* Intervals the API process runs (for example the platform tick). Failures are logged. */
+  apiTimers?: ApiTimer[];
   /* Probe protocol routes (/api/probe/v1/*); the container mounts them behind probe auth. */
   probeRouters?: Router[];
   /* Probe authentication middleware (raw body + HMAC); provided by the probes module only. */
@@ -70,6 +74,19 @@ export interface ModuleSchedule {
   id: string;
   everyMs: number;
   data: Record<string, unknown>;
+}
+
+export interface ModuleSweep {
+  /* Unique across modules; also the scheduler ID (`sweep-<kind>`). */
+  kind: string;
+  everyMs: number;
+  run(logger: Logger): Promise<void>;
+}
+
+export interface ApiTimer {
+  name: string;
+  everyMs: number;
+  run(): Promise<void>;
 }
 
 export interface AppHooks {

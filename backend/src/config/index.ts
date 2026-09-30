@@ -19,6 +19,7 @@ export interface AppConfig {
   encryption: { activeKeyId: string; keys: Record<string, Buffer> };
   auth: { secret: string; baseURL: string; turnstileSecretKey: string | undefined };
   email: { transport: "console" | "memory"; from: string };
+  heartbeat: { baseUrl: string };
   /* Outbound requests to user URLs (webhooks, chat APIs) go through the SSRF guard (§12). */
   outbound: { allowCidrs: string[] };
   slack: { clientId: string; clientSecret: string; signingSecret: string | undefined } | undefined;
@@ -52,6 +53,9 @@ export function toAppConfig(env: Env): AppConfig {
     email: {
       transport: env.EMAIL_TRANSPORT === "memory" ? "memory" : "console",
       from: env.EMAIL_FROM,
+    },
+    heartbeat: {
+      baseUrl: (env.HEARTBEAT_BASE_URL ?? `${env.BETTER_AUTH_URL}/api/hb`).replace(/\/+$/, ""),
     },
     outbound: { allowCidrs: env.OUTBOUND_ALLOW_CIDRS },
     slack:

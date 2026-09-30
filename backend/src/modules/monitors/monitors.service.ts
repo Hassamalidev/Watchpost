@@ -4,6 +4,7 @@
  */
 import {
   createMonitorSchema,
+  cronProblem,
   monitorConfigSchema,
   monitorSettingsSchema,
   type CreateMonitorInput,
@@ -329,6 +330,7 @@ export function createMonitorsService(deps: MonitorsServiceDeps): MonitorsServic
       if (!parsed.success)
         throw new ValidationError("The monitor is invalid.", issuesOf(parsed.error));
       const { settings, config } = parsed.data;
+      checkSchedule(config);
       const id = deps.newId();
 
       return db.transaction(async (tx) => {
@@ -407,6 +409,7 @@ export function createMonitorsService(deps: MonitorsServiceDeps): MonitorsServic
               issuesOf(configResult.error, "config"),
             );
           }
+          checkSchedule(configResult.data);
           if (configResult.data.type !== row.type) {
             throw new ValidationError(
               "A monitor's type can't change; create a new monitor instead.",
@@ -604,6 +607,17 @@ export function createMonitorsService(deps: MonitorsServiceDeps): MonitorsServic
     };
   }
   return service;
+}
+
+/* Cron schedules need a real parse (the schema only checks the five-field shape). */
+function checkSchedule(config: MonitorConfig): void {
+  if (config.type !== "heartbeat" || config.schedule.kind !== "cron") return;
+  const problem = cronProblem(config.schedule.expression, config.schedule.timezone);
+  if (problem !== null) {
+    throw new ValidationError("The heartbeat schedule is invalid.", [
+      { path: "config.schedule", message: problem },
+    ]);
+  }
 }
 
 function issuesOf(

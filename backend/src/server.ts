@@ -30,6 +30,19 @@ const app = createApp({
   rawBodyRouters: container.rawBodyRouters,
 });
 
+/* Module timers (for example the platform tick); a failed run is logged and retried next time. */
+const timers = container.modules
+  .flatMap((m) => m.apiTimers ?? [])
+  .map((timer) => {
+    const handle = setInterval(() => {
+      timer
+        .run()
+        .catch((err: unknown) => logger.warn({ err, timer: timer.name }, "api timer failed"));
+    }, timer.everyMs);
+    handle.unref();
+    return handle;
+  });
+
 const server = app.listen(config.api.port, () => {
   logger.info(
     { port: config.api.port, modules: container.modules.map((m) => m.name) },
@@ -42,6 +55,7 @@ async function shutdown(signal: string): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
   logger.info({ signal }, "shutting down");
+  for (const handle of timers) clearInterval(handle);
   const force = setTimeout(() => server.closeAllConnections(), SHUTDOWN_GRACE_MS);
   await new Promise<void>((resolve) => server.close(() => resolve()));
   clearTimeout(force);
