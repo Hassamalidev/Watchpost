@@ -76,17 +76,17 @@ See PRODUCT.md §7.3 for the full tree and module template.
 
 ## 6. Local infrastructure (`docker-compose.yml`)
 
-| Service     | Image                                                               | Port                                     |
-| ----------- | ------------------------------------------------------------------- | ---------------------------------------- |
-| postgres    | `postgres:17-alpine`                                                | 5432                                     |
-| redis       | `redis:7-alpine` (AOF on, `maxmemory-policy noeviction` for BullMQ) | 6379                                     |
-| fake-target | built from `tools/fake-target`                                      | 4100 (HTTP), 4101 (TLS), 4102 (TCP echo) |
+| Service     | Image                                                               | Port                                                                         |
+| ----------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| postgres    | `postgres:17-alpine`                                                | host 5433 → 5432 (`POSTGRES_HOST_PORT`; avoids a locally installed Postgres) |
+| redis       | `redis:7-alpine` (AOF on, `maxmemory-policy noeviction` for BullMQ) | 6379 (`REDIS_HOST_PORT`)                                                     |
+| fake-target | built from `tools/fake-target`                                      | 4100 (HTTP), 4101 (TLS), 4102 (TCP echo)                                     |
 
 Both data services have healthchecks. `pnpm dev` runs api (4000), worker and web (3000) on the host.
 
 ## 7. Environment variables
 
-Base variables are in `.env.example`; product additions are in PRODUCT.md Appendix A. Only `.env.example` is committed. Key names: `NODE_ENV, LOG_LEVEL, API_PORT, WEB_ORIGIN, DATABASE_URL, REDIS_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL, TOKEN_ENC_KEY, TOKEN_ENC_KEY_ID, REVALIDATE_SECRET, RESEND_API_KEY, EMAIL_FROM, R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, PADDLE_ENV, PADDLE_API_KEY, PADDLE_WEBHOOK_SECRET, NEXT_PUBLIC_PADDLE_CLIENT_TOKEN, ANTHROPIC_API_KEY, SENTRY_DSN`. Where to get Paddle and R2 keys: ENV_SETUP.md.
+Base variables are in `.env.example`; product additions are in PRODUCT.md Appendix A. Only `.env.example` is committed. Key names: `NODE_ENV, LOG_LEVEL, API_PORT, TRUST_PROXY, WEB_ORIGIN, DATABASE_URL, REDIS_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL, TOKEN_ENC_KEY, TOKEN_ENC_KEY_ID, REVALIDATE_SECRET, RESEND_API_KEY, EMAIL_FROM, R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, PADDLE_ENV, PADDLE_API_KEY, PADDLE_WEBHOOK_SECRET, NEXT_PUBLIC_PADDLE_CLIENT_TOKEN, ANTHROPIC_API_KEY, SENTRY_DSN`. Where to get Paddle and R2 keys: ENV_SETUP.md.
 
 ## 8. Frontend
 

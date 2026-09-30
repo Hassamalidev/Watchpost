@@ -1,7 +1,7 @@
 # Watchpost — Product Spec and Build Plan (`PRODUCT.md`)
 
 > **Working name:** Watchpost. Replace it and `<domain>` everywhere once the final name and domain are chosen (Open decision #1).
-> **Status:** In progress · **Current phase:** 0 · **Next task:** `P0-T04` · **Last updated:** 2026-09-30 (P0-T03 done)
+> **Status:** In progress · **Current phase:** 0 · **Next task:** `P0-T05` · **Last updated:** 2026-09-30 (P0-T04 done)
 > The build agent keeps this status block current.
 
 **Companion files**
@@ -663,7 +663,7 @@ P2: `eu-central` (Frankfurt), `us-east` (New York/Virginia), `ap-southeast` (Sin
 | `/api/integrations/:provider/*` | Slack, Telegram, Twilio, Teams | OAuth callbacks and interactions |
 | `/api/internal/*` | Caddy, ops | Docker network only |
 
-**Conventions:** JSON with camelCase fields; timestamps in ISO-8601 UTC; IDs as UUIDv7 strings · cursor pagination `?limit=&cursor=` → `{ data, nextCursor }` · errors as RFC 9457 problem details with a stable `code` (`validation_failed`, `not_found`, `forbidden`, `quota_exceeded`, `conflict`, `rate_limited`, `provider_error`) · public API writes accept an `Idempotency-Key` header (kept 24 h) · request and response schemas live in `@app/shared/schemas/api`, and the web client parses responses with the same schemas in development.
+**Conventions:** JSON with camelCase fields; timestamps in ISO-8601 UTC; IDs as UUIDv7 strings · cursor pagination `?limit=&cursor=` → `{ data, nextCursor }` · errors as RFC 9457 problem details with a stable `code` (`validation_failed`, `unauthorized`, `forbidden`, `not_found`, `conflict`, `payload_too_large`, `quota_exceeded`, `rate_limited`, `provider_error`, `service_unavailable`, `internal_error`; the list lives in `@app/shared` `API_ERROR_CODES`) · public API writes accept an `Idempotency-Key` header (kept 24 h) · request and response schemas live in `@app/shared/schemas/api`, and the web client parses responses with the same schemas in development.
 
 ### 7.10 Frontend architecture
 ```
@@ -1118,7 +1118,7 @@ Targets assume a start on Monday 2026-10-05 with one developer and a coding agen
   *AC:* all four pipelines green; a `//` comment fails lint.
 - [x] **P0-T03 Local infra.** `docker-compose.yml` per STACK.md §6 plus `tools/fake-target` (§15).
   *AC:* healthy Postgres and Redis; fake-target endpoints respond.
-- [ ] **P0-T04 API skeleton.** Express 5 app factory, pino-http, helmet, CORS, rate limit with Redis store, error handler, Zod env validation, `/api/health` and `/api/ready`.
+- [x] **P0-T04 API skeleton.** Express 5 app factory, pino-http, helmet, CORS, rate limit with Redis store, error handler, Zod env validation, `/api/health` and `/api/ready`.
   *AC:* bad env fails boot with a clear message; `/api/ready` reflects DB and Redis state (tested).
 - [ ] **P0-T05 Worker skeleton.** Queue registry (§7.5), shared job defaults, recovery-sweep hook, graceful SIGTERM.
   *AC:* a test job runs; SIGTERM waits for the active job.
@@ -1357,6 +1357,8 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | D-016 | 2026-09-30 | pnpm via Corepack, pinned in `packageManager` (pnpm 12.8.1); Node 24 | Reproducible installs across machines and CI | Global npm install of pnpm |
 | D-017 | 2026-09-30 | `//` ban is a local ESLint plugin (`tools/eslint-plugin`) that still allows `///` triple-slash directives; `@app/shared` builds to `dist/` and Turbo builds it before typecheck and test | Next.js generates `///` references; Node can't load `.ts` from a workspace dependency at runtime | Source-only internal package with a bundler |
 | D-018 | 2026-09-30 | pnpm 12 fails installs on unapproved dependency build scripts; allow-list them in `pnpm-workspace.yaml` (`allowBuilds`), starting with `esbuild` | Keeps installs reproducible and reviewable; each new entry is a deliberate choice | Disable the check globally |
+| D-019 | 2026-09-30 | Docker Postgres is published on host port 5433 by default (`POSTGRES_HOST_PORT`) | The dev machine runs a Windows Postgres service on 5432 that silently answered `localhost` connections; 5433 avoids this on any machine | Stop the local service; keep 5432 |
+| D-020 | 2026-09-30 | API skeleton: health endpoints sit outside rate limits; rate limits fail open when Redis is down (`passOnStoreError`); the Redis client queues commands while connecting but fails after one retry; `/api/ready` runs pluggable checks with a 2 s timeout each; `TRUST_PROXY` env var for Express behind Caddy | Matches §13 degraded modes; per-IP limits need the real client IP behind Caddy | Fail closed on Redis errors |
 
 ---
 
@@ -1399,6 +1401,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | 2026-09-30 | Companion files, §20 | Spec saved as `PRODUCT.md`; STACK.md drafted from this spec (needs owner review); ENV_SETUP.md placeholder; D-014 to D-016 | P0-T01; original STACK.md and setup guide were not in the repo |
 | 2026-09-30 | §20 | D-017 (lint rule and shared build) | P0-T02 |
 | 2026-09-30 | §15, §20 | fake-target extra routes (`/switch` control, gzip bomb, redirect loop, invalid JSON); D-018 | P0-T03 |
+| 2026-09-30 | §7.9, §20, STACK.md §6–7 | Error-code list completed (`unauthorized`, `payload_too_large`, `service_unavailable`, `internal_error`); D-019, D-020; Postgres host port 5433; `TRUST_PROXY` | P0-T04 |
 
 *Phase retro template (added at each phase exit):* shipped · slipped and why · what we learned · key metrics (including agent tokens and time per task, with and without the code index) · proposals added to §21.1.
 
