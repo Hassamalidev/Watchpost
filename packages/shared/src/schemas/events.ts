@@ -5,10 +5,11 @@
  */
 import { z } from "zod";
 import { MONITOR_STATUSES } from "../constants/product.js";
+import { SEVERITIES } from "../constants/regions.js";
 
 const id = z.uuid();
 const timestamp = z.iso.datetime({ offset: true });
-const severity = z.enum(["critical", "high", "low"]);
+const severity = z.enum(SEVERITIES);
 
 export const EVENT_SCHEMAS = {
   "workspace.created": { version: 1, schema: z.object({ workspaceId: id }) },

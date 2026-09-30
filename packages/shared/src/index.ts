@@ -1,6 +1,21 @@
 /* Public entry for @app/shared: Zod schemas, types, constants and pure functions only (PRODUCT.md §7.1 rule 10). */
 export { PRODUCT_NAME, MONITOR_STATUSES, type MonitorStatus } from "./constants/product.js";
 export { API_ERROR_CODES, type ApiErrorCode } from "./constants/api-errors.js";
+export {
+  LAUNCH_REGIONS,
+  REGIONS,
+  SEVERITIES,
+  type Region,
+  type Severity,
+} from "./constants/regions.js";
+export {
+  CHECK_ERRORS,
+  CHECK_ERROR_CODES,
+  checkErrorImpact,
+  countsAsCustomerFailure,
+  type CheckErrorCode,
+  type CheckErrorImpact,
+} from "./constants/check-errors.js";
 export { monitorStatusSchema } from "./schemas/monitor-status.js";
 export { problemSchema, type Problem } from "./schemas/problem.js";
 export {
@@ -10,3 +25,63 @@ export {
   type EventPayload,
   type EventType,
 } from "./schemas/events.js";
+export {
+  DNS_RECORD_TYPES,
+  JSON_QUERY_OPERATORS,
+  MONITOR_TYPES,
+  PROBE_MONITOR_TYPES,
+  createMonitorSchema,
+  dnsConfigSchema,
+  domainConfigSchema,
+  effectiveRecoverySuccesses,
+  heartbeatConfigSchema,
+  heartbeatScheduleSchema,
+  httpConfigSchema,
+  isAcceptedStatus,
+  jsonQueryConfigSchema,
+  keywordConfigSchema,
+  monitorConfigSchema,
+  monitorSettingsSchema,
+  pingConfigSchema,
+  sslConfigSchema,
+  tcpConfigSchema,
+  websocketConfigSchema,
+  type CreateMonitorInput,
+  type MonitorConfig,
+  type MonitorConfigInput,
+  type MonitorSettings,
+  type MonitorType,
+} from "./schemas/monitors.js";
+export {
+  checkResultSchema,
+  timingsSchema,
+  tlsInfoSchema,
+  type CheckResult,
+} from "./schemas/results.js";
+export {
+  PROBE_API_PREFIX,
+  PROBE_CAPABILITIES,
+  PROBE_HEADERS,
+  PROBE_MAX_BATCH_RESULTS,
+  PROBE_MAX_CLOCK_SKEW_SECONDS,
+  assignedMonitorSchema,
+  assignmentsQuerySchema,
+  assignmentsResponseSchema,
+  helloRequestSchema,
+  helloResponseSchema,
+  probeHeartbeatSchema,
+  probeSigningString,
+  probeTaskSchema,
+  resultsAcceptedSchema,
+  resultsBatchSchema,
+  tasksQuerySchema,
+  tasksResponseSchema,
+  type AssignedMonitor,
+  type AssignmentsResponse,
+  type HelloRequest,
+  type HelloResponse,
+  type ProbeHeartbeat,
+  type ProbeTask,
+  type ResultsBatch,
+} from "./schemas/probe-protocol.js";
+export { JSON_SCHEMA_EXPORTS } from "./schemas/json-schema-exports.js";

@@ -1,0 +1,18 @@
+{
+  "$id": "urn:watchpost:schema:event.billing.plan_changed.v1",
+  "title": "event.billing.plan_changed.v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "from": {
+      "type": "string"
+    },
+    "to": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "from",
+    "to"
+  ]
+}

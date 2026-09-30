@@ -1,0 +1,65 @@
+{
+  "$id": "urn:watchpost:schema:problem",
+  "title": "problem",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "status": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "code": {
+      "type": "string",
+      "enum": [
+        "validation_failed",
+        "unauthorized",
+        "forbidden",
+        "not_found",
+        "conflict",
+        "payload_too_large",
+        "quota_exceeded",
+        "rate_limited",
+        "provider_error",
+        "service_unavailable",
+        "internal_error"
+      ]
+    },
+    "detail": {
+      "type": "string"
+    },
+    "requestId": {
+      "type": "string"
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "message"
+        ]
+      }
+    }
+  },
+  "required": [
+    "type",
+    "title",
+    "status",
+    "code"
+  ]
+}

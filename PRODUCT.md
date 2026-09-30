@@ -1,7 +1,7 @@
 # Watchpost — Product Spec and Build Plan (`PRODUCT.md`)
 
 > **Working name:** Watchpost. Replace it and `<domain>` everywhere once the final name and domain are chosen (Open decision #1).
-> **Status:** In progress · **Current phase:** 1 · **Next task:** `P1-T03` · **Last updated:** 2026-09-30 (P1-T02 done; owner action: branch ruleset in `docs/ci.md`)
+> **Status:** In progress · **Current phase:** 1 · **Next task:** `P1-T04` · **Last updated:** 2026-09-30 (P1-T03 done; owner action: branch ruleset in `docs/ci.md`)
 > The build agent keeps this status block current.
 
 **Companion files**
@@ -1146,7 +1146,7 @@ Targets assume a start on Monday 2026-10-05 with one developer and a coding agen
   *AC:* signup → verify → create workspace → invite → accept works end to end; role checks tested.
 - [x] **P1-T02 Workspace settings.** Timezone, incident number sequence, default alert policy, trial flag.
   *AC:* new workspaces get defaults; only admins can edit.
-- [ ] **P1-T03 Shared schemas.** Zod discriminated union for monitor configs (P1 types in §6.1), results, probe protocol, events, error codes (Appendix B).
+- [x] **P1-T03 Shared schemas.** Zod discriminated union for monitor configs (P1 types in §6.1), results, probe protocol, events, error codes (Appendix B).
   *AC:* exported from `@app/shared`; JSON Schema generated for docs.
 - [ ] **P1-T04 Monitors module.** CRUD, tags, groups, pause/resume, parent dependency, Free limits from `config/plans.ts`, `config_seq` and `monitor_config_changes`.
   *AC:* CRUD tested including limits and cross-workspace denial; every change bumps the sequence.
@@ -1376,6 +1376,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | D-027 | 2026-09-30 | Phase merges happen over SSH: once CI is green on the phase branch head, `git merge --no-ff` into `main` (every commit kept, no squash), push `main`, tag, push the tag. No PR, because the agent has no GitHub token and must not create one (§2.3). Owner-approved. | Same result as "PR, green CI, merge without squashing" with the tools available | Owner opens each PR by hand; skip merging until later |
 | D-028 | 2026-09-30 | Auth (P1-T01): Better Auth 1.7 mounted at `/api/auth/*` before the JSON parser; its IDs are UUIDv7 (`generateId: newId`) in `uuid` columns and its timestamps are `timestamptz`, applied by `scripts/auth-schema-postprocess.ts` after `pnpm auth:generate` so regeneration keeps our conventions. Auth emails go through the outbox (`email.requested`, own transaction) instead of direct enqueue, so a crash can't lose a verification email. Rate limits use Better Auth's atomic `consume` storage in Redis (Lua INCR/PEXPIRE), failing open. Turnstile guards `/sign-up/email` and is required in production. `requireWorkspace` answers non-members with 404 (not 403) so workspace IDs can't be probed; `requireRole` ranks billing < viewer < responder < member < admin < owner. Roles viewer/member/admin/owner defined with Better Auth access control, which also enforces its own endpoints (a member can't invite). Backend test files now run one at a time (`fileParallelism: false`) because they share the outbox table; about 45 s. | Keeps Better Auth's features while holding our ID, time and durability rules; tests cover the full flow, 2FA, magic links and Turnstile | Enqueue emails directly; 403 for non-members; text IDs from Better Auth |
 | D-029 | 2026-09-30 | Workspace settings (P1-T02): created by Better Auth's `afterCreateOrganization` hook through an idempotent `ensureSettings` (insert … on conflict do nothing) that emits `workspace.created` only when it inserts, in the same transaction; lazy creation on first read and a `workspace-settings` recovery sweep cover a crash between Better Auth's commit and our hook. Infra reaches the hook through a hooks object the container fills after creating modules (no global). Incident numbers come from `UPDATE workspace_settings SET incident_seq = incident_seq + 1 … RETURNING` in the caller's transaction (20 concurrent callers get 1..20). New workspaces get a 14-day trial end date and timezone UTC; PATCH `/settings` (admin+) accepts only `timezone`, validated as IANA. The key column is `workspace_id` (not `org_id`) so every tenant table uses the same name. A shared `validate()` middleware now parses body/query/params with Zod into `res.locals.input`. | One idempotent entry point instead of trusting a single hook; the row lock makes numbering race-free | Postgres sequence per workspace; create settings via our own "create workspace" endpoint |
+| D-030 | 2026-09-30 | Shared schemas (P1-T03): `monitorConfigSchema` is a Zod discriminated union on `type` for the 10 Phase 1 types (http, keyword, json_query, tcp, ping, dns, websocket, ssl, domain, heartbeat); keyword and JSON query extend the HTTP request shape. Options every monitor has live separately in `monitorSettingsSchema` (defaults: 300 s interval, 10 s timeout, eu-central + us-east, confirm from 2 regions); plan limits are the API's job. Accepted status codes are `"200"`/`"200-299"` strings. The Appendix B taxonomy carries an `impact` (failure, degraded, config, ours) so detection can ignore probe faults by code. The probe protocol (hello, assignments delta sync with a global cursor, result batches ≤ 500, tasks, heartbeat) and the signing string live in `@app/shared` so the API and probe can't drift. JSON Schema is generated with Zod 4's `z.toJSONSchema` (input shape) into `docs/schemas/`; a test fails when the files are stale; `$id`s are `urn:watchpost:schema:*` until the domain is chosen. | One source of truth for the API, the probe and docs | Separate per-type tables; hand-written JSON Schema |
 
 ---
 
@@ -1430,6 +1431,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | 2026-09-30 | §17, §20, §23 | PC-001 ✅ (defer): P0-T10b moved to new task P1-T21; D-027 (phase merge over SSH); Phase 0 retro | Phase 0 exit |
 | 2026-09-30 | §7.1 rule 6, §20, Appendix A | Better Auth emails go through the outbox; D-028; `EMAIL_TRANSPORT` accepts `console`/`memory` until Resend lands in P1-T18 | P1-T01 |
 | 2026-09-30 | §8, §20 | `workspace_settings` keyed by `workspace_id`; D-029 | P1-T02 |
+| 2026-09-30 | §20 | D-030 (shared schemas, JSON Schema in `docs/schemas/`) | P1-T03 |
 
 ### Phase 0 retro (2026-09-30, `v0.0.1`)
 
