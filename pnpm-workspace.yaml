@@ -1,0 +1,6 @@
+packages:
+  - "packages/*"
+  - "backend"
+  - "backend/web"
+  - "probe"
+  - "tools/*"
