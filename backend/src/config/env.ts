@@ -49,7 +49,7 @@ const previousKeys = z
     return entries;
   });
 
-export const envSchema = z.object({
+const baseEnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   LOG_LEVEL: z.enum(LOG_LEVELS).default("info"),
   API_PORT: z.coerce.number().int().min(1).max(65_535).default(4000),
@@ -72,6 +72,31 @@ export const envSchema = z.object({
         .map((q) => q.trim())
         .filter((q) => q !== ""),
     ),
+  /* Better Auth: signing secret and the API's public base URL (links in emails point here). */
+  BETTER_AUTH_SECRET: z.string().min(32, "must be at least 32 characters"),
+  BETTER_AUTH_URL: z.url(),
+  /* Cloudflare Turnstile on sign-up (PRODUCT.md §12); required in production. */
+  TURNSTILE_SECRET_KEY: z.string().optional(),
+  /* Where transactional email goes. "resend" arrives with the templates in P1-T18. */
+  EMAIL_TRANSPORT: z.enum(["console", "memory", "resend"]).default("console"),
+  EMAIL_FROM: z.string().default("Watchpost <alerts@localhost>"),
+});
+
+export const envSchema = baseEnvSchema.superRefine((env, ctx) => {
+  if (env.NODE_ENV === "production" && env.TURNSTILE_SECRET_KEY === undefined) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["TURNSTILE_SECRET_KEY"],
+      message: "is required in production (Turnstile protects sign-up)",
+    });
+  }
+  if (env.EMAIL_TRANSPORT === "resend") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["EMAIL_TRANSPORT"],
+      message: 'the "resend" transport arrives in P1-T18; use "console" until then',
+    });
+  }
 });
 
 export type Env = z.infer<typeof envSchema>;

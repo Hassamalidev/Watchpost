@@ -10,7 +10,35 @@ const valid = {
   DATABASE_URL: "postgres://u:p@localhost:5432/db",
   REDIS_URL: "redis://localhost:6379",
   TOKEN_ENC_KEY: KEY_A,
+  BETTER_AUTH_SECRET: "s".repeat(32),
+  BETTER_AUTH_URL: "http://localhost:4000",
 };
+
+describe("auth and email settings", () => {
+  it("requires a long auth secret and a base URL", () => {
+    expect(() => parseEnv({ ...valid, BETTER_AUTH_SECRET: "short" })).toThrow(
+      /BETTER_AUTH_SECRET: must be at least 32 characters/,
+    );
+    expect(() => parseEnv({ ...valid, BETTER_AUTH_URL: undefined })).toThrow(
+      /BETTER_AUTH_URL: is required/,
+    );
+  });
+
+  it("requires Turnstile in production only", () => {
+    expect(() => parseEnv({ ...valid, NODE_ENV: "production" })).toThrow(
+      /TURNSTILE_SECRET_KEY: is required in production/,
+    );
+    expect(parseEnv({ ...valid, NODE_ENV: "development" }).TURNSTILE_SECRET_KEY).toBeUndefined();
+    expect(() =>
+      parseEnv({ ...valid, NODE_ENV: "production", TURNSTILE_SECRET_KEY: "0x4AAA" }),
+    ).not.toThrow();
+  });
+
+  it("defaults email to the console transport and rejects resend until P1-T18", () => {
+    expect(toAppConfig(parseEnv(valid)).email.transport).toBe("console");
+    expect(() => parseEnv({ ...valid, EMAIL_TRANSPORT: "resend" })).toThrow(/P1-T18/);
+  });
+});
 
 describe("encryption keys", () => {
   it("requires a 32-byte base64 key", () => {

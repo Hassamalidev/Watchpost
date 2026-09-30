@@ -17,6 +17,8 @@ export interface AppConfig {
   workerQueues: string[] | undefined;
   /* Keys for infra/crypto: the active key plus retired keys still needed to decrypt. */
   encryption: { activeKeyId: string; keys: Record<string, Buffer> };
+  auth: { secret: string; baseURL: string; turnstileSecretKey: string | undefined };
+  email: { transport: "console" | "memory"; from: string };
 }
 
 function encryptionKeys(env: Env): AppConfig["encryption"] {
@@ -37,6 +39,16 @@ export function toAppConfig(env: Env): AppConfig {
     redisUrl: env.REDIS_URL,
     workerQueues: env.WORKER_QUEUES?.length ? env.WORKER_QUEUES : undefined,
     encryption: encryptionKeys(env),
+    auth: {
+      secret: env.BETTER_AUTH_SECRET,
+      baseURL: env.BETTER_AUTH_URL,
+      turnstileSecretKey: env.TURNSTILE_SECRET_KEY,
+    },
+    /* "resend" is rejected by the schema until P1-T18. */
+    email: {
+      transport: env.EMAIL_TRANSPORT === "memory" ? "memory" : "console",
+      from: env.EMAIL_FROM,
+    },
   };
 }
 

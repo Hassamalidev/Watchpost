@@ -7,6 +7,11 @@ import { ConfigError, loadConfig, type AppConfig } from "./config/index.js";
 import { createContainer } from "./composition/container.js";
 import { subscribersOf } from "./composition/architecture.js";
 import { createOutboxRelay } from "./infra/outbox/index.js";
+import {
+  createConsoleTransport,
+  createEmailProcessor,
+  createMemoryTransport,
+} from "./infra/email/index.js";
 import { isEventType } from "@app/shared";
 import {
   createWorkerRuntime,
@@ -68,10 +73,21 @@ const platformSweeps = defineProcessor({
   },
 });
 
+/* email.requested → rendered and sent (console in development; Resend arrives in P1-T18). */
+const emails = createEmailProcessor({
+  db: infra.db,
+  transport:
+    config.email.transport === "memory"
+      ? createMemoryTransport()
+      : createConsoleTransport(logger.child({ component: "email" })),
+  from: config.email.from,
+  logger,
+});
+
 const runtime = createWorkerRuntime({
   connection: infra.queueConnection,
   logger,
-  processors: [platformSweeps, ...modules.flatMap((m) => m.processors ?? [])],
+  processors: [platformSweeps, emails, ...modules.flatMap((m) => m.processors ?? [])],
   recoverySweeps: [
     /* Undispatched outbox rows are the source of every event-handler job. */
     { name: "outbox", run: () => relay.drain() },

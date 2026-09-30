@@ -3,7 +3,9 @@ import type { Router } from "express";
 import type { Redis } from "ioredis";
 import type { AppConfig } from "../config/index.js";
 import type { Clock } from "../core/clock.js";
+import type { AuthService } from "../infra/auth/index.js";
 import type { TokenCipher } from "../infra/crypto.js";
+import type { RequestEmail } from "../infra/email/index.js";
 import type { Db, DbPool } from "../infra/db/index.js";
 import type { Locks } from "../infra/locks.js";
 import type { Logger } from "../infra/logger.js";
@@ -27,6 +29,9 @@ export interface Infra {
   outbox: Outbox;
   cipher: TokenCipher;
   locks: Locks;
+  auth: AuthService;
+  /* Emits email.requested in its own transaction; the worker's `emails` queue sends it. */
+  requestEmail: RequestEmail;
 }
 
 export interface MountedRouter {

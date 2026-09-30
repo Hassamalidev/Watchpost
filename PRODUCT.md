@@ -1,7 +1,7 @@
 # Watchpost — Product Spec and Build Plan (`PRODUCT.md`)
 
 > **Working name:** Watchpost. Replace it and `<domain>` everywhere once the final name and domain are chosen (Open decision #1).
-> **Status:** In progress · **Current phase:** 1 · **Next task:** `P1-T01` · **Last updated:** 2026-09-30 (Phase 0 done, tagged `v0.0.1`; owner action: branch ruleset in `docs/ci.md`)
+> **Status:** In progress · **Current phase:** 1 · **Next task:** `P1-T02` · **Last updated:** 2026-09-30 (P1-T01 done; owner action: branch ruleset in `docs/ci.md`)
 > The build agent keeps this status block current.
 
 **Companion files**
@@ -399,7 +399,7 @@ This section is the architecture contract. Read §7.1 before writing any code. C
 3. **Modules own their tables.** Only a module's repository reads or writes its tables. Other modules use its public API in `modules/<name>/index.ts`.
 4. **Calls go down, events go up.** A module may call only the modules listed for it in §7.4. Anything that must flow the other way is an event (§7.5).
 5. **Layers inside a module:** routes → controller → service → repository. Controllers hold no business logic. Repositories hold no business logic and know nothing about HTTP. Job processors and event handlers call services.
-6. **Cross-module side effects go through the outbox.** In this document, "emit X" always means "insert an outbox row for X in the current database transaction"; the relay enqueues handlers after commit. A module may enqueue its *own* follow-up jobs directly only when the work is already recorded in Postgres (a pending delivery row, a due timestamp), so the sweep can rebuild it. Provider callbacks with response deadlines (Slack, Telegram, Twilio) apply the state change synchronously in one transaction and emit events; the heavy work runs from those events. Better Auth callbacks run outside our transactions, so they enqueue their email jobs directly with deterministic IDs.
+6. **Cross-module side effects go through the outbox.** In this document, "emit X" always means "insert an outbox row for X in the current database transaction"; the relay enqueues handlers after commit. A module may enqueue its *own* follow-up jobs directly only when the work is already recorded in Postgres (a pending delivery row, a due timestamp), so the sweep can rebuild it. Provider callbacks with response deadlines (Slack, Telegram, Twilio) apply the state change synchronously in one transaction and emit events; the heavy work runs from those events. Better Auth callbacks run outside our transactions, so they emit `email.requested` in a transaction of their own (`infra/email` `createEmailRequester`); the outbox keeps the email durable (D-028).
 7. **Validate at every edge** with Zod: HTTP input, webhook payloads (after the signature check), probe payloads, job data, event payloads, env. Inside the core, types are trusted.
 8. **Tenancy is explicit.** Every service method that touches tenant data takes a `WorkspaceScope` first; repositories refuse to run without one.
 9. **Everything is idempotent.** Deterministic job IDs, unique constraints on external event IDs, `ON CONFLICT DO NOTHING` for results. Any handler can run twice without harm.
@@ -1142,7 +1142,7 @@ Targets assume a start on Monday 2026-10-05 with one developer and a coding agen
 **Exit:** CI green, `pnpm dev` runs api, worker and web; merge to `main`; tag `v0.0.1`.
 
 ### Phase 1 — Core monitoring (`phase/1-core-monitoring`)
-- [ ] **P1-T01 Auth and workspaces.** Better Auth (email/password, magic link, email verification) with the Drizzle adapter; organization plugin as workspaces (members, invitations, roles owner/admin/member/viewer); TOTP 2FA; Turnstile on signup; `requireWorkspace` and role middleware.
+- [x] **P1-T01 Auth and workspaces.** Better Auth (email/password, magic link, email verification) with the Drizzle adapter; organization plugin as workspaces (members, invitations, roles owner/admin/member/viewer); TOTP 2FA; Turnstile on signup; `requireWorkspace` and role middleware.
   *AC:* signup → verify → create workspace → invite → accept works end to end; role checks tested.
 - [ ] **P1-T02 Workspace settings.** Timezone, incident number sequence, default alert policy, trial flag.
   *AC:* new workspaces get defaults; only admins can edit.
@@ -1374,6 +1374,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | D-025 | 2026-09-30 | Infra helpers: encrypted values are `v1.<keyId>.<iv>.<ciphertext>.<tag>` (AES-256-GCM, 12-byte IV, optional associated data binding a value to its row, e.g. `channel:<id>`); rotation via `TOKEN_ENC_PREVIOUS_KEYS` + `rotate()`/`needsRotation()`. Redis locks are SET NX PX with an owner token and Lua compare-and-delete/extend; they only prevent duplicate work, never guarantee correctness. `WorkspaceScope` is a frozen, branded object created by `createWorkspaceScope`; repositories use `createTenantRepository`/`tenantWhere`/`withWorkspace`, which take `workspaceId` only from the scope (caller-supplied values are overwritten, including on update). Drizzle ORM 0.45 added now (`infra/db/`). | Scope enforcement is structural, not a convention; AAD stops ciphertext being copied between rows | Postgres row-level security (revisit in P9); per-module hand-written filters |
 | D-026 | 2026-09-30 | Architecture guardrails: module edges live in one JSON file read by both `architecture.ts` and `.dependency-cruiser.cjs`; `pnpm arch` (`scripts/arch-check.mjs`) cruises backend/shared/probe and the web app separately, each with its own tsconfig, via the dependency-cruiser API (the CLI's `--ts-config` was overridden by the config, and relative `extends` needed an absolute tsconfig path). Outbox timestamps use the database clock (`now()`), so lag and retention don't depend on app-server clocks. The relay coalesces wake-ups and records `attempts`/`last_error` on failed dispatches. Architecture tests run the same rules against scratch fixtures under `backend/.arch-selftest/` (gitignored) and generate a module on a scratch copy to run tsc, ESLint and the rules on it. Generated modules mount at `/api/<name>` until workspace routing lands in P1-T01. | One source of truth for the graph; the AC is proven by tests, not by breaking `main` | Separate `.dependency-cruiser.json` edges; a throwaway CI branch per rule |
 | D-027 | 2026-09-30 | Phase merges happen over SSH: once CI is green on the phase branch head, `git merge --no-ff` into `main` (every commit kept, no squash), push `main`, tag, push the tag. No PR, because the agent has no GitHub token and must not create one (§2.3). Owner-approved. | Same result as "PR, green CI, merge without squashing" with the tools available | Owner opens each PR by hand; skip merging until later |
+| D-028 | 2026-09-30 | Auth (P1-T01): Better Auth 1.7 mounted at `/api/auth/*` before the JSON parser; its IDs are UUIDv7 (`generateId: newId`) in `uuid` columns and its timestamps are `timestamptz`, applied by `scripts/auth-schema-postprocess.ts` after `pnpm auth:generate` so regeneration keeps our conventions. Auth emails go through the outbox (`email.requested`, own transaction) instead of direct enqueue, so a crash can't lose a verification email. Rate limits use Better Auth's atomic `consume` storage in Redis (Lua INCR/PEXPIRE), failing open. Turnstile guards `/sign-up/email` and is required in production. `requireWorkspace` answers non-members with 404 (not 403) so workspace IDs can't be probed; `requireRole` ranks billing < viewer < responder < member < admin < owner. Roles viewer/member/admin/owner defined with Better Auth access control, which also enforces its own endpoints (a member can't invite). Backend test files now run one at a time (`fileParallelism: false`) because they share the outbox table; about 45 s. | Keeps Better Auth's features while holding our ID, time and durability rules; tests cover the full flow, 2FA, magic links and Turnstile | Enqueue emails directly; 403 for non-members; text IDs from Better Auth |
 
 ---
 
@@ -1426,6 +1427,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | 2026-09-30 | §7.5, §20 | Pointers to where the architecture contract lives in code; `evt.{eventId}.{handler}` job IDs; D-026 | P0-T09 |
 | 2026-09-30 | §17, §21.1 | P0-T10 split into P0-T10a (done) and P0-T10b (blocked by Windows Application Control); proposal PC-001 | P0-T10 |
 | 2026-09-30 | §17, §20, §23 | PC-001 ✅ (defer): P0-T10b moved to new task P1-T21; D-027 (phase merge over SSH); Phase 0 retro | Phase 0 exit |
+| 2026-09-30 | §7.1 rule 6, §20, Appendix A | Better Auth emails go through the outbox; D-028; `EMAIL_TRANSPORT` accepts `console`/`memory` until Resend lands in P1-T18 | P1-T01 |
 
 ### Phase 0 retro (2026-09-30, `v0.0.1`)
 
@@ -1466,7 +1468,8 @@ PROBE_REGION=
 PROBE_CONCURRENCY=200
 
 # Channels
-EMAIL_TRANSPORT=resend
+EMAIL_TRANSPORT=resend          # console or memory until P1-T18 adds Resend
+EMAIL_FROM=Watchpost <alerts@mail.example.com>
 SLACK_CLIENT_ID=
 SLACK_CLIENT_SECRET=
 SLACK_SIGNING_SECRET=

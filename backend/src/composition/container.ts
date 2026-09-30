@@ -4,7 +4,9 @@
  */
 import type { AppConfig } from "../config/index.js";
 import { systemClock, type Clock } from "../core/clock.js";
+import { createAuthService, createRedisRateLimitStorage } from "../infra/auth/index.js";
 import { createTokenCipher } from "../infra/crypto.js";
+import { createEmailRequester } from "../infra/email/index.js";
 import { createDb, createDbPool, pingDb } from "../infra/db/index.js";
 import { createLocks } from "../infra/locks.js";
 import { createLogger, type Logger } from "../infra/logger.js";
@@ -43,18 +45,38 @@ export function createInfra(
     logger.warn({ err: err.message }, "queue redis connection error"),
   );
 
+  const db = createDb(pool);
+  const outbox = createOutbox();
+  const requestEmail = createEmailRequester({ db, outbox });
+  const auth = createAuthService({
+    db,
+    baseURL: config.auth.baseURL,
+    secret: config.auth.secret,
+    webOrigin: config.webOrigin,
+    requestEmail: (template, to, data) => requestEmail(template, to, data),
+    rateLimit: createRedisRateLimitStorage(redis, {
+      onError: (err) =>
+        logger.warn({ err }, "auth rate limit storage unavailable; allowing request"),
+    }),
+    ...(config.auth.turnstileSecretKey
+      ? { turnstile: { secretKey: config.auth.turnstileSecretKey } }
+      : {}),
+  });
+
   return {
     config,
     logger,
     clock: options.clock ?? systemClock,
     pool,
-    db: createDb(pool),
+    db,
     redis,
     queueConnection,
     queues: createQueues(queueConnection),
-    outbox: createOutbox(),
+    outbox,
     cipher: createTokenCipher(config.encryption),
     locks: createLocks(redis),
+    auth,
+    requestEmail,
   };
 }
 
@@ -79,7 +101,11 @@ export function createContainer(
     modules,
     readinessChecks,
     routers: modules.flatMap((m) => m.routers ?? []),
-    rawBodyRouters: modules.flatMap((m) => m.rawBodyRouters ?? []),
+    /* Better Auth reads the raw request, so it mounts before the JSON parser (§7.9 step 3). */
+    rawBodyRouters: [
+      { path: "/", router: infra.auth.router },
+      ...modules.flatMap((m) => m.rawBodyRouters ?? []),
+    ],
     async close() {
       await infra.queues.close().catch(() => {});
       await Promise.allSettled([
