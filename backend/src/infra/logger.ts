@@ -15,11 +15,15 @@ export const REDACT_PATHS = [
   "*.headers.*",
 ];
 
-export function createLogger(options: { level: string; pretty?: boolean }): Logger {
+export function createLogger(options: {
+  level: string;
+  pretty?: boolean;
+  service?: "api" | "worker";
+}): Logger {
   const base: LoggerOptions = {
     level: options.level,
     redact: { paths: REDACT_PATHS, censor: "[redacted]" },
-    base: { service: "api" },
+    base: { service: options.service ?? "api" },
   };
   if (options.pretty) {
     return pino({ ...base, transport: { target: "pino-pretty", options: { singleLine: true } } });

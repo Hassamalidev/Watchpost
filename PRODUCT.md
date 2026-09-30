@@ -1,7 +1,7 @@
 # Watchpost — Product Spec and Build Plan (`PRODUCT.md`)
 
 > **Working name:** Watchpost. Replace it and `<domain>` everywhere once the final name and domain are chosen (Open decision #1).
-> **Status:** In progress · **Current phase:** 0 · **Next task:** `P0-T05` · **Last updated:** 2026-09-30 (P0-T04 done)
+> **Status:** In progress · **Current phase:** 0 · **Next task:** `P0-T06` · **Last updated:** 2026-09-30 (P0-T05 done)
 > The build agent keeps this status block current.
 
 **Companion files**
@@ -588,6 +588,8 @@ Cross-module calls inside a transaction pass `tx` explicitly (for example, `dete
 
 Job data holds IDs only, never whole objects; processors reload from Postgres.
 
+**Job ID format:** the patterns above are written with `:` for readability, but the code joins parts with `.` through `buildJobId()` (for example `timer.snooze.{refId}.{dueAt}`), because BullMQ rejects custom job IDs containing `:` unless they have exactly three parts (D-021). The registry lives in `backend/src/infra/queues/registry.ts`.
+
 ### 7.6 Probe architecture and protocol
 ```
 probe/src/
@@ -1120,7 +1122,7 @@ Targets assume a start on Monday 2026-10-05 with one developer and a coding agen
   *AC:* healthy Postgres and Redis; fake-target endpoints respond.
 - [x] **P0-T04 API skeleton.** Express 5 app factory, pino-http, helmet, CORS, rate limit with Redis store, error handler, Zod env validation, `/api/health` and `/api/ready`.
   *AC:* bad env fails boot with a clear message; `/api/ready` reflects DB and Redis state (tested).
-- [ ] **P0-T05 Worker skeleton.** Queue registry (§7.5), shared job defaults, recovery-sweep hook, graceful SIGTERM.
+- [x] **P0-T05 Worker skeleton.** Queue registry (§7.5), shared job defaults, recovery-sweep hook, graceful SIGTERM.
   *AC:* a test job runs; SIGTERM waits for the active job.
 - [ ] **P0-T06 Web skeleton.** Next.js 16 in `backend/web`, Tailwind v4, shadcn/ui, Geist, theme tokens (brand and status colors), TanStack Query, app shell with sidebar and ⌘K placeholder, `next-intl`.
   *AC:* light and dark shell render; Lighthouse accessibility ≥ 95.
@@ -1359,6 +1361,8 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | D-018 | 2026-09-30 | pnpm 12 fails installs on unapproved dependency build scripts; allow-list them in `pnpm-workspace.yaml` (`allowBuilds`), starting with `esbuild` | Keeps installs reproducible and reviewable; each new entry is a deliberate choice | Disable the check globally |
 | D-019 | 2026-09-30 | Docker Postgres is published on host port 5433 by default (`POSTGRES_HOST_PORT`) | The dev machine runs a Windows Postgres service on 5432 that silently answered `localhost` connections; 5433 avoids this on any machine | Stop the local service; keep 5432 |
 | D-020 | 2026-09-30 | API skeleton: health endpoints sit outside rate limits; rate limits fail open when Redis is down (`passOnStoreError`); the Redis client queues commands while connecting but fails after one retry; `/api/ready` runs pluggable checks with a 2 s timeout each; `TRUST_PROXY` env var for Express behind Caddy | Matches §13 degraded modes; per-IP limits need the real client IP behind Caddy | Fail closed on Redis errors |
+| D-021 | 2026-09-30 | Job IDs use `.` as the separator (`buildJobId`), not `:` | BullMQ 6 throws "Custom Id cannot contain :" for IDs with `:` unless they have exactly 3 parts, which breaks `timer:{kind}:{refId}:{dueAt}` and `esc:{incidentId}:{round}:{step}`; UUIDs and integer timestamps never contain `.` | Keep `:` and hash 4-part IDs; `\|` separator |
+| D-022 | 2026-09-30 | Worker runtime: queue registry declares each queue's recovery mode (sweep with its Postgres source, re-registered schedules, or ephemeral with a reason); processors validate job data with Zod and fail invalid data permanently (`UnrecoverableError`); recovery sweeps run before workers start and a failing sweep is logged, not fatal; `stop()` relies on `worker.close()` to finish active jobs, with a 60 s forced exit; `msgpackr-extract` install script denied (optional native speed-up; pure-JS fallback) | Makes rule 2 checkable in P0-T09 and keeps shutdown safe | One worker class per module |
 
 ---
 
@@ -1402,6 +1406,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | 2026-09-30 | §20 | D-017 (lint rule and shared build) | P0-T02 |
 | 2026-09-30 | §15, §20 | fake-target extra routes (`/switch` control, gzip bomb, redirect loop, invalid JSON); D-018 | P0-T03 |
 | 2026-09-30 | §7.9, §20, STACK.md §6–7 | Error-code list completed (`unauthorized`, `payload_too_large`, `service_unavailable`, `internal_error`); D-019, D-020; Postgres host port 5433; `TRUST_PROXY` | P0-T04 |
+| 2026-09-30 | §7.5, §20, Appendix A | Job ID separator note; D-021, D-022; `WORKER_QUEUES` env var | P0-T05 |
 
 *Phase retro template (added at each phase exit):* shipped · slipped and why · what we learned · key metrics (including agent tokens and time per task, with and without the code index) · proposals added to §21.1.
 
@@ -1415,6 +1420,9 @@ STATUS_BASE_DOMAIN=status.example.com
 CUSTOM_DOMAIN_CNAME_TARGET=pages.example.com
 HEARTBEAT_BASE_URL=https://hb.example.com
 CLOUDFLARE_API_TOKEN=
+
+# Worker
+WORKER_QUEUES=
 
 # Probes (API side)
 REGIONS=eu-central,us-east,ap-southeast

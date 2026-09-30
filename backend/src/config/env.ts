@@ -21,6 +21,16 @@ export const envSchema = z.object({
   TRUST_PROXY: z.string().default("loopback, linklocal, uniquelocal"),
   DATABASE_URL: postgresUrl,
   REDIS_URL: redisUrl,
+  /* Comma-separated queues this worker process consumes; empty means all (PRODUCT.md §7.5). */
+  WORKER_QUEUES: z
+    .string()
+    .optional()
+    .transform((value) =>
+      value
+        ?.split(",")
+        .map((q) => q.trim())
+        .filter((q) => q !== ""),
+    ),
 });
 
 export type Env = z.infer<typeof envSchema>;

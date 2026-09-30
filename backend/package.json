@@ -5,14 +5,18 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "dev": "tsx watch src/server.ts",
+    "dev": "pnpm run \"/^dev:/\"",
+    "dev:api": "tsx watch src/server.ts",
+    "dev:worker": "tsx watch src/worker.ts",
     "start": "node dist/server.js",
+    "start:worker": "node dist/worker.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
     "@app/shared": "workspace:*",
+    "bullmq": "6.3.10",
     "cors": "2.8.6",
     "express": "5.2.1",
     "express-rate-limit": "8.7.0",

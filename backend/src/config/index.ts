@@ -13,6 +13,8 @@ export interface AppConfig {
   webOrigin: string;
   databaseUrl: string;
   redisUrl: string;
+  /* Queues this worker consumes; undefined means every queue with a processor. */
+  workerQueues: string[] | undefined;
 }
 
 export function toAppConfig(env: Env): AppConfig {
@@ -24,6 +26,7 @@ export function toAppConfig(env: Env): AppConfig {
     webOrigin: env.WEB_ORIGIN,
     databaseUrl: env.DATABASE_URL,
     redisUrl: env.REDIS_URL,
+    workerQueues: env.WORKER_QUEUES?.length ? env.WORKER_QUEUES : undefined,
   };
 }
 
