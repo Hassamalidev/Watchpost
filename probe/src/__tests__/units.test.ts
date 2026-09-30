@@ -11,6 +11,7 @@ import { createScheduler, nextSlotMs, stableOffsetMs } from "../scheduler/schedu
 import { createResultBuffer } from "../report/buffer.js";
 import { createReporter } from "../report/reporter.js";
 import { createExecutor } from "../executor/executor.js";
+import { createAddressPolicy } from "../net/address-policy.js";
 import { ApiUnavailableError, type ProbeClient } from "../transport/client.js";
 
 const ID = "0190a3b2-7c1d-7e3f-8a9b-0c1d2e3f4a5b";
@@ -188,6 +189,7 @@ describe("executor", () => {
     const executor = createExecutor({
       region: "eu-central",
       concurrency: 2,
+      policy: createAddressPolicy(),
       runners: {
         tcp: async () => {
           active += 1;

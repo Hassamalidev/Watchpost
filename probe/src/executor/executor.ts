@@ -5,6 +5,7 @@
  */
 import type { AssignedMonitor, CheckErrorCode, CheckResult, MonitorConfig } from "@app/shared";
 import { v7 as uuidv7 } from "uuid";
+import type { AddressPolicy } from "../net/address-policy.js";
 
 /* What a check implementation returns; the executor adds IDs, region and timestamps. */
 export type CheckOutcome = Omit<
@@ -15,6 +16,8 @@ export type CheckOutcome = Omit<
 export interface CheckContext {
   timeoutMs: number;
   signal: AbortSignal;
+  /* SSRF rules for this probe (§9.1); every network check must use it. */
+  policy: AddressPolicy;
 }
 
 export type CheckRunner = (config: MonitorConfig, ctx: CheckContext) => Promise<CheckOutcome>;
@@ -56,6 +59,7 @@ export function createExecutor(options: {
   region: CheckResult["region"];
   concurrency: number;
   runners: CheckRunners;
+  policy: AddressPolicy;
   now?: () => number;
 }): Executor {
   const now = options.now ?? Date.now;
@@ -77,6 +81,7 @@ export function createExecutor(options: {
           outcome = await runner(monitor.config, {
             timeoutMs: monitor.timeoutMs,
             signal: controller.signal,
+            policy: options.policy,
           });
         } catch (err) {
           outcome = failure(

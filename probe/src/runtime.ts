@@ -15,6 +15,7 @@ import type { Logger } from "pino";
 import { z } from "zod";
 import type { ProbeConfig } from "./config.js";
 import { createExecutor, type CheckRunners } from "./executor/executor.js";
+import { createAddressPolicy } from "./net/address-policy.js";
 import { createResultBuffer } from "./report/buffer.js";
 import { createReporter } from "./report/reporter.js";
 import { createScheduler } from "./scheduler/scheduler.js";
@@ -73,6 +74,11 @@ export function createProbeRuntime(options: ProbeRuntimeOptions): ProbeRuntime {
     region: config.region,
     concurrency: config.concurrency,
     runners: options.runners,
+    policy: createAddressPolicy({
+      allowPrivate: config.mode === "private",
+      allowCidrs: config.allowCidrs,
+      denyHosts: config.denyHosts,
+    }),
   });
   const reporter = createReporter({
     client,

@@ -1,7 +1,7 @@
 # Watchpost — Product Spec and Build Plan (`PRODUCT.md`)
 
 > **Working name:** Watchpost. Replace it and `<domain>` everywhere once the final name and domain are chosen (Open decision #1).
-> **Status:** In progress · **Current phase:** 1 · **Next task:** `P1-T06` · **Last updated:** 2026-09-30 (P1-T05 done; owner action: branch ruleset in `docs/ci.md`)
+> **Status:** In progress · **Current phase:** 1 · **Next task:** `P1-T07` · **Last updated:** 2026-09-30 (P1-T06 done; owner action: branch ruleset in `docs/ci.md`)
 > The build agent keeps this status block current.
 
 **Companion files**
@@ -1152,7 +1152,7 @@ Targets assume a start on Monday 2026-10-05 with one developer and a coding agen
   *AC:* CRUD tested including limits and cross-workspace denial; every change bumps the sequence.
 - [x] **P1-T05 Probe package.** `@app/probe`: env config, HMAC signing, hello, delta assignment sync, min-heap scheduler with stable offsets, concurrency cap, batching, retry buffer, graceful shutdown, Dockerfile.
   *AC:* the probe runs against the local API; restarting the API loses no results.
-- [ ] **P1-T06 SSRF-safe network layer.** §9.1 steps 1–6.
+- [x] **P1-T06 SSRF-safe network layer.** §9.1 steps 1–6.
   *AC:* tests cover all blocked ranges, IPv6 forms, IPv4-mapped and NAT64, rebinding, redirect to a private IP, body and decompression limits.
 - [ ] **P1-T07 Check executors.** HTTP(S) with keyword, JSONata query, TLS capture and waterfall; TCP; DNS; WebSocket; ping (system `ping` with `NET_RAW`, TCP fallback); error taxonomy.
   *AC:* each executor tested against fake-target for success and every failure class.
@@ -1379,6 +1379,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | D-030 | 2026-09-30 | Shared schemas (P1-T03): `monitorConfigSchema` is a Zod discriminated union on `type` for the 10 Phase 1 types (http, keyword, json_query, tcp, ping, dns, websocket, ssl, domain, heartbeat); keyword and JSON query extend the HTTP request shape. Options every monitor has live separately in `monitorSettingsSchema` (defaults: 300 s interval, 10 s timeout, eu-central + us-east, confirm from 2 regions); plan limits are the API's job. Accepted status codes are `"200"`/`"200-299"` strings. The Appendix B taxonomy carries an `impact` (failure, degraded, config, ours) so detection can ignore probe faults by code. The probe protocol (hello, assignments delta sync with a global cursor, result batches ≤ 500, tasks, heartbeat) and the signing string live in `@app/shared` so the API and probe can't drift. JSON Schema is generated with Zod 4's `z.toJSONSchema` (input shape) into `docs/schemas/`; a test fails when the files are stale; `$id`s are `urn:watchpost:schema:*` until the domain is chosen. | One source of truth for the API, the probe and docs | Separate per-type tables; hand-written JSON Schema |
 | D-031 | 2026-09-30 | Monitors (P1-T04): one `monitors` table with the typed config in `jsonb` and §6.2 policies in a `policies` jsonb; secrets (HTTP basic password, bearer token, auth-like header values such as Authorization, Cookie, *key*, *token*, *secret*) are split out, stored AES-GCM-encrypted in `secrets_enc` bound to `monitor:<id>`, and replaced by `********` in the stored config and API output; a masked value on update keeps the stored secret, and probes get the merged config only through the change feed. `monitor_config_changes` is a global `bigserial` feed: every create, update, pause, resume and delete appends a row and stamps `monitors.config_seq`; probes sync with `after=<seq>`, the latest op per monitor wins. Plan limits come from `config/plans.ts` (Free for everyone until P3-T01): interval and region caps apply on create and update; count caps (20 monitors, 5 heartbeats) apply on create and resume, paused monitors don't count; a per-workspace advisory lock makes the count race-free (25 concurrent creates → exactly 20). Input errors return 400 before limits return 402. Viewers read; members and above write. Parent dependencies are checked for loops with a recursive CTE. | Keeps the probe feed simple and secrets out of logs, responses and the jsonb column | Per-type tables; soft delete; counting paused monitors |
 | D-032 | 2026-09-30 | Probe (P1-T05): no framework, only `@app/shared`, pino, uuid and zod. Components: signed client (4xx = rejected, 5xx/429/network = unavailable), assignment delta sync (full snapshot on first sync, stale `configSeq` ignored), min-heap scheduler with `sha256(monitorId:region) mod interval` offsets that skips a monitor still running, semaphore executor (crashes and unsupported types become `probe_error`), reporter (100 results or 1 s, backoff 1 s → 30 s, 400-rejected batches dropped so one bad batch can't block the queue), buffer with 10-minute max age mirrored to JSON Lines on disk in private mode, task long-poll, heartbeat and local `/healthz`. Stop waits for running checks and flushes. The AC ("runs against the local API; restarting the API loses no results") is proven against an in-process stub that verifies signatures exactly like the API will, including a stop/restart on the same port with zero dropped results; P1-T08 repeats it against the real API. Test-only `timeScale` scales intervals (15 s → 150 ms). Image: two-stage `node:24-alpine`, non-root, `iputils-ping`, healthcheck. | Small, dependency-light probe that customers can read (open-source candidate, Open decision #8) | BullMQ workers as probes (D-002 rejected); pure memory buffer for private probes |
+| D-033 | 2026-09-30 | SSRF layer (P1-T06), in `probe/src/net/`: `createAddressPolicy` blocks every §9.1 range; IPv6 that embeds IPv4 (mapped `::ffff:`, well-known NAT64 `64:ff9b::/96`, 6to4 `2002::/16`, deprecated `::a.b.c.d`) is judged as that IPv4, Teredo `2001::/32` and local-use NAT64 `64:ff9b:1::/48` are refused, and odd IPv4 spellings (hex, octal, integer, short) are normalized by the WHATWG URL parser before checking. A name is refused if ANY answer is blocked. Connections use a pinned `lookup` returning the vetted address, so Node never re-resolves (no rebinding); Host and SNI keep the name. Redirects are manual (≤ 5), each hop re-resolved and re-vetted; https→http is blocked unless allowed; non-http(s) targets are refused. The body read stops at 1 MB after decompression (a 10 MB gzip bomb stops at 1 MB in milliseconds), responses keep at most 100 headers, and the whole request (all hops) has one deadline, capped at 30 s. Private probes may reach private, loopback and link-local space but never unspecified, multicast, reserved or broadcast. The API host is always on the probe's deny list; `PROBE_ALLOW_CIDRS` exists for local development only. Tests run real sockets against 127.0.0.1, allowed only through an explicit test `allowCidrs`. | Enforced where the connection happens, with every hop checked | Resolve-then-fetch without pinning; a proxy-based egress filter |
 
 ---
 
@@ -1436,6 +1437,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | 2026-09-30 | §20 | D-030 (shared schemas, JSON Schema in `docs/schemas/`) | P1-T03 |
 | 2026-09-30 | §20 | D-031 (monitors: secrets, change feed, limits) | P1-T04 |
 | 2026-09-30 | §20 | D-032 (probe package) | P1-T05 |
+| 2026-09-30 | §20, Appendix A | D-033 (SSRF layer); probe env vars `PROBE_MODE`, `PROBE_ALLOW_CIDRS`, `PROBE_DENY_HOSTS`, `PROBE_BUFFER_DIR` | P1-T06 |
 
 ### Phase 0 retro (2026-09-30, `v0.0.1`)
 
@@ -1474,6 +1476,10 @@ PROBE_ID=
 PROBE_SECRET=
 PROBE_REGION=
 PROBE_CONCURRENCY=200
+PROBE_MODE=managed              # or private
+PROBE_ALLOW_CIDRS=              # local development only
+PROBE_DENY_HOSTS=               # the API host is always denied
+PROBE_BUFFER_DIR=               # private probes default to /var/lib/watchpost-probe
 
 # Channels
 EMAIL_TRANSPORT=resend          # console or memory until P1-T18 adds Resend

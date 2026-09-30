@@ -19,6 +19,16 @@ describe("probe config", () => {
     });
   });
 
+  it("always denies the API's own host and parses allow lists", () => {
+    const config = loadProbeConfig({
+      ...valid,
+      PROBE_DENY_HOSTS: "db.internal, admin.example.com",
+      PROBE_ALLOW_CIDRS: "172.18.0.0/16",
+    });
+    expect(config.denyHosts).toEqual(["db.internal", "admin.example.com", "app.example.com"]);
+    expect(config.allowCidrs).toEqual(["172.18.0.0/16"]);
+  });
+
   it("gives private probes a disk buffer", () => {
     expect(loadProbeConfig({ ...valid, PROBE_MODE: "private" }).bufferDir).toBe(
       "/var/lib/watchpost-probe",
