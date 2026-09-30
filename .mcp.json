@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "cocoindex-code": {
+      "type": "stdio",
+      "command": "ccc",
+      "args": ["mcp"],
+      "env": {}
+    }
+  }
+}

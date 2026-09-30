@@ -1,7 +1,7 @@
 # Watchpost — Product Spec and Build Plan (`PRODUCT.md`)
 
 > **Working name:** Watchpost. Replace it and `<domain>` everywhere once the final name and domain are chosen (Open decision #1).
-> **Status:** In progress · **Current phase:** 0 · **Next task:** `P0-T10` · **Last updated:** 2026-09-30 (P0-T09 done; owner action: branch ruleset in `docs/ci.md`)
+> **Status:** In progress · **Current phase:** 0 · **Next task:** `P0-T10b` (⛔ blocked on PC-001) · **Last updated:** 2026-09-30 (P0-T10a done; owner actions: PC-001, branch ruleset in `docs/ci.md`)
 > The build agent keeps this status block current.
 
 **Companion files**
@@ -1136,6 +1136,8 @@ Targets assume a start on Monday 2026-10-05 with one developer and a coding agen
   *AC:* a deliberate forbidden import and a deliberate cycle both fail CI; a generated sample module passes lint, typecheck and `pnpm arch`; an event emitted in a rolled-back transaction is never dispatched; a duplicated dispatch is handled harmlessly.
 - [ ] **P0-T10 Agent code search (CocoIndex, measured).** Per §2.8: install `cocoindex-code[full]`, run `ccc index`, commit the project-scoped `.mcp.json`, gitignore the index files, add the search-order lines to CLAUDE.md/AGENTS.md, and create `docs/agent-benchmark.md` with 10 "find the code" questions (answers filled in during P1).
   *AC:* `ccc search` returns results from this repo; `.mcp.json` contains no secrets; the benchmark file exists. The keep-or-drop decision is made at the P1 exit and recorded in D-013.
+  - [x] **P0-T10a Setup and docs.** `cocoindex-code[full]` 0.2.41 installed with `uv tool` (pipx isn't on this machine; same isolated install); global settings pin `Snowflake/snowflake-arctic-embed-xs` on CPU; `.mcp.json` (no secrets); `.cocoindex_code/` gitignored; search order in CLAUDE.md/AGENTS.md; `docs/agent-code-search.md`; `docs/agent-benchmark.md` (10 questions, 8 answered, 3 tasks).
+  - [ ] **P0-T10b Working local index.** ⛔ Blocked: `ccc index` fails because Windows Application Control blocks PyTorch's unsigned `torch\lib\shm.dll` on the dev machine. Needs owner decision PC-001 (§21.1).
 
 **Exit:** CI green, `pnpm dev` runs api, worker and web; merge to `main`; tag `v0.0.1`.
 
@@ -1376,7 +1378,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 
 ### 21.1 Proposed changes (need owner ✅)
 *Format: `⏳ PC-### (date) — change — reason — impact on plan`. The owner replaces ⏳ with ✅ or ❌.*
-- (none yet)
+- ⏳ PC-001 (2026-09-30) — Unblock or defer P0-T10b (local code index). Windows Application Control blocks PyTorch's DLLs, so `ccc index` can't run natively. Options: (a) run the official `cocoindex/cocoindex-code:full` Docker image (~5 GB, local embeddings, mount only this repo); (b) the owner allow-lists the uv tool folder in Application Control / Smart App Control; (c) defer P0-T10b to the P1 benchmark and drop CocoIndex if it can't run (D-013 already allows dropping). Never the slim cloud variant (code would leave the machine). — Reason: the only native path is blocked by a machine security policy the agent must not bypass. — Impact: Phase 0 exit waits on this unless (c); P0-T10a is done either way.
 
 ### 21.2 Improvement backlog (not scheduled)
 - **Request log:** record which missing channels or monitor types users ask for, with counts, to order P6-T06.
@@ -1419,6 +1421,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | 2026-09-30 | §20, §22 | D-024 (CI and Turborepo env); owner action for the branch ruleset added to Open decisions | P0-T07 |
 | 2026-09-30 | §20, Appendix A, runbooks | D-025 (infra helpers); `TOKEN_ENC_PREVIOUS_KEYS`; `docs/runbooks/secret-rotation.md` | P0-T08 |
 | 2026-09-30 | §7.5, §20 | Pointers to where the architecture contract lives in code; `evt.{eventId}.{handler}` job IDs; D-026 | P0-T09 |
+| 2026-09-30 | §17, §21.1 | P0-T10 split into P0-T10a (done) and P0-T10b (blocked by Windows Application Control); proposal PC-001 | P0-T10 |
 
 *Phase retro template (added at each phase exit):* shipped · slipped and why · what we learned · key metrics (including agent tokens and time per task, with and without the code index) · proposals added to §21.1.
 
