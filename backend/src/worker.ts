@@ -4,7 +4,7 @@
  */
 import { ConfigError, loadConfig, type AppConfig } from "./config/index.js";
 import { createLogger } from "./infra/logger.js";
-import { createDbPool } from "./infra/db.js";
+import { createDbPool } from "./infra/db/index.js";
 import {
   createQueueConnection,
   createWorkerRuntime,

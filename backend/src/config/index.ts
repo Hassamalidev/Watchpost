@@ -15,6 +15,15 @@ export interface AppConfig {
   redisUrl: string;
   /* Queues this worker consumes; undefined means every queue with a processor. */
   workerQueues: string[] | undefined;
+  /* Keys for infra/crypto: the active key plus retired keys still needed to decrypt. */
+  encryption: { activeKeyId: string; keys: Record<string, Buffer> };
+}
+
+function encryptionKeys(env: Env): AppConfig["encryption"] {
+  const keys: Record<string, Buffer> = {};
+  for (const [id, key] of env.TOKEN_ENC_PREVIOUS_KEYS) keys[id] = Buffer.from(key, "base64");
+  keys[env.TOKEN_ENC_KEY_ID] = Buffer.from(env.TOKEN_ENC_KEY, "base64");
+  return { activeKeyId: env.TOKEN_ENC_KEY_ID, keys };
 }
 
 export function toAppConfig(env: Env): AppConfig {
@@ -27,6 +36,7 @@ export function toAppConfig(env: Env): AppConfig {
     databaseUrl: env.DATABASE_URL,
     redisUrl: env.REDIS_URL,
     workerQueues: env.WORKER_QUEUES?.length ? env.WORKER_QUEUES : undefined,
+    encryption: encryptionKeys(env),
   };
 }
 

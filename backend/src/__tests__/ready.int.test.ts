@@ -3,7 +3,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import request from "supertest";
 import { pino } from "pino";
 import { createApp } from "../app.js";
-import { createDbPool, pingDb, type DbPool } from "../infra/db.js";
+import { createDbPool, pingDb, type DbPool } from "../infra/db/index.js";
 import { createRedis, pingRedis, type RedisClient } from "../infra/redis.js";
 import {
   DEAD_DATABASE_URL,

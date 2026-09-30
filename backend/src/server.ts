@@ -2,7 +2,7 @@
 import { ConfigError, loadConfig, type AppConfig } from "./config/index.js";
 import { createApp } from "./app.js";
 import { createLogger } from "./infra/logger.js";
-import { createDbPool, pingDb } from "./infra/db.js";
+import { createDbPool, pingDb } from "./infra/db/index.js";
 import { createRedis, pingRedis } from "./infra/redis.js";
 
 const SHUTDOWN_GRACE_MS = 10_000;
