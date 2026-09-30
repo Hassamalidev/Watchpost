@@ -29,6 +29,20 @@
       "when": 1790791790579,
       "tag": "0003_monitors",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790794216115,
+      "tag": "0004_check_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790794218086,
+      "tag": "0005_check_results",
+      "breakpoints": true
     }
   ]
 }

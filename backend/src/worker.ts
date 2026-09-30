@@ -107,10 +107,23 @@ installShutdownHandlers(
 
 await runtime.start();
 await relay.start();
-await infra.queues
-  .get("sweeps")
-  .upsertJobScheduler(
-    "outbox-cleanup",
-    { every: OUTBOX_CLEANUP_EVERY_MS },
-    { name: "outbox-cleanup", data: { kind: "outbox-cleanup" } },
-  );
+
+/* Repeating jobs: platform cleanup plus every module's schedules (idempotent on each start). */
+const schedules = [
+  {
+    queue: "sweeps" as const,
+    id: "outbox-cleanup",
+    everyMs: OUTBOX_CLEANUP_EVERY_MS,
+    data: { kind: "outbox-cleanup" },
+  },
+  ...modules.flatMap((m) => m.schedules ?? []),
+];
+for (const schedule of schedules) {
+  await infra.queues
+    .get(schedule.queue)
+    .upsertJobScheduler(
+      schedule.id,
+      { every: schedule.everyMs },
+      { name: schedule.id, data: schedule.data },
+    );
+}

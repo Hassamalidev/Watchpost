@@ -5,6 +5,7 @@
 import type { AppModule, Infra } from "./types.js";
 import { createWorkspacesModule } from "../modules/workspaces/index.js";
 import { createMonitorsModule } from "../modules/monitors/index.js";
+import { createResultsModule } from "../modules/results/index.js";
 /* new-module:imports */
 
 export function createModules(infra: Infra): AppModule[] {
@@ -12,6 +13,7 @@ export function createModules(infra: Infra): AppModule[] {
   const workspaces = createWorkspacesModule({ infra });
   modules.push(workspaces);
   modules.push(createMonitorsModule({ infra, guards: workspaces.guards }));
+  modules.push(createResultsModule({ infra }));
   /* new-module:create */
   return modules;
 }

@@ -10,7 +10,7 @@ import type { Db, DbPool } from "../infra/db/index.js";
 import type { Locks } from "../infra/locks.js";
 import type { Logger } from "../infra/logger.js";
 import type { Outbox } from "../infra/outbox/index.js";
-import type { JobProcessor, Queues, RecoverySweep } from "../infra/queues/index.js";
+import type { JobProcessor, QueueName, Queues, RecoverySweep } from "../infra/queues/index.js";
 import type { RedisClient } from "../infra/redis.js";
 import type { ModuleName } from "./architecture.js";
 
@@ -49,8 +49,18 @@ export interface AppModule {
   /* BullMQ processors for this module's own queues and its `<module>-events` queue. */
   processors?: JobProcessor[];
   recoverySweeps?: RecoverySweep[];
+  /* Repeating jobs the worker registers on start (re-registering is idempotent). */
+  schedules?: ModuleSchedule[];
   /* Callbacks from infrastructure that can't depend on modules (for example Better Auth hooks). */
   hooks?: AppHooks;
+}
+
+export interface ModuleSchedule {
+  queue: QueueName;
+  /* Stable scheduler ID; the same ID updates the existing schedule. */
+  id: string;
+  everyMs: number;
+  data: Record<string, unknown>;
 }
 
 export interface AppHooks {
