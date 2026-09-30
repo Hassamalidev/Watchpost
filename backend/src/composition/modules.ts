@@ -8,6 +8,7 @@ import { createMonitorsModule } from "../modules/monitors/index.js";
 import { createResultsModule } from "../modules/results/index.js";
 import { createProbesModule } from "../modules/probes/index.js";
 import { createDetectionModule } from "../modules/detection/index.js";
+import { createIncidentsModule } from "../modules/incidents/index.js";
 /* new-module:imports */
 
 export function createModules(infra: Infra): AppModule[] {
@@ -24,12 +25,15 @@ export function createModules(infra: Infra): AppModule[] {
     guards: workspaces.guards,
   });
   modules.push(probes);
+  const incidents = createIncidentsModule({ infra, workspaces: workspaces.service });
+  modules.push(incidents);
   modules.push(
     createDetectionModule({
       infra,
       monitors: monitors.service,
       results: results.service,
       probes: probes.service,
+      incidents: incidents.service,
     }),
   );
   /* new-module:create */

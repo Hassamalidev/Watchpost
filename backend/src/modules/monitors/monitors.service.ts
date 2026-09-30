@@ -22,7 +22,7 @@ import type { PlanLimits } from "../../config/plans.js";
 import type { TokenCipher } from "../../infra/crypto.js";
 import type { Db, DbOrTx } from "../../infra/db/index.js";
 import type { Outbox } from "../../infra/outbox/index.js";
-import type { MonitorRow } from "./schema/monitors.js";
+import type { MonitorPolicies, MonitorRow } from "./schema/monitors.js";
 import type { ListFilters, MonitorsRepository } from "./monitors.repository.js";
 import {
   applySecrets,
@@ -82,6 +82,20 @@ export interface MonitorForProbe {
   paused: boolean;
 }
 
+/* What detection needs to judge results (§9.2). Carries no secrets. */
+export interface MonitorForDetection {
+  id: string;
+  workspaceId: string;
+  name: string;
+  type: MonitorConfig["type"];
+  regions: string[];
+  intervalSeconds: number;
+  severity: MonitorSettings["severity"];
+  paused: boolean;
+  parentId: string | null;
+  policies: MonitorPolicies;
+}
+
 export interface MonitorsService {
   create(scope: WorkspaceScope, input: CreateMonitorInput): Promise<MonitorView>;
   get(scope: WorkspaceScope, id: string): Promise<MonitorView>;
@@ -111,6 +125,8 @@ export interface MonitorsService {
   listForProbes(options: { afterId?: string; limit: number }): Promise<MonitorForProbe[]>;
   /* Specific monitors for probe tasks. System-level: no tenant scope. */
   getForProbes(ids: string[]): Promise<MonitorForProbe[]>;
+  /* Settings detection evaluates against. System-level: no tenant scope. */
+  getForDetection(ids: string[]): Promise<MonitorForDetection[]>;
 }
 
 export interface MonitorsServiceDeps {
@@ -529,6 +545,21 @@ export function createMonitorsService(deps: MonitorsServiceDeps): MonitorsServic
 
     async getForProbes(ids) {
       return forProbes(await repo.findByIdsUnscoped(ids));
+    },
+
+    async getForDetection(ids) {
+      return (await repo.findByIdsUnscoped(ids)).map((row) => ({
+        id: row.id,
+        workspaceId: row.workspaceId,
+        name: row.name,
+        type: row.type,
+        regions: row.regions,
+        intervalSeconds: row.intervalS,
+        severity: row.severity,
+        paused: row.paused,
+        parentId: row.parentId ?? null,
+        policies: row.policies,
+      }));
     },
   };
 

@@ -30,6 +30,8 @@ import type { TaskNotifier } from "./types/task-notifier.js";
 export const SYNC_INTERVAL_MS = 15_000;
 export const TASK_TTL_MS = 60_000;
 export const VERIFY_WINDOW_MS = 30_000;
+/* A probe not seen for this long is unhealthy: its region stops counting (§9.2). */
+export const PROBE_HEALTHY_MS = 60_000;
 const PAGE = 1_000;
 const AUTH_CACHE_MS = 30_000;
 
@@ -66,6 +68,8 @@ export interface ProbesService {
   getTask(scope: WorkspaceScope, taskId: string): Promise<ProbeTaskView>;
   pollTasks(probe: AuthenticatedProbe, waitSeconds: number): Promise<ProbeTask[]>;
   completeTasks(tx: DbOrTx, probeId: string, results: CheckResult[]): Promise<void>;
+  /* Of `regions`, those with a healthy probe that may run this workspace's monitors. */
+  healthyRegions(input: { regions: string[]; workspaceId: string }): Promise<string[]>;
   close(): Promise<void>;
 }
 
@@ -233,6 +237,16 @@ export function createProbesService(deps: {
         if (created) ids.push(created.id);
       }
       return ids;
+    },
+
+    healthyRegions({ regions, workspaceId }) {
+      const now = clock.now();
+      return repo.healthyRegions({
+        regions,
+        workspaceId,
+        now,
+        seenAfter: new Date(now.getTime() - PROBE_HEALTHY_MS),
+      });
     },
 
     async testNow(scope, monitorId) {

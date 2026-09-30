@@ -1,5 +1,5 @@
 /* Queries on probes and probe_tasks, owned by the probes module. */
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { assertWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
 import type { DbOrTx } from "../../infra/db/index.js";
 import { probeTasks, probes, type ProbeRow, type ProbeTaskRow } from "./schema/probes.js";
@@ -18,6 +18,28 @@ export function createProbesRepository(db: DbOrTx) {
     async findProbe(id: string): Promise<ProbeRow | undefined> {
       const rows = await db.select().from(probes).where(eq(probes.id, id)).limit(1);
       return rows[0];
+    },
+
+    /* Regions with a probe seen since `seenAfter` and not quarantined at `now`. */
+    async healthyRegions(input: {
+      regions: string[];
+      workspaceId: string;
+      seenAfter: Date;
+      now: Date;
+    }): Promise<string[]> {
+      if (input.regions.length === 0) return [];
+      const rows = await db
+        .selectDistinct({ region: probes.region })
+        .from(probes)
+        .where(
+          and(
+            inArray(probes.region, input.regions),
+            gt(probes.lastSeenAt, input.seenAfter),
+            or(isNull(probes.quarantinedUntil), lte(probes.quarantinedUntil, input.now)),
+            or(eq(probes.kind, "managed"), eq(probes.workspaceId, input.workspaceId)),
+          ),
+        );
+      return rows.map((r) => r.region);
     },
 
     async listProbes(): Promise<ProbeRow[]> {

@@ -11,6 +11,7 @@ import { createMonitorsService, type MonitorsService } from "./monitors.service.
 import { monitorsProcessors } from "./jobs/index.js";
 
 export type {
+  MonitorForDetection,
   MonitorForProbe,
   MonitorGroupView,
   MonitorView,

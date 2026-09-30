@@ -1,36 +1,147 @@
 /*
- * Result ingest (PRODUCT.md §7.4: detection owns POST /api/probe/v1/results). Accepts only results for
- * monitors assigned to the reporting probe, stores them idempotently, completes their tasks, and
- * (from P1-T10) queues evaluation. The evaluation engine itself arrives in P1-T10.
+ * Result ingest and evaluation (PRODUCT.md §9.2). Ingest accepts only results for monitors assigned to
+ * the reporting probe, stores them idempotently, completes their tasks, then either takes the fast
+ * path (healthy results for a healthy monitor) or queues an evaluation. An evaluation locks the
+ * monitor's state row, runs the pure engine (detection.engine.ts) and applies its decision in the
+ * same transaction: status, incident, downtime, verification tasks and outbox events.
  */
-import { resultsBatchSchema, type CheckResult } from "@app/shared";
+import { effectiveRecoverySuccesses, resultsBatchSchema, type CheckResult } from "@app/shared";
+import type { Clock } from "../../core/clock.js";
 import { ValidationError } from "../../core/errors.js";
-import type { Db } from "../../infra/db/index.js";
+import type { Db, DbOrTx } from "../../infra/db/index.js";
 import type { Logger } from "../../infra/logger.js";
+import type { Outbox } from "../../infra/outbox/index.js";
+import { buildJobId, type EnqueueOptions } from "../../infra/queues/index.js";
 import type { AuthenticatedProbe } from "../../middleware/probe-auth.js";
-import type { MonitorsService } from "../monitors/index.js";
+import type { IncidentsService } from "../incidents/index.js";
+import type { MonitorForDetection, MonitorsService } from "../monitors/index.js";
 import type { ProbesService } from "../probes/index.js";
 import type { ResultsService } from "../results/index.js";
+import type { DetectionRepository } from "./detection.repository.js";
+import {
+  classify,
+  evaluate,
+  RESULTS_PER_REGION,
+  type Decision,
+  type EngineMonitor,
+  type EngineResult,
+} from "./detection.engine.js";
+import type { MonitorStateRow } from "./schema/detection.js";
+
+/* Same-region verification waits a little so a blip has time to clear (§9.2). */
+export const SAME_REGION_VERIFY_DELAY_MS = 5_000;
+export const SWEEP_EVERY_MS = 60_000;
+const SWEEP_BATCH = 1_000;
+
+export type DetectionJob =
+  | { kind: "evaluate"; monitorId: string }
+  | { kind: "verify"; monitorId: string; workspaceId: string; regions: string[] }
+  | { kind: "sweep" };
 
 export interface IngestResponse {
   accepted: number;
   duplicates: number;
 }
 
-export interface DetectionService {
-  ingest(probe: AuthenticatedProbe, body: unknown): Promise<IngestResponse>;
+export interface EvaluationOutcome {
+  from: MonitorStateRow["status"];
+  decision: Decision;
+  incidentId: string | null;
 }
 
-export function createDetectionService(deps: {
+export interface DetectionService {
+  ingest(probe: AuthenticatedProbe, body: unknown): Promise<IngestResponse>;
+  /* Evaluates one monitor now; undefined if the monitor no longer exists. */
+  evaluateMonitor(monitorId: string): Promise<EvaluationOutcome | undefined>;
+  /* Creates verification tasks (the delayed same-region re-check). */
+  requestVerification(job: Extract<DetectionJob, { kind: "verify" }>): Promise<string[]>;
+  /* Queues evaluations for results no evaluation has seen. Returns how many were queued. */
+  sweep(): Promise<number>;
+  state(monitorId: string): Promise<MonitorStateRow | undefined>;
+}
+
+export interface DetectionServiceDeps {
   db: Db;
-  monitors: MonitorsService;
-  results: ResultsService;
-  probes: ProbesService;
+  repository: DetectionRepository;
+  monitors: Pick<MonitorsService, "getForProbes" | "getForDetection">;
+  results: Pick<ResultsService, "ingest" | "recent">;
+  probes: Pick<ProbesService, "isAssigned" | "completeTasks" | "createTasks" | "healthyRegions">;
+  incidents: Pick<
+    IncidentsService,
+    "openForMonitor" | "resolveForMonitor" | "setFlapping" | "findOpenForMonitor"
+  >;
+  outbox: Outbox;
+  clock: Clock;
   logger: Logger;
-  /* Called with newly stored results; P1-T10 wires evaluation here. */
-  onStored?: (results: CheckResult[]) => Promise<void>;
-}): DetectionService {
+  newId: () => string;
+  enqueue: (job: DetectionJob, options: EnqueueOptions) => Promise<void>;
+  /* Maintenance windows arrive with the maintenance module (P2); nothing is in maintenance until then. */
+  inMaintenance?: (monitorId: string, at: Date) => Promise<boolean>;
+}
+
+export function engineMonitor(m: MonitorForDetection): EngineMonitor {
   return {
+    regions: m.regions,
+    minFailingRegions: m.policies.minFailingRegions,
+    recoverySuccesses: effectiveRecoverySuccesses({
+      recoverySuccesses: m.policies.recoverySuccesses,
+      intervalSeconds: m.intervalSeconds,
+    }),
+    degradedLatencyMs: m.policies.degradedLatencyMs,
+    degradedAfterChecks: m.policies.degradedAfterChecks,
+    upsideDown: m.policies.upsideDown,
+    paused: m.paused,
+  };
+}
+
+export function createDetectionService(deps: DetectionServiceDeps): DetectionService {
+  const { repository: repo, clock } = deps;
+
+  const evaluateJob = (monitorId: string, suffix: string) =>
+    deps.enqueue({ kind: "evaluate", monitorId }, { jobId: buildJobId("eval", monitorId, suffix) });
+
+  /* After ingest: fast path or a queued evaluation, per monitor. */
+  async function afterStored(results: CheckResult[]): Promise<void> {
+    const byMonitor = new Map<string, CheckResult[]>();
+    for (const r of results) byMonitor.set(r.monitorId, [...(byMonitor.get(r.monitorId) ?? []), r]);
+    const monitors = new Map(
+      (await deps.monitors.getForDetection([...byMonitor.keys()])).map((m) => [m.id, m]),
+    );
+
+    for (const [monitorId, list] of byMonitor) {
+      const monitor = monitors.get(monitorId);
+      if (monitor === undefined) continue;
+      const engine = engineMonitor(monitor);
+      const newest = list.reduce((a, b) =>
+        Date.parse(b.checkedAt) > Date.parse(a.checkedAt) ? b : a,
+      );
+      const healthy =
+        !monitor.paused && list.every((r) => classify(toEngineResult(r), engine) === "ok");
+
+      const fast = await deps.db.transaction(async (tx) => {
+        await repo.noteResult(tx, {
+          monitorId,
+          workspaceId: monitor.workspaceId,
+          lastResultAt: new Date(newest.checkedAt),
+        });
+        if (!healthy || !(await repo.markEvaluatedIfHealthy(tx, monitorId))) return false;
+        await repo.upsertRegionStates(
+          tx,
+          latestPerRegion(list).map((r) => regionRow(r, "up")),
+        );
+        return true;
+      });
+      if (fast) continue;
+      try {
+        await evaluateJob(monitorId, newest.id);
+      } catch (err) {
+        /* The results are stored and last_result_at is ahead: the sweep evaluates them later. */
+        deps.logger.warn({ err, monitorId }, "evaluate enqueue failed; leaving it to the sweep");
+      }
+    }
+  }
+
+  const service: DetectionService = {
     async ingest(probe, body) {
       const parsed = resultsBatchSchema.safeParse(body);
       if (!parsed.success)
@@ -69,12 +180,255 @@ export function createDetectionService(deps: {
       const stored = new Set(outcome.insertedIds);
       const newResults = accepted.filter((r) => stored.has(r.id));
       await deps.db.transaction((tx) => deps.probes.completeTasks(tx, probe.id, newResults));
-      if (deps.onStored && newResults.length > 0) await deps.onStored(newResults);
+      if (newResults.length > 0) await afterStored(newResults);
 
       return {
         accepted: outcome.accepted,
         duplicates: outcome.duplicates + refused + outcome.rejected,
       };
     },
+
+    async evaluateMonitor(monitorId) {
+      const [monitor] = await deps.monitors.getForDetection([monitorId]);
+      if (monitor === undefined) return undefined;
+      const engine = engineMonitor(monitor);
+      const available = monitor.paused
+        ? []
+        : await deps.probes.healthyRegions({
+            regions: monitor.regions,
+            workspaceId: monitor.workspaceId,
+          });
+
+      let sameRegionVerify: Extract<DetectionJob, { kind: "verify" }> | undefined;
+      const outcome = await deps.db.transaction(async (tx) => {
+        await repo.ensureState(tx, monitorId, monitor.workspaceId);
+        const state = await repo.lockState(tx, monitorId);
+        if (state === undefined) throw new Error(`monitor_state row missing for ${monitorId}`);
+
+        /* Read results after taking the lock, so a later evaluation always sees at least as much. */
+        const results: Record<string, EngineResult[]> = {};
+        for (const region of available) {
+          results[region] = (await deps.results.recent(monitorId, region, RESULTS_PER_REGION)).map(
+            (r) => ({
+              id: r.id,
+              ok: r.ok,
+              errorCode: r.errorCode,
+              latencyMs: r.latencyMs,
+              checkedAt: r.checkedAt,
+              httpStatus: r.httpStatus,
+              message: r.message,
+            }),
+          );
+        }
+        const now = clock.now();
+        const open = await deps.incidents.findOpenForMonitor(tx, monitorId);
+        const inMaintenance = (await deps.inMaintenance?.(monitorId, now)) ?? false;
+        const decision = evaluate({
+          monitor: engine,
+          state: {
+            status: state.status,
+            since: state.since,
+            verifyRequestedAt: state.verifyRequestedAt,
+            stateChanges: state.stateChanges,
+            flappingUntil: state.flappingUntil,
+            hasOpenIncident: open !== undefined,
+          },
+          results,
+          availableRegions: available,
+          inMaintenance,
+          now,
+        });
+
+        let incidentId = open?.id ?? null;
+        if (decision.openIncident) {
+          const opened = await deps.incidents.openForMonitor(tx, {
+            workspaceId: monitor.workspaceId,
+            monitorId,
+            title: `${monitor.name} is down`,
+            severity: monitor.severity,
+            causeCode: decision.causeCode,
+            failingRegions: decision.failingRegions,
+            ...(decision.evidence
+              ? {
+                  evidence: {
+                    resultId: decision.evidence.id,
+                    checkedAt: decision.evidence.checkedAt.toISOString(),
+                    errorCode: decision.evidence.errorCode,
+                    httpStatus: decision.evidence.httpStatus ?? null,
+                    message: decision.evidence.message ?? null,
+                  },
+                }
+              : {}),
+          });
+          incidentId = opened.incident.id;
+        }
+        if (incidentId !== null && decision.flappingStarted) {
+          await deps.incidents.setFlapping(tx, incidentId, true);
+        }
+        if (decision.resolveIncident) {
+          await deps.incidents.resolveForMonitor(tx, { monitorId, auto: true });
+          incidentId = null;
+        } else if (incidentId !== null && decision.flappingEnded) {
+          await deps.incidents.setFlapping(tx, incidentId, false);
+        }
+
+        await reconcileDowntime(tx, monitor, decision, incidentId);
+
+        if (decision.verify !== null) {
+          if (decision.verify.sameRegion) {
+            sameRegionVerify = {
+              kind: "verify",
+              monitorId,
+              workspaceId: monitor.workspaceId,
+              regions: decision.verify.regions,
+            };
+          } else {
+            await deps.probes.createTasks(tx, {
+              workspaceId: monitor.workspaceId,
+              monitorId,
+              kind: "verify",
+              regions: decision.verify.regions,
+            });
+          }
+        }
+
+        const changed = decision.status !== state.status;
+        if (changed) {
+          await deps.outbox.emit(
+            tx,
+            "monitor.state_changed",
+            {
+              monitorId,
+              from: state.status,
+              to: decision.status,
+              at: decision.transitionAt.toISOString(),
+            },
+            { workspaceId: monitor.workspaceId },
+          );
+        }
+
+        await repo.upsertRegionStates(
+          tx,
+          Object.entries(results).flatMap(([region, list]) => {
+            const last = list[0];
+            const status = decision.regionStatus[region];
+            return last === undefined || status === undefined
+              ? []
+              : [regionRow({ ...last, monitorId, region }, status)];
+          }),
+        );
+        await repo.updateState(tx, monitorId, {
+          status: decision.status,
+          since: changed ? decision.transitionAt : state.since,
+          reason: decision.reason ?? (changed ? null : state.reason),
+          openIncidentId: incidentId,
+          lastEvaluatedAt: state.lastResultAt,
+          verifyRequestedAt: decision.verifyRequestedAt,
+          stateChanges: decision.stateChanges,
+          flappingUntil: decision.flappingUntil,
+        });
+        return { from: state.status, decision, incidentId };
+      });
+
+      if (sameRegionVerify !== undefined) {
+        await deps.enqueue(sameRegionVerify, {
+          jobId: buildJobId("verify", monitorId, Math.floor(clock.now().getTime() / 1_000)),
+          delayMs: SAME_REGION_VERIFY_DELAY_MS,
+        });
+      }
+      return outcome;
+    },
+
+    async requestVerification(job) {
+      return deps.db.transaction((tx) =>
+        deps.probes.createTasks(tx, {
+          workspaceId: job.workspaceId,
+          monitorId: job.monitorId,
+          kind: "verify",
+          regions: job.regions,
+        }),
+      );
+    },
+
+    async sweep() {
+      const pending = await repo.unevaluated(deps.db, SWEEP_BATCH);
+      for (const p of pending) {
+        await evaluateJob(p.monitorId, `sweep-${p.lastResultAt.getTime()}`);
+      }
+      return pending.length;
+    },
+
+    state: (monitorId) => repo.findState(deps.db, monitorId),
+  };
+
+  /* Keeps exactly one open downtime matching the status; closes it when the status moves on. */
+  async function reconcileDowntime(
+    tx: DbOrTx,
+    monitor: MonitorForDetection,
+    decision: Decision,
+    incidentId: string | null,
+  ): Promise<void> {
+    const open = await repo.findOpenDowntime(tx, monitor.id);
+    if (open !== undefined && open.kind === decision.downtime) return;
+    if (open !== undefined) await repo.closeDowntime(tx, open.id, decision.transitionAt);
+    if (decision.downtime !== null) {
+      await repo.insertDowntime(tx, {
+        id: deps.newId(),
+        workspaceId: monitor.workspaceId,
+        monitorId: monitor.id,
+        kind: decision.downtime,
+        startedAt: decision.transitionAt,
+        incidentId: decision.downtime === "outage" ? incidentId : null,
+      });
+    }
+  }
+
+  return service;
+}
+
+function toEngineResult(r: CheckResult): EngineResult {
+  return {
+    id: r.id,
+    ok: r.ok,
+    errorCode: r.errorCode ?? null,
+    latencyMs: r.latencyMs,
+    checkedAt: new Date(r.checkedAt),
+  };
+}
+
+function latestPerRegion(list: CheckResult[]) {
+  const latest = new Map<string, CheckResult>();
+  for (const r of list) {
+    const current = latest.get(r.region);
+    if (current === undefined || Date.parse(r.checkedAt) > Date.parse(current.checkedAt)) {
+      latest.set(r.region, r);
+    }
+  }
+  return [...latest.values()].map((r) => ({
+    monitorId: r.monitorId,
+    region: r.region,
+    checkedAt: new Date(r.checkedAt),
+    errorCode: r.errorCode ?? null,
+    latencyMs: r.latencyMs,
+  }));
+}
+
+function regionRow(
+  r: {
+    monitorId: string;
+    region: string;
+    checkedAt: Date;
+    errorCode: string | null;
+    latencyMs: number;
+  },
+  status: "up" | "down" | "degraded" | "unknown",
+) {
+  return {
+    monitorId: r.monitorId,
+    region: r.region,
+    status,
+    lastResultAt: r.checkedAt,
+    lastErrorCode: r.errorCode,
+    lastLatencyMs: Math.round(r.latencyMs),
   };
 }
