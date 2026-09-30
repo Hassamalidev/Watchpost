@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Builds
+dist/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+coverage/
+
+# Env and secrets
+.env
+.env.*
+!.env.example
+
+# Test artifacts
+playwright-report/
+test-results/
+
+# Code index (CocoIndex, P0-T10)
+.cocoindex_code/
+
+# OS and editors
+.DS_Store
+Thumbs.db
+.idea/
+*.log
