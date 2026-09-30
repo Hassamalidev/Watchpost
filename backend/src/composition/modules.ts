@@ -25,7 +25,12 @@ export function createModules(infra: Infra): AppModule[] {
     guards: workspaces.guards,
   });
   modules.push(probes);
-  const incidents = createIncidentsModule({ infra, workspaces: workspaces.service });
+  const incidents = createIncidentsModule({
+    infra,
+    workspaces: workspaces.service,
+    monitors: monitors.service,
+    guards: workspaces.guards,
+  });
   modules.push(incidents);
   modules.push(
     createDetectionModule({

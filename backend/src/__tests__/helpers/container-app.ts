@@ -18,7 +18,7 @@ import { TEST_DATABASE_URL, TEST_REDIS_URL } from "./test-env.js";
 export const WEB_ORIGIN = "http://localhost:3000";
 export const PASSWORD = "correct horse battery";
 
-export function buildContainerApp() {
+export function buildContainerApp(options: { authRateLimit?: boolean } = {}) {
   const config = toAppConfig(
     parseEnv({
       NODE_ENV: "test",
@@ -35,7 +35,11 @@ export function buildContainerApp() {
   );
   /* TEST_LOG_LEVEL=error shows server errors while debugging a test. */
   const logger = pino({ level: process.env.TEST_LOG_LEVEL ?? "silent" });
-  const container = createContainer(config, { service: "api", logger });
+  const container = createContainer(config, {
+    service: "api",
+    logger,
+    ...(options.authRateLimit === false ? { authRateLimit: false } : {}),
+  });
   const app = createApp({
     config,
     logger,

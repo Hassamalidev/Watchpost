@@ -19,6 +19,7 @@ import { organization } from "../../../infra/auth/schema.js";
 
 export type IncidentStatus = "triggered" | "acknowledged" | "snoozed" | "resolved";
 export type IncidentSource = "monitor" | "heartbeat" | "inbound" | "manual";
+export type IncidentSeverity = "critical" | "high" | "low";
 
 export const incidents = pgTable(
   "incidents",
@@ -34,7 +35,7 @@ export const incidents = pgTable(
     inboundId: uuid("inbound_id"),
     dedupKey: text("dedup_key"),
     title: text("title").notNull(),
-    severity: text("severity").$type<"critical" | "high" | "low">().notNull(),
+    severity: text("severity").$type<IncidentSeverity>().notNull(),
     status: text("status").$type<IncidentStatus>().notNull().default("triggered"),
     causeCode: text("cause_code"),
     failingRegions: text("failing_regions")
@@ -89,5 +90,21 @@ export const incidentEvents = pgTable(
   (t) => [index("incident_events_incident_at_idx").on(t.incidentId, t.at)],
 );
 
+export const incidentComments = pgTable(
+  "incident_comments",
+  {
+    id: uuid("id").primaryKey(),
+    workspaceId: uuid("workspace_id").notNull(),
+    incidentId: uuid("incident_id")
+      .notNull()
+      .references(() => incidents.id, { onDelete: "cascade" }),
+    authorId: uuid("author_id").notNull(),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("incident_comments_incident_idx").on(t.incidentId, t.createdAt)],
+);
+
 export type IncidentRow = typeof incidents.$inferSelect;
+export type IncidentCommentRow = typeof incidentComments.$inferSelect;
 export type IncidentEventRow = typeof incidentEvents.$inferSelect;

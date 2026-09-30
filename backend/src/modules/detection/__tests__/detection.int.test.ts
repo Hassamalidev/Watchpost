@@ -121,6 +121,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  /* Unclaimed verify tasks would be handed to other test files' probes in the same region. */
+  await ctx.container.infra.db.execute(sql`delete from probe_tasks where workspace_id = ${ws}`);
   await ctx.container.close();
 });
 
@@ -332,5 +334,19 @@ describe("fast path and sweep", () => {
     await detection.service.evaluateMonitor(monitorId);
     const state = await detection.service.state(monitorId);
     expect(state?.lastEvaluatedAt).toEqual(state?.lastResultAt);
+  });
+});
+
+describe("manual incidents", () => {
+  it("detection doesn't auto-resolve an incident a person opened", async () => {
+    const monitorId = await createMonitor("Manual");
+    const created = await post(`/api/w/${ws}/incidents`, { title: "Investigating", monitorId });
+    expect(created.status, created.text).toBe(201);
+
+    await report(monitorId, [{ ok: true, secondsAgo: 5 }]);
+    const outcome = await detection.service.evaluateMonitor(monitorId);
+    expect(outcome?.decision.status).toBe("up");
+    const incidents = await incidentsFor(monitorId);
+    expect(incidents.map((i) => i.status)).toEqual(["triggered"]);
   });
 });

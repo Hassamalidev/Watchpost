@@ -190,16 +190,15 @@ export function createProbesService(deps: {
       if (full || after === 0) {
         const cursor = await deps.monitors.latestSeq();
         const upserts: AssignedMonitor[] = [];
-        let afterId: string | undefined;
-        for (;;) {
+        let afterId: string | null = null;
+        do {
           const page = await deps.monitors.listForProbes({
             limit: PAGE,
-            ...(afterId ? { afterId } : {}),
+            ...(afterId === null ? {} : { afterId }),
           });
-          for (const m of page) if (isAssigned(probe, m)) upserts.push(toAssigned(m));
-          if (page.length < PAGE) break;
-          afterId = page.at(-1)?.id;
-        }
+          for (const m of page.monitors) if (isAssigned(probe, m)) upserts.push(toAssigned(m));
+          afterId = page.nextAfterId;
+        } while (afterId !== null);
         return { cursor, full: true, upserts, deletes: [] };
       }
       const feed = await deps.monitors.changesSince(after, PAGE);

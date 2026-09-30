@@ -122,7 +122,14 @@ export interface MonitorsService {
   }>;
   latestSeq(): Promise<number>;
   /* Active (unpaused) monitors for probe full syncs, paged by id. System-level: no tenant scope. */
-  listForProbes(options: { afterId?: string; limit: number }): Promise<MonitorForProbe[]>;
+  /*
+   * `nextAfterId` pages over the raw rows (null on the last page): monitors skipped for undecryptable
+   * secrets must not make a page look like the last one.
+   */
+  listForProbes(options: {
+    afterId?: string;
+    limit: number;
+  }): Promise<{ monitors: MonitorForProbe[]; nextAfterId: string | null }>;
   /* Specific monitors for probe tasks. System-level: no tenant scope. */
   getForProbes(ids: string[]): Promise<MonitorForProbe[]>;
   /* Settings detection evaluates against. System-level: no tenant scope. */
@@ -540,7 +547,11 @@ export function createMonitorsService(deps: MonitorsServiceDeps): MonitorsServic
     latestSeq: () => repo.latestSeq(),
 
     async listForProbes({ afterId, limit }) {
-      return forProbes(await repo.activeUnscoped(limit, afterId));
+      const rows = await repo.activeUnscoped(limit, afterId);
+      return {
+        monitors: forProbes(rows),
+        nextAfterId: rows.length === limit ? (rows.at(-1)?.id ?? null) : null,
+      };
     },
 
     async getForProbes(ids) {

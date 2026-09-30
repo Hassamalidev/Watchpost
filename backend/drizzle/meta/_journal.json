@@ -57,6 +57,13 @@
       "when": 1790796406013,
       "tag": "0007_incidents_detection",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790797078977,
+      "tag": "0008_incident_comments",
+      "breakpoints": true
     }
   ]
 }

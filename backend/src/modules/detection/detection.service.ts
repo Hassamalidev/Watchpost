@@ -265,7 +265,8 @@ export function createDetectionService(deps: DetectionServiceDeps): DetectionSer
         if (incidentId !== null && decision.flappingStarted) {
           await deps.incidents.setFlapping(tx, incidentId, true);
         }
-        if (decision.resolveIncident) {
+        /* Detection resolves only what it opened; manual incidents are closed by people. */
+        if (decision.resolveIncident && (open === undefined || open.source === "monitor")) {
           await deps.incidents.resolveForMonitor(tx, { monitorId, auto: true });
           incidentId = null;
         } else if (incidentId !== null && decision.flappingEnded) {

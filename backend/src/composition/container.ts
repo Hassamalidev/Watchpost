@@ -51,7 +51,14 @@ export function probeApi(modules: AppModule[]): MountedRouter[] {
 
 export function createInfra(
   config: AppConfig,
-  options: { service: "api" | "worker"; logger?: Logger; clock?: Clock; hooks?: LateHooks },
+  options: {
+    service: "api" | "worker";
+    logger?: Logger;
+    clock?: Clock;
+    hooks?: LateHooks;
+    /* Tests that sign up many users from one IP turn Better Auth's rate limit off. */
+    authRateLimit?: boolean;
+  },
 ): Infra {
   const logger =
     options.logger ??
@@ -81,10 +88,13 @@ export function createInfra(
     secret: config.auth.secret,
     webOrigin: config.webOrigin,
     requestEmail: (template, to, data) => requestEmail(template, to, data),
-    rateLimit: createRedisRateLimitStorage(redis, {
-      onError: (err) =>
-        logger.warn({ err }, "auth rate limit storage unavailable; allowing request"),
-    }),
+    rateLimit:
+      options.authRateLimit === false
+        ? false
+        : createRedisRateLimitStorage(redis, {
+            onError: (err) =>
+              logger.warn({ err }, "auth rate limit storage unavailable; allowing request"),
+          }),
     ...(config.auth.turnstileSecretKey
       ? { turnstile: { secretKey: config.auth.turnstileSecretKey } }
       : {}),
@@ -109,7 +119,7 @@ export function createInfra(
 
 export function createContainer(
   config: AppConfig,
-  options: { service: "api" | "worker"; logger?: Logger; clock?: Clock },
+  options: { service: "api" | "worker"; logger?: Logger; clock?: Clock; authRateLimit?: boolean },
 ): Container {
   const hooks: LateHooks = { onWorkspaceCreated: [] };
   const infra = createInfra(config, { ...options, hooks });

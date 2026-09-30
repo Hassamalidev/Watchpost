@@ -262,6 +262,12 @@ describe("secrets", () => {
 
 describe("probe views", () => {
   it("skip a monitor whose secrets can't be decrypted instead of failing the whole list", async () => {
+    const before = await createMonitor(
+      owner,
+      ws,
+      { name: "Before" },
+      { type: "tcp", host: "b.example.com", port: 443 },
+    );
     const broken = await createMonitor(
       owner,
       ws,
@@ -285,6 +291,12 @@ describe("probe views", () => {
 
     const views = await ctx.monitors.service.getForProbes([broken.body.id, ok.body.id]);
     expect(views.map((v) => v.id)).toEqual([ok.body.id]);
+
+    /* A page holding only the broken monitor is empty but not the last page. */
+    const page = await ctx.monitors.service.listForProbes({ afterId: before.body.id, limit: 1 });
+    expect(page).toEqual({ monitors: [], nextAfterId: broken.body.id });
+    const next = await ctx.monitors.service.listForProbes({ afterId: broken.body.id, limit: 1 });
+    expect(next.monitors.map((m) => m.id)).toEqual([ok.body.id]);
   });
 });
 
