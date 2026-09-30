@@ -403,19 +403,31 @@ importers:
       ipaddr.js:
         specifier: 2.5.0
         version: 2.5.0
+      jsonata:
+        specifier: 2.2.2
+        version: 2.2.2
       pino:
         specifier: 10.3.1
         version: 10.3.1
       uuid:
         specifier: 14.0.2
         version: 14.0.2
+      ws:
+        specifier: 8.22.0
+        version: 8.22.0
       zod:
         specifier: 4.6.5
         version: 4.6.5
     devDependencies:
+      '@app/fake-target':
+        specifier: workspace:*
+        version: link:../tools/fake-target
       '@types/node':
         specifier: 24.19.0
         version: 24.19.0
+      '@types/ws':
+        specifier: 8.18.2
+        version: 8.18.2
       selfsigned:
         specifier: 5.5.0
         version: 5.5.0
@@ -4228,6 +4240,10 @@ packages:
     resolution: {integrity: sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==}
     engines: {node: '>=6'}
     hasBin: true
+
+  jsonata@2.2.2:
+    resolution: {integrity: sha512-XDFH2PuaAXv0AXJEWwElXbqADmKFGKMLMkFb+qOz0EhjQW2EIJ6pgtordLU+4u3IVERyBfqy6bi6kZKEncvRqA==}
+    engines: {node: '>= 8'}
 
   keyv@5.6.0:
     resolution: {integrity: sha512-CYDD3SOtsHtyXeEORYRx2qBtpDJFjRTGXUtmNEMGyzYOKj1TE3tycdlho7kA1Ufx9OYWZzg52QFBGALTirzDSw==}
@@ -9071,6 +9087,8 @@ snapshots:
   json-stable-stringify-without-jsonify@1.0.1: {}
 
   json5@2.2.3: {}
+
+  jsonata@2.2.2: {}
 
   keyv@5.6.0:
     dependencies:

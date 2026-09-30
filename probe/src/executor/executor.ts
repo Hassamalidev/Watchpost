@@ -18,6 +18,8 @@ export interface CheckContext {
   signal: AbortSignal;
   /* SSRF rules for this probe (§9.1); every network check must use it. */
   policy: AddressPolicy;
+  /* Extra trusted CA certificates (PEM), added to Node's defaults: internal CAs for private probes. */
+  ca?: string[];
 }
 
 export type CheckRunner = (config: MonitorConfig, ctx: CheckContext) => Promise<CheckOutcome>;
@@ -60,6 +62,7 @@ export function createExecutor(options: {
   concurrency: number;
   runners: CheckRunners;
   policy: AddressPolicy;
+  ca?: string[];
   now?: () => number;
 }): Executor {
   const now = options.now ?? Date.now;
@@ -82,6 +85,7 @@ export function createExecutor(options: {
             timeoutMs: monitor.timeoutMs,
             signal: controller.signal,
             policy: options.policy,
+            ...(options.ca ? { ca: options.ca } : {}),
           });
         } catch (err) {
           outcome = failure(

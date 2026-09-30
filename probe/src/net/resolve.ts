@@ -53,6 +53,13 @@ export async function resolveVetted(
   return { addresses, dnsMs };
 }
 
+/* Probes prefer IPv4 when a name has both (more reliably routable from probe hosts). */
+export function preferredAddress(
+  addresses: readonly ResolvedAddress[],
+): ResolvedAddress | undefined {
+  return addresses.find((a) => a.family === 4) ?? addresses[0];
+}
+
 /* A `lookup` that always returns the vetted address, so the connection can't be re-resolved (rebinding). */
 export function pinnedLookup(vetted: ResolvedAddress) {
   return (

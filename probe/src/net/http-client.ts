@@ -6,13 +6,19 @@
  */
 import http from "node:http";
 import https from "node:https";
-import type { TLSSocket } from "node:tls";
+import nodeTls, { type TLSSocket } from "node:tls";
 import zlib from "node:zlib";
 import type { Readable } from "node:stream";
 import timer from "@szmarczak/http-timer";
 import type { AddressPolicy } from "./address-policy.js";
 import { CheckError, toCheckError } from "./errors.js";
-import { pinnedLookup, resolveVetted, systemResolver, type Resolver } from "./resolve.js";
+import {
+  pinnedLookup,
+  preferredAddress,
+  resolveVetted,
+  systemResolver,
+  type Resolver,
+} from "./resolve.js";
 
 export const MAX_TIMEOUT_MS = 30_000;
 export const MAX_BODY_BYTES = 1_048_576;
@@ -31,6 +37,8 @@ export interface HttpRequestOptions {
   /* Allow a redirect from https to http (off by default, §9.1 step 3). */
   allowDowngrade?: boolean;
   ignoreTlsErrors?: boolean;
+  /* Extra trusted CAs (PEM), added to Node's default roots. */
+  ca?: string[];
   maxBodyBytes?: number;
   policy: AddressPolicy;
   resolver?: Resolver;
@@ -178,7 +186,7 @@ async function requestHop(
     options.policy,
     options.resolver ?? systemResolver,
   );
-  const vetted = addresses[0];
+  const vetted = preferredAddress(addresses);
   if (vetted === undefined)
     throw new CheckError("dns_no_records", `${url.hostname} has no addresses`);
   const isHttps = url.protocol === "https:";
@@ -197,6 +205,7 @@ async function requestHop(
         ? {
             servername: url.hostname.replace(/^\[|\]$/g, ""),
             rejectUnauthorized: !options.ignoreTlsErrors,
+            ...(options.ca ? { ca: [...nodeTls.rootCertificates, ...options.ca] } : {}),
           }
         : {}),
       ...(options.signal ? { signal: options.signal } : {}),

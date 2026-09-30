@@ -33,6 +33,7 @@ export const CHECK_ERRORS = {
   latency_threshold: { impact: "degraded", title: "Slower than the threshold" },
   ws_handshake_failed: { impact: "failure", title: "WebSocket handshake failed" },
   ws_expect_failed: { impact: "failure", title: "WebSocket reply didn't match" },
+  tcp_expect_failed: { impact: "failure", title: "TCP reply didn't match" },
   ping_loss: { impact: "failure", title: "Packet loss over the threshold" },
   dns_value_mismatch: { impact: "failure", title: "DNS record differs from expected" },
   heartbeat_missed: { impact: "failure", title: "Heartbeat missed" },
