@@ -96,8 +96,8 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Build web, API (and the packages they depend on)
-        run: pnpm turbo run build --filter=@app/web... --filter=@app/api...
+      - name: Build everything (web, API, probe, fake-target)
+        run: pnpm build
       - name: Migrate the database
         run: pnpm db:migrate
         env:
@@ -105,7 +105,7 @@ jobs:
           BETTER_AUTH_URL: http://127.0.0.1:3100
           BETTER_AUTH_SECRET: ci-e2e-only-secret-xxxxxxxxxxxxxxxxxxxxxxx
           TOKEN_ENC_KEY: CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQk=
-      - name: Playwright (sign-up to test alert, light and dark, axe)
+      - name: Playwright (sign-up to test alert, outage flow, light and dark, axe)
         working-directory: backend/web
         run: pnpm test:e2e
       - name: Lighthouse accessibility >= 95

@@ -15,6 +15,23 @@ export const STORAGE_STATE = "e2e/.auth/user.json";
 export const E2E_DATABASE_URL =
   process.env.DATABASE_URL ?? "postgres://watchpost:watchpost@localhost:5433/watchpost";
 
+/* The API and the worker (started by e2e/stack.mjs) share this environment. */
+const BACKEND_ENV = {
+  NODE_ENV: "test",
+  LOG_LEVEL: "warn",
+  API_PORT: String(API_PORT),
+  WEB_ORIGIN,
+  BETTER_AUTH_URL: WEB_ORIGIN,
+  BETTER_AUTH_SECRET: "e2e-only-secret-".padEnd(40, "x"),
+  TOKEN_ENC_KEY: Buffer.alloc(32, 9).toString("base64"),
+  TOKEN_ENC_KEY_ID: "e2e",
+  DATABASE_URL: E2E_DATABASE_URL,
+  REDIS_URL: process.env.REDIS_URL ?? "redis://localhost:6379",
+  EMAIL_TRANSPORT: "console",
+  /* Webhook deliveries go to the local receiver in e2e/stack.mjs. */
+  OUTBOUND_ALLOW_CIDRS: "127.0.0.0/8",
+};
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
@@ -43,19 +60,15 @@ export default defineConfig({
       url: `http://127.0.0.1:${API_PORT}/api/health`,
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
-      env: {
-        NODE_ENV: "test",
-        LOG_LEVEL: "warn",
-        API_PORT: String(API_PORT),
-        WEB_ORIGIN,
-        BETTER_AUTH_URL: WEB_ORIGIN,
-        BETTER_AUTH_SECRET: "e2e-only-secret-".padEnd(40, "x"),
-        TOKEN_ENC_KEY: Buffer.alloc(32, 9).toString("base64"),
-        TOKEN_ENC_KEY_ID: "e2e",
-        DATABASE_URL: E2E_DATABASE_URL,
-        REDIS_URL: process.env.REDIS_URL ?? "redis://localhost:6379",
-        EMAIL_TRANSPORT: "console",
-      },
+      env: BACKEND_ENV,
+    },
+    {
+      /* Worker, probe, fake-target and the webhook receiver (P1-T19 outage flow). */
+      command: "node e2e/stack.mjs",
+      url: "http://127.0.0.1:4199/ready",
+      reuseExistingServer: false,
+      timeout: 60_000,
+      env: BACKEND_ENV,
     },
     {
       command: `pnpm exec next start --port ${WEB_PORT}`,
