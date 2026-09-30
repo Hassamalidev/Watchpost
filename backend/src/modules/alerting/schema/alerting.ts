@@ -58,6 +58,9 @@ export const notificationDeliveries = pgTable(
     actorName: text("actor_name"),
     status: text("status").$type<DeliveryStatus>().notNull().default("pending"),
     attempts: integer("attempts").notNull().default(0),
+    /* From the channel type's retry policy (webhooks retry for about an hour). */
+    maxAttempts: integer("max_attempts").notNull().default(5),
+    backoffMs: integer("backoff_ms").notNull().default(8_000),
     providerRef: text("provider_ref"),
     error: text("error"),
     sentAt: timestamp("sent_at", { withTimezone: true }),

@@ -93,6 +93,11 @@ export interface AlertingService {
   scheduleReminders(incidentId: string): Promise<boolean>;
   reminderDue(incidentId: string, dueAt: number): Promise<number>;
   onChannelHealth(channelId: string, status: "healthy" | "failing"): Promise<void>;
+  /* "Send test": one test alert through a channel, right now, with the outcome. */
+  sendTest(
+    scope: WorkspaceScope,
+    channelId: string,
+  ): Promise<{ ok: true } | { ok: false; error: string }>;
   deliveriesFor(incidentId: string): Promise<DeliveryView[]>;
   /* Recovery: re-queue deliveries whose jobs were lost. Returns how many. */
   recoverDeliveries(): Promise<number>;
@@ -104,7 +109,10 @@ export interface AlertingServiceDeps {
   db: Db;
   repository: AlertingRepository;
   incidents: Pick<IncidentsService, "alertContext" | "openIncidentIds" | "addSystemEvent">;
-  channels: Pick<ChannelsService, "existing" | "deliver" | "markFailing" | "summary">;
+  channels: Pick<
+    ChannelsService,
+    "existing" | "deliver" | "markFailing" | "summary" | "retryPolicy"
+  >;
   workspaces: Pick<WorkspacesService, "listMembers" | "workspaceName">;
   outbox: Outbox;
   clock: Clock;
@@ -195,14 +203,14 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
     };
   }
 
-  const notifyJob = (deliveryId: string, suffix?: string) =>
-    deps.enqueueNotify(deliveryId, {
-      jobId:
-        suffix === undefined
-          ? buildJobId("notify", deliveryId)
-          : buildJobId("notify", deliveryId, suffix),
-      attempts: NOTIFY_ATTEMPTS,
-      backoffMs: NOTIFY_BACKOFF_MS,
+  const notifyJob = (
+    d: Pick<DeliveryRow, "id" | "maxAttempts" | "backoffMs" | "attempts">,
+    suffix?: string,
+  ) =>
+    deps.enqueueNotify(d.id, {
+      jobId: suffix === undefined ? buildJobId("notify", d.id) : buildJobId("notify", d.id, suffix),
+      attempts: Math.max(1, d.maxAttempts - d.attempts),
+      backoffMs: d.backoffMs,
     });
 
   const reminderJob = (incidentId: string, dueAt: number) =>
@@ -322,18 +330,23 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
       const actorName = await memberName(ctx.workspaceId, actorId);
       const planned = await repo.insertDeliveries(
         deps.db,
-        channels.map((c) => ({
-          id: deps.newId(),
-          workspaceId: ctx.workspaceId,
-          incidentId,
-          eventKey,
-          destinationKey: `channel:${c.id}`,
-          channelId: c.id,
-          kind,
-          actorName,
-        })),
+        channels.map((c) => {
+          const retry = deps.channels.retryPolicy(c.type);
+          return {
+            id: deps.newId(),
+            workspaceId: ctx.workspaceId,
+            incidentId,
+            eventKey,
+            destinationKey: `channel:${c.id}`,
+            channelId: c.id,
+            kind,
+            actorName,
+            maxAttempts: retry?.attempts ?? NOTIFY_ATTEMPTS,
+            backoffMs: retry?.backoffMs ?? NOTIFY_BACKOFF_MS,
+          };
+        }),
       );
-      for (const d of planned) await notifyJob(d.id);
+      for (const d of planned) await notifyJob(d);
       return planned.length;
     },
 
@@ -362,7 +375,7 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         const permanent = err instanceof ChannelDeliveryError && err.permanent;
-        if (!permanent && delivery.attempts < NOTIFY_ATTEMPTS) {
+        if (!permanent && delivery.attempts < delivery.maxAttempts) {
           await finish({ status: "retrying", error: message });
           throw new RetryDeliveryError(message);
         }
@@ -425,6 +438,42 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
       }
     },
 
+    async sendTest(scope, channelId) {
+      const [channel] = await deps.channels.existing(scope, [channelId]);
+      if (channel === undefined) throw new NotFoundError("Channel not found.");
+      const workspaceName = await deps.workspaces.workspaceName(scope);
+      const now = clock.now().toISOString();
+      try {
+        await deps.channels.deliver({
+          channelId,
+          idempotencyKey: `test.${deps.newId()}`,
+          event: {
+            kind: "test",
+            workspace: { id: scope.workspaceId, name: workspaceName },
+            incident: {
+              id: channelId,
+              number: 0,
+              title: "Test alert",
+              severity: "low",
+              status: "resolved",
+              causeCode: null,
+              failingRegions: [],
+              monitorName: null,
+              startedAt: now,
+              resolvedAt: now,
+              durationSeconds: 0,
+              url: `${deps.webOrigin}/w/${scope.workspaceId}/integrations`,
+            },
+            actor: null,
+            at: now,
+          },
+        });
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+
     async deliveriesFor(incidentId) {
       return (await repo.deliveriesForIncident(deps.db, incidentId)).map(toDelivery);
     },
@@ -436,7 +485,7 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
         SWEEP_BATCH,
       );
       /* A new job ID: the lost job's ID may still be taken by its failed record. */
-      for (const d of stale) await notifyJob(d.id, `r${clock.now().getTime()}`);
+      for (const d of stale) await notifyJob(d, `r${clock.now().getTime()}`);
       return stale.length;
     },
 

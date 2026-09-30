@@ -19,6 +19,10 @@ export interface AppConfig {
   encryption: { activeKeyId: string; keys: Record<string, Buffer> };
   auth: { secret: string; baseURL: string; turnstileSecretKey: string | undefined };
   email: { transport: "console" | "memory"; from: string };
+  /* Outbound requests to user URLs (webhooks, chat APIs) go through the SSRF guard (§12). */
+  outbound: { allowCidrs: string[] };
+  slack: { clientId: string; clientSecret: string; signingSecret: string | undefined } | undefined;
+  telegram: { botToken: string; botUsername: string; webhookSecret: string } | undefined;
 }
 
 function encryptionKeys(env: Env): AppConfig["encryption"] {
@@ -49,6 +53,23 @@ export function toAppConfig(env: Env): AppConfig {
       transport: env.EMAIL_TRANSPORT === "memory" ? "memory" : "console",
       from: env.EMAIL_FROM,
     },
+    outbound: { allowCidrs: env.OUTBOUND_ALLOW_CIDRS },
+    slack:
+      env.SLACK_CLIENT_ID && env.SLACK_CLIENT_SECRET
+        ? {
+            clientId: env.SLACK_CLIENT_ID,
+            clientSecret: env.SLACK_CLIENT_SECRET,
+            signingSecret: env.SLACK_SIGNING_SECRET,
+          }
+        : undefined,
+    telegram:
+      env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_BOT_USERNAME && env.TELEGRAM_WEBHOOK_SECRET
+        ? {
+            botToken: env.TELEGRAM_BOT_TOKEN,
+            botUsername: env.TELEGRAM_BOT_USERNAME,
+            webhookSecret: env.TELEGRAM_WEBHOOK_SECRET,
+          }
+        : undefined,
   };
 }
 

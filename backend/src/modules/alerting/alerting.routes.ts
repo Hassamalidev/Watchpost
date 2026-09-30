@@ -6,7 +6,12 @@ import { Router, type RequestHandler } from "express";
 import { requireRole } from "../../middleware/roles.js";
 import { validate } from "../../middleware/validate.js";
 import type { AlertingController } from "./alerting.controller.js";
-import { createPolicyBody, policyIdParams, updatePolicyBody } from "./validators/index.js";
+import {
+  channelIdParams,
+  createPolicyBody,
+  policyIdParams,
+  updatePolicyBody,
+} from "./validators/index.js";
 
 export function createAlertingRouter(
   controller: AlertingController,
@@ -30,6 +35,15 @@ export function createAlertingRouter(
     admin,
     validate({ params: policyIdParams }),
     controller.remove,
+  );
+  /* "Send test" lives here: alerting builds alert events (it knows the workspace name). */
+  router.post(
+    "/channels/:channelId/test",
+    guards.session,
+    guards.workspace,
+    admin,
+    validate({ params: channelIdParams }),
+    controller.sendTest,
   );
   return router;
 }

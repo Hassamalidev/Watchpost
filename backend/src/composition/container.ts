@@ -3,13 +3,14 @@
  * dependencies and collects their routers, processors and sweeps. server.ts and worker.ts use it.
  */
 import { Router } from "express";
-import { PROBE_API_PREFIX } from "@app/shared";
+import { PROBE_API_PREFIX, createAddressPolicy } from "@app/shared";
 import type { AppConfig } from "../config/index.js";
 import { systemClock, type Clock } from "../core/clock.js";
 import { createAuthService, createRedisRateLimitStorage } from "../infra/auth/index.js";
 import { createTokenCipher } from "../infra/crypto.js";
 import { createEmailRequester } from "../infra/email/index.js";
 import { createDb, createDbPool, pingDb } from "../infra/db/index.js";
+import { createOutboundHttp, type OutboundHttp } from "../infra/http/outbound.js";
 import { createLocks } from "../infra/locks.js";
 import { createLogger, type Logger } from "../infra/logger.js";
 import { createOutbox, OUTBOX_MAX_LAG_SECONDS } from "../infra/outbox/index.js";
@@ -58,6 +59,8 @@ export function createInfra(
     hooks?: LateHooks;
     /* Tests that sign up many users from one IP turn Better Auth's rate limit off. */
     authRateLimit?: boolean;
+    /* Tests replace outbound HTTP (Slack, Telegram, webhooks) with a stub. */
+    http?: OutboundHttp;
   },
 ): Infra {
   const logger =
@@ -114,12 +117,23 @@ export function createInfra(
     locks: createLocks(redis),
     auth,
     requestEmail,
+    http:
+      options.http ??
+      createOutboundHttp({
+        policy: createAddressPolicy({ allowCidrs: config.outbound.allowCidrs }),
+      }),
   };
 }
 
 export function createContainer(
   config: AppConfig,
-  options: { service: "api" | "worker"; logger?: Logger; clock?: Clock; authRateLimit?: boolean },
+  options: {
+    service: "api" | "worker";
+    logger?: Logger;
+    clock?: Clock;
+    authRateLimit?: boolean;
+    http?: OutboundHttp;
+  },
 ): Container {
   const hooks: LateHooks = { onWorkspaceCreated: [] };
   const infra = createInfra(config, { ...options, hooks });

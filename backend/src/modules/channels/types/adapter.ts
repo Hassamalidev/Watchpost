@@ -60,10 +60,23 @@ export class ChannelDeliveryError extends Error {
   }
 }
 
+export interface PrepareContext {
+  workspaceId: string;
+  /* The stored config when updating a channel. */
+  previous: unknown;
+}
+
 export interface ChannelAdapter<C = unknown> {
   readonly type: ChannelType;
-  /* Throws a ValidationError for a bad config. */
+  /* Retry policy for this channel's deliveries; the default is 5 attempts from 8 s. */
+  readonly retry?: { attempts: number; backoffMs: number };
+  /* Throws a ValidationError for a bad config. Used for stored configs, so it must be pure. */
   parseConfig(input: unknown): C;
+  /*
+   * Turns API input into a config to store: validates, fills generated values (secrets) and checks
+   * references (a Slack installation belongs to the workspace). Defaults to parseConfig.
+   */
+  prepare?(input: unknown, ctx: PrepareContext): Promise<C>;
   /* What the API may show; secrets masked. Defaults to the config itself. */
   redact?(config: C): Record<string, unknown>;
   render(event: AlertEvent): RenderedMessage;

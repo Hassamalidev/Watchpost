@@ -71,6 +71,13 @@
       "when": 1790799504716,
       "tag": "0009_channels_alerting",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790800775242,
+      "tag": "0010_chat_integrations",
+      "breakpoints": true
     }
   ]
 }

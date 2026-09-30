@@ -62,9 +62,12 @@ export interface ChannelsService {
   }): Promise<{ providerRef: string | null }>;
   /* System: alerting gave up on a delivery through this channel. */
   markFailing(channelId: string): Promise<void>;
+  /* How often and how patiently deliveries to this channel type are retried. */
+  retryPolicy(type: ChannelRow["type"]): { attempts: number; backoffMs: number } | undefined;
 }
 
-const aad = (id: string) => `channel:${id}`;
+export const channelAad = (id: string) => `channel:${id}`;
+const aad = channelAad;
 const iso = (d: Date | null) => (d === null ? null : d.toISOString());
 
 export function createChannelsService(deps: {
@@ -125,6 +128,16 @@ export function createChannelsService(deps: {
     lastError: row.lastError ?? null,
   });
 
+  const prepare = (
+    adapter: AnyChannelAdapter,
+    input: unknown,
+    workspaceId: string,
+    previous: unknown,
+  ): Promise<unknown> =>
+    adapter.prepare
+      ? adapter.prepare(input, { workspaceId, previous })
+      : Promise.resolve(adapter.parseConfig(input));
+
   async function mustFind(scope: WorkspaceScope, id: string): Promise<ChannelRow> {
     const row = await repo.findScoped(deps.db, scope, id);
     if (row === undefined) throw new NotFoundError("Channel not found.");
@@ -151,7 +164,7 @@ export function createChannelsService(deps: {
 
     async create(scope, input) {
       const adapter = adapterFor(input.type);
-      const config = adapter.parseConfig(input.config);
+      const config = await prepare(adapter, input.config, scope.workspaceId, undefined);
       const id = deps.newId();
       const row = await repo.insert(deps.db, scope, {
         id,
@@ -167,7 +180,12 @@ export function createChannelsService(deps: {
       const patch: Partial<Pick<ChannelRow, "name" | "configEnc">> = {};
       if (input.name !== undefined) patch.name = input.name;
       if (input.config !== undefined) {
-        const config = adapterFor(row.type).parseConfig(input.config);
+        const config = await prepare(
+          adapterFor(row.type),
+          input.config,
+          scope.workspaceId,
+          configOf(row),
+        );
         patch.configEnc = deps.cipher.encrypt(JSON.stringify(config), aad(id));
       }
       const updated = await repo.updateScoped(deps.db, scope, id, patch);
@@ -251,6 +269,8 @@ export function createChannelsService(deps: {
       if (row.status === "failing") await setHealth(channelId, row.workspaceId, "healthy");
       return { providerRef };
     },
+
+    retryPolicy: (type) => adapters.get(type)?.retry,
 
     async markFailing(channelId) {
       const row = await repo.findById(deps.db, channelId);

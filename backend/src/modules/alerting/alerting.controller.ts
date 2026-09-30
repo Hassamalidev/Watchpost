@@ -3,9 +3,17 @@ import type { RequestHandler } from "express";
 import { inputOf } from "../../middleware/validate.js";
 import { scopeOf } from "../../middleware/workspace.js";
 import type { AlertingService } from "./alerting.service.js";
-import type { createPolicyBody, policyIdParams, updatePolicyBody } from "./validators/index.js";
+import type {
+  channelIdParams,
+  createPolicyBody,
+  policyIdParams,
+  updatePolicyBody,
+} from "./validators/index.js";
 
-export type AlertingController = Record<"list" | "create" | "update" | "remove", RequestHandler>;
+export type AlertingController = Record<
+  "list" | "create" | "update" | "remove" | "sendTest",
+  RequestHandler
+>;
 
 export function createAlertingController(service: AlertingService): AlertingController {
   const idOf = (req: Parameters<RequestHandler>[0], res: Parameters<RequestHandler>[1]) =>
@@ -22,6 +30,10 @@ export function createAlertingController(service: AlertingService): AlertingCont
     update: async (req, res) => {
       const { body } = inputOf<{ body: typeof updatePolicyBody }>(req, res);
       res.json(await service.updatePolicy(scopeOf(req, res), idOf(req, res), body));
+    },
+    sendTest: async (req, res) => {
+      const { params } = inputOf<{ params: typeof channelIdParams }>(req, res);
+      res.json(await service.sendTest(scopeOf(req, res), params.channelId));
     },
     remove: async (req, res) => {
       await service.deletePolicy(scopeOf(req, res), idOf(req, res));

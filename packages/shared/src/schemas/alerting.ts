@@ -15,6 +15,70 @@ export const emailChannelConfigSchema = z
   .strict();
 export type EmailChannelConfig = z.infer<typeof emailChannelConfigSchema>;
 
+const httpsUrl = z
+  .url()
+  .max(2_048)
+  .refine((u) => u.startsWith("https://"), "must be an https:// URL");
+
+/* Outbound webhook: we sign every request with the secret (generated when omitted). */
+export const webhookChannelConfigSchema = z
+  .object({
+    url: z
+      .url()
+      .max(2_048)
+      .refine((u) => /^https?:\/\//.test(u), "must be an http(s) URL"),
+    secret: z.string().min(16).max(200).optional(),
+  })
+  .strict();
+export type WebhookChannelConfig = z.infer<typeof webhookChannelConfigSchema>;
+
+export const discordChannelConfigSchema = z
+  .object({
+    url: httpsUrl.refine(
+      (u) =>
+        /^https:\/\/(?:ptb\.|canary\.)?discord(?:app)?\.com\/api\/webhooks\/\d+\/[\w-]+$/.test(u),
+      "must be a Discord webhook URL (https://discord.com/api/webhooks/…)",
+    ),
+  })
+  .strict();
+export type DiscordChannelConfig = z.infer<typeof discordChannelConfigSchema>;
+
+/* Hosts that serve Teams "Workflows" webhook URLs (Power Automate / Logic Apps). */
+export const TEAMS_WORKFLOW_HOST_SUFFIXES = [
+  ".logic.azure.com",
+  ".powerplatform.com",
+  ".powerautomate.com",
+] as const;
+
+export const teamsChannelConfigSchema = z
+  .object({
+    url: httpsUrl.refine((u) => {
+      const host = new URL(u).hostname;
+      return TEAMS_WORKFLOW_HOST_SUFFIXES.some((s) => host.endsWith(s));
+    }, "must be the URL of a Teams Workflows webhook"),
+  })
+  .strict();
+export type TeamsChannelConfig = z.infer<typeof teamsChannelConfigSchema>;
+
+export const slackChannelConfigSchema = z
+  .object({
+    installationId: z.uuid(),
+    /* Slack conversation ID (C…, G…). */
+    channelId: z.string().regex(/^[CGD][A-Z0-9]{2,}$/, "must be a Slack channel ID"),
+    channelName: z.string().min(1).max(200),
+  })
+  .strict();
+export type SlackChannelConfig = z.infer<typeof slackChannelConfigSchema>;
+
+/* Telegram chats link through a deep link to our bot; the chat is unknown until then. */
+export const telegramChannelConfigSchema = z
+  .object({
+    chatId: z.string().max(64).nullable().default(null),
+    chatTitle: z.string().max(200).nullable().default(null),
+  })
+  .strict();
+export type TelegramChannelConfig = z.infer<typeof telegramChannelConfigSchema>;
+
 const channelName = z.string().trim().min(1).max(100);
 
 export const createChannelSchema = z

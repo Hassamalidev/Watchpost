@@ -3,6 +3,7 @@ import { z } from "zod";
 import { alertPolicyBodySchema, alertPolicyRulesSchema } from "@app/shared";
 
 export const policyIdParams = z.object({ policyId: z.uuid() });
+export const channelIdParams = z.object({ channelId: z.uuid() });
 export const createPolicyBody = alertPolicyBodySchema;
 export const updatePolicyBody = z
   .object({

@@ -12,13 +12,21 @@ import { PROBE_API_PREFIX, PROBE_HEADERS, probeSigningString } from "@app/shared
 import { createApp } from "../../app.js";
 import { createContainer } from "../../composition/container.js";
 import { parseEnv, toAppConfig } from "../../config/index.js";
+import type { OutboundHttp, OutboundRequest, OutboundResponse } from "../../infra/http/outbound.js";
 import { outboxEvents } from "../../infra/outbox/index.js";
 import { TEST_DATABASE_URL, TEST_REDIS_URL } from "./test-env.js";
 
 export const WEB_ORIGIN = "http://localhost:3000";
 export const PASSWORD = "correct horse battery";
 
-export function buildContainerApp(options: { authRateLimit?: boolean } = {}) {
+export function buildContainerApp(
+  options: {
+    authRateLimit?: boolean;
+    /* Extra environment (for example Slack or Telegram credentials). */
+    env?: Record<string, string>;
+    http?: OutboundHttp;
+  } = {},
+) {
   const config = toAppConfig(
     parseEnv({
       NODE_ENV: "test",
@@ -31,6 +39,7 @@ export function buildContainerApp(options: { authRateLimit?: boolean } = {}) {
       TOKEN_ENC_KEY_ID: "test",
       BETTER_AUTH_SECRET: "container-test-secret-".padEnd(40, "z"),
       BETTER_AUTH_URL: "http://localhost:4000",
+      ...options.env,
     }),
   );
   /* TEST_LOG_LEVEL=error shows server errors while debugging a test. */
@@ -39,6 +48,7 @@ export function buildContainerApp(options: { authRateLimit?: boolean } = {}) {
     service: "api",
     logger,
     ...(options.authRateLimit === false ? { authRateLimit: false } : {}),
+    ...(options.http === undefined ? {} : { http: options.http }),
   });
   const app = createApp({
     config,
@@ -133,4 +143,20 @@ export async function countResults(
     )})`,
   );
   return r.rows[0]?.n ?? 0;
+}
+
+/* Outbound HTTP stub: records every request and answers from the handler (default 200 {}). */
+export function stubHttp(
+  handler: (req: OutboundRequest) => Partial<OutboundResponse> | undefined = () => undefined,
+) {
+  const requests: OutboundRequest[] = [];
+  const http: OutboundHttp & { requests: OutboundRequest[] } = {
+    requests,
+    async request(req) {
+      requests.push(req);
+      const res = handler(req) ?? {};
+      return { status: res.status ?? 200, headers: res.headers ?? {}, body: res.body ?? "{}" };
+    },
+  };
+  return http;
 }

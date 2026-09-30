@@ -1,8 +1,15 @@
 /* Queries on channels and message_refs, owned by the channels module. */
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 import { assertWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
 import { tenantWhere, withWorkspace, type DbOrTx } from "../../infra/db/index.js";
-import { channels, messageRefs, type ChannelRow } from "./schema/channels.js";
+import {
+  channels,
+  messageRefs,
+  slackInstallations,
+  telegramChats,
+  type ChannelRow,
+  type SlackInstallationRow,
+} from "./schema/channels.js";
 
 export type ChannelsRepository = ReturnType<typeof createChannelsRepository>;
 
@@ -122,6 +129,92 @@ export function createChannelsRepository() {
         .where(and(eq(messageRefs.incidentId, incidentId), eq(messageRefs.channelId, channelId)))
         .limit(1);
       return rows[0]?.providerRef ?? null;
+    },
+
+    async setConfig(tx: DbOrTx, id: string, configEnc: string): Promise<void> {
+      await tx
+        .update(channels)
+        .set({ configEnc, updatedAt: sql`now()` })
+        .where(eq(channels.id, id));
+    },
+
+    /* Slack installations */
+
+    async upsertSlackInstallation(
+      tx: DbOrTx,
+      row: typeof slackInstallations.$inferInsert,
+    ): Promise<SlackInstallationRow> {
+      const [saved] = await tx
+        .insert(slackInstallations)
+        .values(row)
+        .onConflictDoUpdate({
+          target: [slackInstallations.workspaceId, slackInstallations.teamId],
+          set: {
+            teamName: row.teamName,
+            botUserId: row.botUserId,
+            botTokenEnc: row.botTokenEnc,
+            scopes: row.scopes,
+            installedBy: row.installedBy,
+            updatedAt: sql`now()`,
+          },
+        })
+        .returning();
+      if (saved === undefined) throw new Error("slack installation upsert returned nothing");
+      return saved;
+    },
+
+    async slackInstallations(tx: DbOrTx, scope: WorkspaceScope): Promise<SlackInstallationRow[]> {
+      assertWorkspaceScope(scope);
+      return tx
+        .select()
+        .from(slackInstallations)
+        .where(eq(slackInstallations.workspaceId, scope.workspaceId))
+        .orderBy(asc(slackInstallations.teamName));
+    },
+
+    async slackInstallation(tx: DbOrTx, id: string): Promise<SlackInstallationRow | undefined> {
+      const rows = await tx
+        .select()
+        .from(slackInstallations)
+        .where(eq(slackInstallations.id, id))
+        .limit(1);
+      return rows[0];
+    },
+
+    /* Telegram links */
+
+    async upsertTelegramLink(
+      tx: DbOrTx,
+      row: {
+        id: string;
+        workspaceId: string;
+        channelId: string;
+        linkToken: string;
+        tokenExpiresAt: Date;
+      },
+    ): Promise<void> {
+      await tx
+        .insert(telegramChats)
+        .values(row)
+        .onConflictDoUpdate({
+          target: telegramChats.channelId,
+          set: { linkToken: row.linkToken, tokenExpiresAt: row.tokenExpiresAt },
+        });
+    },
+
+    /* Consumes a link token (once, before it expires); returns the channel it links. */
+    async consumeTelegramToken(
+      tx: DbOrTx,
+      token: string,
+      chat: { chatId: string; chatTitle: string | null },
+      now: Date,
+    ): Promise<{ channelId: string; workspaceId: string } | undefined> {
+      const [row] = await tx
+        .update(telegramChats)
+        .set({ ...chat, linkToken: null, tokenExpiresAt: null, linkedAt: now })
+        .where(and(eq(telegramChats.linkToken, token), gt(telegramChats.tokenExpiresAt, now)))
+        .returning({ channelId: telegramChats.channelId, workspaceId: telegramChats.workspaceId });
+      return row;
     },
 
     async saveThreadRef(tx: DbOrTx, row: typeof messageRefs.$inferInsert): Promise<void> {

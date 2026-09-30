@@ -7,6 +7,7 @@ import type { AuthService } from "../infra/auth/index.js";
 import type { TokenCipher } from "../infra/crypto.js";
 import type { RequestEmail } from "../infra/email/index.js";
 import type { Db, DbPool } from "../infra/db/index.js";
+import type { OutboundHttp } from "../infra/http/outbound.js";
 import type { Locks } from "../infra/locks.js";
 import type { Logger } from "../infra/logger.js";
 import type { Outbox } from "../infra/outbox/index.js";
@@ -32,6 +33,8 @@ export interface Infra {
   auth: AuthService;
   /* Emits email.requested in its own transaction; the worker's `emails` queue sends it. */
   requestEmail: RequestEmail;
+  /* SSRF-safe HTTP for URLs users give us (webhooks, chat APIs). */
+  http: OutboundHttp;
 }
 
 export interface MountedRouter {

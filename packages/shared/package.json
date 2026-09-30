@@ -21,6 +21,7 @@
     "schemas:generate": "tsx scripts/generate-json-schema.ts"
   },
   "dependencies": {
+    "ipaddr.js": "2.5.0",
     "zod": "4.6.5"
   },
   "devDependencies": {

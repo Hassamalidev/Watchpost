@@ -49,6 +49,16 @@ const previousKeys = z
     return entries;
   });
 
+const commaList = z
+  .string()
+  .optional()
+  .transform((value) =>
+    (value ?? "")
+      .split(",")
+      .map((v) => v.trim())
+      .filter((v) => v !== ""),
+  );
+
 const baseEnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   LOG_LEVEL: z.enum(LOG_LEVELS).default("info"),
@@ -80,6 +90,28 @@ const baseEnvSchema = z.object({
   /* Where transactional email goes. "resend" arrives with the templates in P1-T18. */
   EMAIL_TRANSPORT: z.enum(["console", "memory", "resend"]).default("console"),
   EMAIL_FROM: z.string().default("Watchpost <alerts@localhost>"),
+  /*
+   * Private ranges the API may still reach for outbound webhooks and chat APIs, for local test
+   * receivers only (CIDRs, comma-separated). Refused in production.
+   */
+  OUTBOUND_ALLOW_CIDRS: commaList,
+  /* Slack app (PRODUCT.md §10); Slack channels are available only when the app is configured. */
+  SLACK_CLIENT_ID: z.string().optional(),
+  SLACK_CLIENT_SECRET: z.string().optional(),
+  SLACK_SIGNING_SECRET: z.string().optional(),
+  /* Telegram bot (PRODUCT.md §10); Telegram channels need all three. */
+  TELEGRAM_BOT_TOKEN: z
+    .string()
+    .regex(/^\d+:[A-Za-z0-9_-]+$/, "must look like 123456:ABC-xyz")
+    .optional(),
+  TELEGRAM_BOT_USERNAME: z
+    .string()
+    .regex(/^[A-Za-z0-9_]{5,32}$/)
+    .optional(),
+  TELEGRAM_WEBHOOK_SECRET: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{16,256}$/, "must be 16-256 letters, digits, _ or -")
+    .optional(),
 });
 
 export const envSchema = baseEnvSchema.superRefine((env, ctx) => {
@@ -89,6 +121,29 @@ export const envSchema = baseEnvSchema.superRefine((env, ctx) => {
       path: ["TURNSTILE_SECRET_KEY"],
       message: "is required in production (Turnstile protects sign-up)",
     });
+  }
+  if (env.NODE_ENV === "production" && env.OUTBOUND_ALLOW_CIDRS.length > 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["OUTBOUND_ALLOW_CIDRS"],
+      message: "is for local test receivers only and must be empty in production",
+    });
+  }
+  const groups: Array<[string, string[]]> = [
+    ["Slack", ["SLACK_CLIENT_ID", "SLACK_CLIENT_SECRET"]],
+    ["Telegram", ["TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_USERNAME", "TELEGRAM_WEBHOOK_SECRET"]],
+  ];
+  for (const [name, keys] of groups) {
+    const set = keys.filter((k) => env[k as keyof typeof env] !== undefined);
+    if (set.length > 0 && set.length < keys.length) {
+      for (const key of keys.filter((k) => !set.includes(k))) {
+        ctx.addIssue({
+          code: "custom",
+          path: [key],
+          message: `is required when ${name} is configured (set all of ${keys.join(", ")} or none)`,
+        });
+      }
+    }
   }
   if (env.EMAIL_TRANSPORT === "resend") {
     ctx.addIssue({
