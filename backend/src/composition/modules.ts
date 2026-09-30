@@ -12,6 +12,7 @@ import { createIncidentsModule } from "../modules/incidents/index.js";
 import { createChannelsModule } from "../modules/channels/index.js";
 import { createAlertingModule } from "../modules/alerting/index.js";
 import { createHeartbeatsModule } from "../modules/heartbeats/index.js";
+import { createExpiryModule } from "../modules/expiry/index.js";
 /* new-module:imports */
 
 export function createModules(infra: Infra): AppModule[] {
@@ -48,6 +49,15 @@ export function createModules(infra: Infra): AppModule[] {
     createHeartbeatsModule({
       infra,
       monitors: monitors.service,
+      incidents: incidents.service,
+      guards: workspaces.guards,
+    }),
+  );
+  modules.push(
+    createExpiryModule({
+      infra,
+      monitors: monitors.service,
+      results: results.service,
       incidents: incidents.service,
       guards: workspaces.guards,
     }),

@@ -134,6 +134,11 @@ export interface MonitorsService {
   }): Promise<{ monitors: MonitorForProbe[]; nextAfterId: string | null }>;
   /* Specific monitors for probe tasks. System-level: no tenant scope. */
   getForProbes(ids: string[]): Promise<MonitorForProbe[]>;
+  /* Monitors of the given types with their configs, paged by ID. System-level: no tenant scope. */
+  listByType(
+    types: MonitorConfig["type"][],
+    options: { afterId?: string; limit: number },
+  ): Promise<{ monitors: MonitorForProbe[]; nextAfterId: string | null }>;
   /* Settings detection evaluates against. System-level: no tenant scope. */
   getForDetection(ids: string[]): Promise<MonitorForDetection[]>;
 }
@@ -560,6 +565,14 @@ export function createMonitorsService(deps: MonitorsServiceDeps): MonitorsServic
 
     async getForProbes(ids) {
       return forProbes(await repo.findByIdsUnscoped(ids));
+    },
+
+    async listByType(types, { afterId, limit }) {
+      const rows = await repo.byTypeUnscoped(types, limit, afterId);
+      return {
+        monitors: forProbes(rows),
+        nextAfterId: rows.length === limit ? (rows.at(-1)?.id ?? null) : null,
+      };
     },
 
     async getForDetection(ids) {

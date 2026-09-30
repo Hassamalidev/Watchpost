@@ -49,6 +49,33 @@ export function createResultsRepository(db: DbOrTx) {
         .limit(limit);
     },
 
+    /* The newest TLS facts per monitor from raw results (the last 48 h). */
+    async latestTls(): Promise<
+      Array<{
+        monitorId: string;
+        workspaceId: string;
+        checkedAt: Date;
+        tls: NonNullable<CheckResultRow["tls"]>;
+      }>
+    > {
+      const result = await db.execute<{
+        monitor_id: string;
+        workspace_id: string;
+        checked_at: string;
+        tls: NonNullable<CheckResultRow["tls"]>;
+      }>(sql`
+        select distinct on (monitor_id) monitor_id, workspace_id, checked_at, tls
+        from ${checkResults}
+        where tls is not null
+        order by monitor_id, checked_at desc`);
+      return result.rows.map((r) => ({
+        monitorId: r.monitor_id,
+        workspaceId: r.workspace_id,
+        checkedAt: new Date(r.checked_at),
+        tls: r.tls,
+      }));
+    },
+
     async events(monitorId: string, limit: number) {
       return db
         .select()

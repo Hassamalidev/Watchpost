@@ -29,6 +29,10 @@ export function createAlertingEventHandlers(service: AlertingService): EventHand
     "incident.resolved": async ({ incidentId }, meta) => {
       await service.planIncidentEvent({ kind: "resolved", incidentId, eventKey: meta.eventId });
     },
+    /* An update to an open incident (a nearer expiry) goes out like a reminder. */
+    "incident.updated": async ({ incidentId }, meta) => {
+      await service.planIncidentEvent({ kind: "reminder", incidentId, eventKey: meta.eventId });
+    },
     "incident.flapping_started": async ({ incidentId }, meta) => {
       await service.planIncidentEvent({ kind: "flapping", incidentId, eventKey: meta.eventId });
     },

@@ -21,6 +21,7 @@ Do not edit by hand: run `pnpm --filter @app/shared schemas:generate`. A test fa
 - [event.incident.resolved.v1](./event.incident.resolved.v1.json)
 - [event.incident.snoozed.v1](./event.incident.snoozed.v1.json)
 - [event.incident.triggered.v1](./event.incident.triggered.v1.json)
+- [event.incident.updated.v1](./event.incident.updated.v1.json)
 - [event.monitor.created.v1](./event.monitor.created.v1.json)
 - [event.monitor.deleted.v1](./event.monitor.deleted.v1.json)
 - [event.monitor.state_changed.v1](./event.monitor.state_changed.v1.json)

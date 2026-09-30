@@ -33,7 +33,7 @@ const result = (overrides: Partial<StoredResult> = {}): StoredResult => ({
 beforeAll(async () => {
   pool = createDbPool(TEST_DATABASE_URL, { max: 3 });
   db = createDb(pool);
-  service = createResultsService({ db, repository: repo(), clock });
+  service = createResultsService({ db, repository: repo(), clock, newId });
   await service.maintainPartitions();
 });
 

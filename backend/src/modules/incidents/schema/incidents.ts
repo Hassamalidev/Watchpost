@@ -18,7 +18,7 @@ import {
 import { organization } from "../../../infra/auth/schema.js";
 
 export type IncidentStatus = "triggered" | "acknowledged" | "snoozed" | "resolved";
-export type IncidentSource = "monitor" | "heartbeat" | "inbound" | "manual";
+export type IncidentSource = "monitor" | "heartbeat" | "inbound" | "manual" | "expiry";
 export type IncidentSeverity = "critical" | "high" | "low";
 
 export const incidents = pgTable(
@@ -61,9 +61,12 @@ export const incidents = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    /* Expiry warnings are separate (deduplicated by key) so they never hide an outage. */
     uniqueIndex("incidents_one_open_per_monitor_uq")
       .on(t.monitorId)
-      .where(sql`${t.status} <> 'resolved' and ${t.monitorId} is not null`),
+      .where(
+        sql`${t.status} <> 'resolved' and ${t.monitorId} is not null and ${t.source} <> 'expiry'`,
+      ),
     uniqueIndex("incidents_one_open_per_dedup_uq")
       .on(t.workspaceId, t.dedupKey)
       .where(sql`${t.status} <> 'resolved' and ${t.dedupKey} is not null`),

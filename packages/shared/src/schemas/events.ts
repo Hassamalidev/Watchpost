@@ -43,6 +43,11 @@ export const EVENT_SCHEMAS = {
   "incident.resolved": { version: 1, schema: z.object({ incidentId: id, auto: z.boolean() }) },
   "incident.reopened": { version: 1, schema: z.object({ incidentId: id }) },
   "incident.escalation_requested": { version: 1, schema: z.object({ incidentId: id }) },
+  /* An open incident changed in a way worth telling people (for example a nearer expiry date). */
+  "incident.updated": {
+    version: 1,
+    schema: z.object({ incidentId: id, reason: z.string().max(300) }),
+  },
   /* 5+ state changes in 30 minutes: one notice, then quiet until stable (§9.2). */
   "incident.flapping_started": { version: 1, schema: z.object({ incidentId: id }) },
   "incident.ai_summary_ready": {

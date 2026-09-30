@@ -40,10 +40,49 @@ export function createIncidentsRepository() {
       const query = tx
         .select()
         .from(incidents)
-        .where(and(eq(incidents.monitorId, monitorId), ne(incidents.status, "resolved")))
+        .where(
+          and(
+            eq(incidents.monitorId, monitorId),
+            ne(incidents.status, "resolved"),
+            ne(incidents.source, "expiry"),
+          ),
+        )
         .limit(1);
       const rows = lock ? await query.for("update") : await query;
       return rows[0];
+    },
+
+    async findOpenByDedupKey(
+      tx: DbOrTx,
+      workspaceId: string,
+      dedupKey: string,
+    ): Promise<IncidentRow | undefined> {
+      const rows = await tx
+        .select()
+        .from(incidents)
+        .where(
+          and(
+            eq(incidents.workspaceId, workspaceId),
+            eq(incidents.dedupKey, dedupKey),
+            ne(incidents.status, "resolved"),
+          ),
+        )
+        .limit(1)
+        .for("update");
+      return rows[0];
+    },
+
+    /* Inserts unless an open incident has the same dedup key; undefined on conflict. */
+    async insertDeduplicated(tx: DbOrTx, row: NewIncident): Promise<IncidentRow | undefined> {
+      const [created] = await tx
+        .insert(incidents)
+        .values(row)
+        .onConflictDoNothing({
+          target: [incidents.workspaceId, incidents.dedupKey],
+          where: sql`${incidents.status} <> 'resolved' and ${incidents.dedupKey} is not null`,
+        })
+        .returning();
+      return created;
     },
 
     /* Inserts unless the monitor already has an open incident (the partial unique index decides). */
@@ -53,7 +92,7 @@ export function createIncidentsRepository() {
         .values(row)
         .onConflictDoNothing({
           target: incidents.monitorId,
-          where: sql`${incidents.status} <> 'resolved' and ${incidents.monitorId} is not null`,
+          where: sql`${incidents.status} <> 'resolved' and ${incidents.monitorId} is not null and ${incidents.source} <> 'expiry'`,
         })
         .returning();
       return created;

@@ -174,6 +174,19 @@ export function createMonitorsRepository(db: DbOrTx) {
       return db.select().from(monitors).where(inArray(monitors.id, ids));
     },
 
+    async byTypeUnscoped(
+      types: MonitorRow["type"][],
+      limit: number,
+      afterId?: string,
+    ): Promise<MonitorRow[]> {
+      return db
+        .select()
+        .from(monitors)
+        .where(and(inArray(monitors.type, types), afterId ? gt(monitors.id, afterId) : undefined))
+        .orderBy(asc(monitors.id))
+        .limit(limit);
+    },
+
     async activeUnscoped(limit: number, afterId?: string): Promise<MonitorRow[]> {
       return db
         .select()

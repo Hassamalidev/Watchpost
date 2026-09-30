@@ -33,6 +33,17 @@ export interface IngestOutcome {
 export interface ResultsService {
   ingest(results: StoredResult[]): Promise<IngestOutcome>;
   recent(monitorId: string, region: string, limit: number): Promise<CheckResultRow[]>;
+  /* The newest TLS facts per monitor (system-level, across workspaces). */
+  latestTls(): ReturnType<ResultsRepository["latestTls"]>;
+  /* Records a check event that isn't a failed result (for example a certificate change). */
+  recordEvent(event: {
+    workspaceId: string;
+    monitorId: string;
+    at: Date;
+    kind: "info" | "state_change";
+    message: string;
+    details?: Record<string, unknown>;
+  }): Promise<void>;
   maintainPartitions(): Promise<{ created: string[]; dropped: string[] }>;
 }
 
@@ -45,6 +56,7 @@ export function createResultsService(deps: {
   db: Db;
   repository: ResultsRepository;
   clock: Clock;
+  newId: () => string;
 }): ResultsService {
   const { repository: repo, clock } = deps;
 
@@ -106,6 +118,22 @@ export function createResultsService(deps: {
     },
 
     recent: (monitorId, region, limit) => repo.recent(monitorId, region, limit),
+
+    latestTls: () => repo.latestTls(),
+
+    async recordEvent(event) {
+      await repo.insertEvents(deps.db, [
+        {
+          id: deps.newId(),
+          workspaceId: event.workspaceId,
+          monitorId: event.monitorId,
+          at: event.at,
+          kind: event.kind,
+          message: event.message,
+          details: event.details ?? null,
+        },
+      ]);
+    },
 
     async maintainPartitions() {
       const now = clock.now().getTime();

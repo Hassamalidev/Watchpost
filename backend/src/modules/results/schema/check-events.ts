@@ -11,7 +11,8 @@ export const checkEvents = pgTable(
     workspaceId: uuid("workspace_id").notNull(),
     monitorId: uuid("monitor_id").notNull(),
     at: timestamp("at", { withTimezone: true }).notNull(),
-    kind: text("kind").$type<"failure" | "state_change">().notNull(),
+    /* `info`: noteworthy but not a failure (for example an unexpected certificate change). */
+    kind: text("kind").$type<"failure" | "state_change" | "info">().notNull(),
     region: text("region"),
     errorCode: text("error_code"),
     httpStatus: integer("http_status"),

@@ -13,6 +13,7 @@ export type {
   AlertContext,
   CommentView,
   CreateIncidentInput,
+  ExpiryIncidentInput,
   IncidentDetail,
   IncidentView,
   IncidentsService,

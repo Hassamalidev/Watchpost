@@ -1,5 +1,6 @@
 /* Public API of the results module. Other modules import only from this file (PRODUCT.md §7.1). */
 import type { AppModule, Infra } from "../../composition/types.js";
+import { newId } from "../../infra/ids.js";
 import { createResultsRepository } from "./results.repository.js";
 import { createResultsService, type ResultsService } from "./results.service.js";
 import { PARTITION_JOB_EVERY_MS, createResultsProcessors } from "./jobs/index.js";
@@ -23,7 +24,12 @@ export interface ResultsModule extends AppModule {
 
 export function createResultsModule(deps: ResultsModuleDeps): ResultsModule {
   const repository = createResultsRepository(deps.infra.db);
-  const service = createResultsService({ db: deps.infra.db, repository, clock: deps.infra.clock });
+  const service = createResultsService({
+    db: deps.infra.db,
+    repository,
+    clock: deps.infra.clock,
+    newId,
+  });
   return {
     name: "results",
     service,

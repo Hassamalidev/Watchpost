@@ -86,6 +86,16 @@ export interface AlertContext {
   } | null;
 }
 
+export interface ExpiryIncidentInput {
+  workspaceId: string;
+  monitorId: string;
+  /* One open incident per key, for example `ssl:<monitorId>`. */
+  dedupKey: string;
+  title: string;
+  causeCode: string;
+  evidence: Record<string, unknown>;
+}
+
 export interface CreateIncidentInput {
   title: string;
   severity: IncidentSeverity;
@@ -114,6 +124,16 @@ export interface IncidentsService {
   findOpenForMonitor(tx: DbOrTx, monitorId: string): Promise<IncidentRow | undefined>;
   /* System: routing and rendering context for alerting; undefined if the incident is gone. */
   alertContext(incidentId: string): Promise<AlertContext | undefined>;
+  /*
+   * System: opens a low-severity expiry incident, or updates the open one with the same key (new
+   * title and evidence, an `updated` timeline entry and `incident.updated` so people hear about it).
+   */
+  openOrUpdateExpiry(
+    tx: Tx,
+    input: ExpiryIncidentInput,
+  ): Promise<{ incident: IncidentRow; created: boolean }>;
+  /* System: resolves the open incident with this key (after a renewal). */
+  resolveByDedupKey(tx: Tx, workspaceId: string, dedupKey: string): Promise<boolean>;
   /* System: IDs of open incidents, paged by ID (reminder recovery). */
   openIncidentIds(options: { afterId?: string; limit: number }): Promise<string[]>;
   /* System: a timeline entry written by the platform (for example `delivery_failed`). */
@@ -343,6 +363,55 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
     },
 
     openIncidentIds: (options) => repo.openIds(deps.db, options),
+
+    async openOrUpdateExpiry(tx, input) {
+      const existing = await repo.findOpenByDedupKey(tx, input.workspaceId, input.dedupKey);
+      if (existing !== undefined) {
+        const updated = await repo.update(tx, existing.id, {
+          title: input.title,
+          causeCode: input.causeCode,
+          evidence: input.evidence,
+        });
+        await addEvent(tx, existing, "updated", "system", { title: input.title });
+        await deps.outbox.emit(
+          tx,
+          "incident.updated",
+          { incidentId: existing.id, reason: input.title.slice(0, 300) },
+          { workspaceId: existing.workspaceId },
+        );
+        return { incident: updated ?? existing, created: false };
+      }
+      const number = await deps.workspaces.nextIncidentNumber(
+        tx,
+        createWorkspaceScope({ workspaceId: input.workspaceId }),
+      );
+      const created = await repo.insertDeduplicated(tx, {
+        id: deps.newId(),
+        workspaceId: input.workspaceId,
+        number,
+        source: "expiry",
+        monitorId: input.monitorId,
+        dedupKey: input.dedupKey,
+        title: input.title,
+        severity: "low",
+        causeCode: input.causeCode,
+        failingRegions: [],
+        evidence: input.evidence,
+        startedAt: clock.now(),
+      });
+      if (created === undefined) {
+        throw new Error(`an open incident with key ${input.dedupKey} appeared concurrently`);
+      }
+      await announceTriggered(tx, created, { causeCode: input.causeCode });
+      return { incident: created, created: true };
+    },
+
+    async resolveByDedupKey(tx, workspaceId, dedupKey) {
+      const open = await repo.findOpenByDedupKey(tx, workspaceId, dedupKey);
+      if (open === undefined) return false;
+      await markResolved(tx, open, { auto: true });
+      return true;
+    },
 
     async addSystemEvent(incidentId, type, data) {
       await deps.db.transaction(async (tx) => {
