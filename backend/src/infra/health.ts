@@ -21,6 +21,25 @@ function withTimeout(promise: Promise<void>, ms: number): Promise<void> {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
+/*
+ * Turns any thrown value into a useful one-line message. Connection failures to "localhost" surface as
+ * an AggregateError with an empty message (one error per address family), so include the inner errors.
+ */
+export function describeError(err: unknown): string {
+  if (err instanceof AggregateError) {
+    const inner = err.errors.map(describeError).filter((m) => m !== "");
+    const unique = [...new Set(inner)];
+    if (unique.length > 0) return unique.join("; ");
+  }
+  if (err instanceof Error) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (err.message !== "") return err.message;
+    if (code !== undefined) return code;
+    return err.name;
+  }
+  return String(err);
+}
+
 export async function runReadinessChecks(
   checks: Record<string, ReadinessCheck>,
   timeoutMs = READINESS_TIMEOUT_MS,
@@ -32,7 +51,7 @@ export async function runReadinessChecks(
         await withTimeout(check(), timeoutMs);
         return [name, { ok: true, latencyMs: Math.round(performance.now() - started) }] as const;
       } catch (err) {
-        const error = err instanceof Error ? err.message : String(err);
+        const error = describeError(err);
         return [
           name,
           { ok: false, error, latencyMs: Math.round(performance.now() - started) },
