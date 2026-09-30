@@ -37,8 +37,9 @@ afterAll(async () => {
 describe("/api/ready with real dependencies", () => {
   it("is ready when Postgres and Redis are up", async () => {
     const res = await request(buildApp(TEST_DATABASE_URL, TEST_REDIS_URL)).get("/api/ready");
+    expect(res.body.checks.postgres.error, "postgres check error").toBeUndefined();
+    expect(res.body.checks.redis.error, "redis check error").toBeUndefined();
     expect(res.status).toBe(200);
-    expect(res.body.checks).toMatchObject({ postgres: { ok: true }, redis: { ok: true } });
   });
 
   it("is not ready when Postgres is unreachable", async () => {
@@ -49,6 +50,7 @@ describe("/api/ready with real dependencies", () => {
 
   it("is not ready when Redis is unreachable", async () => {
     const res = await request(buildApp(TEST_DATABASE_URL, DEAD_REDIS_URL)).get("/api/ready");
+    expect(res.body.checks.postgres.error, "postgres check error").toBeUndefined();
     expect(res.status).toBe(503);
     expect(res.body.checks).toMatchObject({ postgres: { ok: true }, redis: { ok: false } });
   });
