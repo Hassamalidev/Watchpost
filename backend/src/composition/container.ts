@@ -2,6 +2,8 @@
  * Composition root (PRODUCT.md §7.3): builds infra clients once, creates modules with explicit
  * dependencies and collects their routers, processors and sweeps. server.ts and worker.ts use it.
  */
+import { Router } from "express";
+import { PROBE_API_PREFIX } from "@app/shared";
 import type { AppConfig } from "../config/index.js";
 import { systemClock, type Clock } from "../core/clock.js";
 import { createAuthService, createRedisRateLimitStorage } from "../infra/auth/index.js";
@@ -32,6 +34,19 @@ export interface Container {
  */
 export interface LateHooks {
   onWorkspaceCreated: Array<(workspaceId: string) => Promise<void>>;
+}
+
+/*
+ * /api/probe/v1: probe authentication runs once (it consumes the raw body), then every module's
+ * probe routes (probes: hello/assignments/tasks/heartbeat; detection: results).
+ */
+export function probeApi(modules: AppModule[]): MountedRouter[] {
+  const auth = modules.find((m) => m.probeAuth)?.probeAuth;
+  const routers = modules.flatMap((m) => m.probeRouters ?? []);
+  if (auth === undefined || routers.length === 0) return [];
+  const router = Router();
+  router.use(...auth, ...routers);
+  return [{ path: PROBE_API_PREFIX, router }];
 }
 
 export function createInfra(
@@ -118,12 +133,14 @@ export function createContainer(
     modules,
     readinessChecks,
     routers: modules.flatMap((m) => m.routers ?? []),
-    /* Better Auth reads the raw request, so it mounts before the JSON parser (§7.9 step 3). */
+    /* Better Auth and the probe API read the raw request, so they mount before the JSON parser (§7.9 step 3). */
     rawBodyRouters: [
       { path: "/", router: infra.auth.router },
+      ...probeApi(modules),
       ...modules.flatMap((m) => m.rawBodyRouters ?? []),
     ],
     async close() {
+      await Promise.allSettled(modules.map((m) => m.close?.()));
       await infra.queues.close().catch(() => {});
       await Promise.allSettled([
         infra.pool.end(),

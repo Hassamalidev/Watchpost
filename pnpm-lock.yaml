@@ -244,9 +244,6 @@ importers:
       rate-limit-redis:
         specifier: 6.0.1
         version: 6.0.1(express-rate-limit@8.7.0(express@5.2.1(supports-color@7.2.0))(supports-color@7.2.0))
-      uuid:
-        specifier: 14.0.2
-        version: 14.0.2
       zod:
         specifier: 4.6.5
         version: 4.6.5
@@ -287,6 +284,9 @@ importers:
       typescript:
         specifier: 6.0.3
         version: 6.0.3
+      uuid:
+        specifier: 14.0.2
+        version: 14.0.2
 
   backend/web:
     dependencies:

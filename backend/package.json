@@ -16,7 +16,8 @@
     "db:generate": "drizzle-kit generate",
     "auth:generate": "auth generate --config scripts/auth-cli.config.ts --output src/infra/auth/schema.ts --yes && tsx scripts/auth-schema-postprocess.ts && prettier --write src/infra/auth/schema.ts",
     "db:migrate": "tsx src/migrate.ts",
-    "new:module": "tsx scripts/new-module.ts"
+    "new:module": "tsx scripts/new-module.ts",
+    "probe:create": "tsx scripts/create-probe.ts"
   },
   "dependencies": {
     "@app/shared": "workspace:*",
@@ -32,7 +33,6 @@
     "pino": "10.3.1",
     "pino-http": "11.0.0",
     "rate-limit-redis": "6.0.1",
-    "uuid": "14.0.2",
     "zod": "4.6.5"
   },
   "devDependencies": {
@@ -47,6 +47,7 @@
     "pino-pretty": "13.1.3",
     "supertest": "7.3.0",
     "tsx": "4.23.15",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "uuid": "14.0.2"
   }
 }

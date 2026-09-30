@@ -107,6 +107,10 @@ export interface MonitorsService {
     deletes: string[];
   }>;
   latestSeq(): Promise<number>;
+  /* Active (unpaused) monitors for probe full syncs, paged by id. System-level: no tenant scope. */
+  listForProbes(options: { afterId?: string; limit: number }): Promise<MonitorForProbe[]>;
+  /* Specific monitors for probe tasks. System-level: no tenant scope. */
+  getForProbes(ids: string[]): Promise<MonitorForProbe[]>;
 }
 
 export interface MonitorsServiceDeps {
@@ -117,6 +121,8 @@ export interface MonitorsServiceDeps {
   cipher: TokenCipher;
   newId: () => string;
   limits: (scope: WorkspaceScope) => Promise<PlanLimits>;
+  /* Reports monitors skipped for probes because their secrets can't be decrypted. */
+  onSecretError?: (monitorId: string, err: unknown) => void;
 }
 
 const secretsAad = (monitorId: string) => `monitor:${monitorId}`;
@@ -510,22 +516,49 @@ export function createMonitorsService(deps: MonitorsServiceDeps): MonitorsServic
         .map(([id]) => id);
       return {
         cursor,
-        upserts: rows.map((row) => ({
-          id: row.id,
-          workspaceId: row.workspaceId,
-          config: applySecrets(row.config, decryptSecrets(row)),
-          intervalSeconds: row.intervalS,
-          timeoutMs: row.timeoutMs,
-          regions: row.regions,
-          configSeq: row.configSeq,
-          paused: row.paused,
-        })),
+        upserts: forProbes(rows),
         deletes,
       };
     },
 
     latestSeq: () => repo.latestSeq(),
+
+    async listForProbes({ afterId, limit }) {
+      return forProbes(await repo.activeUnscoped(limit, afterId));
+    },
+
+    async getForProbes(ids) {
+      return forProbes(await repo.findByIdsUnscoped(ids));
+    },
   };
+
+  /*
+   * One monitor whose secrets can't be decrypted (a retired key, a corrupted value) must not break
+   * every probe's sync: it is skipped and reported instead.
+   */
+  function forProbes(rows: MonitorRow[]): MonitorForProbe[] {
+    return rows.flatMap((row) => {
+      try {
+        return [forProbe(row)];
+      } catch (err) {
+        deps.onSecretError?.(row.id, err);
+        return [];
+      }
+    });
+  }
+
+  function forProbe(row: MonitorRow): MonitorForProbe {
+    return {
+      id: row.id,
+      workspaceId: row.workspaceId,
+      config: applySecrets(row.config, decryptSecrets(row)),
+      intervalSeconds: row.intervalS,
+      timeoutMs: row.timeoutMs,
+      regions: row.regions,
+      configSeq: row.configSeq,
+      paused: row.paused,
+    };
+  }
   return service;
 }
 

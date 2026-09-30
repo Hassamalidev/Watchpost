@@ -1,5 +1,5 @@
 /* Shapes shared by the composition root and every module factory (PRODUCT.md §7.3). */
-import type { Router } from "express";
+import type { RequestHandler, Router } from "express";
 import type { Redis } from "ioredis";
 import type { AppConfig } from "../config/index.js";
 import type { Clock } from "../core/clock.js";
@@ -51,6 +51,12 @@ export interface AppModule {
   recoverySweeps?: RecoverySweep[];
   /* Repeating jobs the worker registers on start (re-registering is idempotent). */
   schedules?: ModuleSchedule[];
+  /* Probe protocol routes (/api/probe/v1/*); the container mounts them behind probe auth. */
+  probeRouters?: Router[];
+  /* Probe authentication middleware (raw body + HMAC); provided by the probes module only. */
+  probeAuth?: RequestHandler[];
+  /* Releases resources (listeners, connections) on shutdown. */
+  close?: () => Promise<void>;
   /* Callbacks from infrastructure that can't depend on modules (for example Better Auth hooks). */
   hooks?: AppHooks;
 }

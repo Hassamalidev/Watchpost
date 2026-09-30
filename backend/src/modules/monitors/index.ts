@@ -20,7 +20,7 @@ export type {
 export { MASKED } from "./types/secrets.js";
 
 export interface MonitorsModuleDeps {
-  infra: Pick<Infra, "db" | "clock" | "outbox" | "cipher">;
+  infra: Pick<Infra, "db" | "clock" | "outbox" | "cipher"> & Partial<Pick<Infra, "logger">>;
   guards: WorkspaceGuards;
   /* Plan limits for a workspace; Free until entitlements land (P3-T01). */
   limits?: (scope: WorkspaceScope) => Promise<PlanLimits>;
@@ -40,6 +40,11 @@ export function createMonitorsModule(deps: MonitorsModuleDeps): MonitorsModule {
     cipher: deps.infra.cipher,
     newId,
     limits: deps.limits ?? (async () => freeLimits()),
+    onSecretError: (monitorId, err) =>
+      deps.infra.logger?.error(
+        { monitorId, err: (err as Error).message },
+        "monitor secrets can't be decrypted; monitor skipped for probes",
+      ),
   });
   const controller = createMonitorsController(service);
   return {

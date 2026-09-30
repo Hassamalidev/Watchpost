@@ -260,6 +260,34 @@ describe("secrets", () => {
   });
 });
 
+describe("probe views", () => {
+  it("skip a monitor whose secrets can't be decrypted instead of failing the whole list", async () => {
+    const broken = await createMonitor(
+      owner,
+      ws,
+      { name: "Broken secret" },
+      {
+        type: "http",
+        url: "https://api.example.com/health",
+        auth: { kind: "bearer", token: "abc" },
+      },
+    );
+    const ok = await createMonitor(
+      owner,
+      ws,
+      { name: "Fine" },
+      { type: "tcp", host: "a.example.com", port: 443 },
+    );
+    await ctx.db
+      .update(monitorsTable)
+      .set({ secretsEnc: "v1.retired.AAAA.AAAA.AAAA" })
+      .where(eq(monitorsTable.id, broken.body.id));
+
+    const views = await ctx.monitors.service.getForProbes([broken.body.id, ok.body.id]);
+    expect(views.map((v) => v.id)).toEqual([ok.body.id]);
+  });
+});
+
 describe("Free plan limits", () => {
   let limitsWs: string;
 

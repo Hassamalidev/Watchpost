@@ -46,6 +46,30 @@ services:
       timeout: 3s
       retries: 20
 
+  # Local managed probe (PRODUCT.md P1-T08). Opt-in: `docker compose --profile probe up -d probe`
+  # after `pnpm probe:create --name local --region eu-central` has put PROBE_ID/PROBE_SECRET in .env.
+  # The API runs on the host (`pnpm dev`); fake-target is reachable as http://fake-target:4100.
+  probe:
+    profiles: ["probe"]
+    build:
+      context: .
+      dockerfile: probe/Dockerfile
+    environment:
+      API_URL: ${PROBE_API_URL:-http://host.docker.internal:4000}
+      PROBE_ID: ${PROBE_ID:-}
+      PROBE_SECRET: ${PROBE_SECRET:-}
+      PROBE_REGION: ${PROBE_REGION:-eu-central}
+      # Development only: lets the managed probe reach fake-target on this Docker network.
+      PROBE_ALLOW_CIDRS: "172.16.0.0/12,192.168.0.0/16"
+      LOG_LEVEL: info
+    cap_add:
+      - NET_RAW
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      fake-target:
+        condition: service_healthy
+
 volumes:
   postgres-data:
   redis-data:
