@@ -46,6 +46,16 @@ export function createWorkspacesRepository(db: DbOrTx) {
         .orderBy(asc(member.createdAt));
     },
 
+    async workspaceName(scope: WorkspaceScope): Promise<string | undefined> {
+      assertWorkspaceScope(scope);
+      const rows = await db
+        .select({ name: organization.name })
+        .from(organization)
+        .where(eq(organization.id, scope.workspaceId))
+        .limit(1);
+      return rows[0]?.name;
+    },
+
     /* Inserts default settings; returns true only if this call created the row. */
     async insertSettingsIfMissing(
       tx: DbOrTx,

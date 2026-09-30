@@ -78,6 +78,7 @@ export const EVENT_SUBSCRIPTIONS: Readonly<
     { handler: "statuspages", queue: "statuspages-events" },
   ],
   "incident.escalation_requested": [{ handler: "alerting", queue: "alerting-events" }],
+  "incident.flapping_started": [{ handler: "alerting", queue: "alerting-events" }],
   "incident.ai_summary_ready": [{ handler: "alerting", queue: "alerting-events" }],
   "incident.false_alarm_marked": [
     { handler: "alerting", queue: "alerting-events" },

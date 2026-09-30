@@ -1,5 +1,5 @@
 /* Queries on incidents, incident_events and incident_comments, owned by the incidents module. */
-import { and, asc, desc, eq, lt, ne, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, lt, ne, sql, type SQL } from "drizzle-orm";
 import { assertWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
 import { tenantWhere, withWorkspace, type DbOrTx } from "../../infra/db/index.js";
 import {
@@ -79,6 +79,21 @@ export function createIncidentsRepository() {
     async findById(tx: DbOrTx, id: string): Promise<IncidentRow | undefined> {
       const rows = await tx.select().from(incidents).where(eq(incidents.id, id)).limit(1);
       return rows[0];
+    },
+
+    async openIds(tx: DbOrTx, options: { afterId?: string; limit: number }): Promise<string[]> {
+      const rows = await tx
+        .select({ id: incidents.id })
+        .from(incidents)
+        .where(
+          and(
+            ne(incidents.status, "resolved"),
+            options.afterId ? gt(incidents.id, options.afterId) : undefined,
+          ),
+        )
+        .orderBy(asc(incidents.id))
+        .limit(options.limit);
+      return rows.map((r) => r.id);
     },
 
     /* Tenant queries (the API). */

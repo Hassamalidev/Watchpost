@@ -9,6 +9,8 @@ import { createResultsModule } from "../modules/results/index.js";
 import { createProbesModule } from "../modules/probes/index.js";
 import { createDetectionModule } from "../modules/detection/index.js";
 import { createIncidentsModule } from "../modules/incidents/index.js";
+import { createChannelsModule } from "../modules/channels/index.js";
+import { createAlertingModule } from "../modules/alerting/index.js";
 /* new-module:imports */
 
 export function createModules(infra: Infra): AppModule[] {
@@ -39,6 +41,17 @@ export function createModules(infra: Infra): AppModule[] {
       results: results.service,
       probes: probes.service,
       incidents: incidents.service,
+    }),
+  );
+  const channels = createChannelsModule({ infra, guards: workspaces.guards });
+  modules.push(channels);
+  modules.push(
+    createAlertingModule({
+      infra,
+      incidents: incidents.service,
+      channels: channels.service,
+      workspaces: workspaces.service,
+      guards: workspaces.guards,
     }),
   );
   /* new-module:create */

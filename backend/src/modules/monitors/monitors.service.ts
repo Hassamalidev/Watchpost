@@ -93,6 +93,7 @@ export interface MonitorForDetection {
   severity: MonitorSettings["severity"];
   paused: boolean;
   parentId: string | null;
+  alertPolicyId: string | null;
   policies: MonitorPolicies;
 }
 
@@ -569,6 +570,7 @@ export function createMonitorsService(deps: MonitorsServiceDeps): MonitorsServic
         severity: row.severity,
         paused: row.paused,
         parentId: row.parentId ?? null,
+        alertPolicyId: row.alertPolicyId ?? null,
         policies: row.policies,
       }));
     },

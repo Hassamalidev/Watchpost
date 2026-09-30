@@ -10,6 +10,7 @@ import { createIncidentsRouter } from "./incidents.routes.js";
 import { createIncidentsService, type IncidentsService } from "./incidents.service.js";
 
 export type {
+  AlertContext,
   CommentView,
   CreateIncidentInput,
   IncidentDetail,
@@ -28,7 +29,7 @@ export type {
 export interface IncidentsModuleDeps {
   infra: Pick<Infra, "db" | "clock" | "outbox">;
   workspaces: Pick<WorkspacesService, "nextIncidentNumber">;
-  monitors: Pick<MonitorsService, "get">;
+  monitors: Pick<MonitorsService, "get" | "getForDetection">;
   guards: { session: RequestHandler; workspace: RequestHandler };
 }
 

@@ -42,6 +42,8 @@ export interface WorkspacesService {
     session: SessionContext,
   ): { workspaceId: string; userId: string; email: string; role: WorkspaceScope["role"] };
   listMembers(scope: WorkspaceScope): Promise<WorkspaceMember[]>;
+  /* The workspace's display name ("Acme"); empty if the workspace is gone. */
+  workspaceName(scope: WorkspaceScope): Promise<string>;
   /* Creates default settings and emits workspace.created, once. Returns true if it created them. */
   ensureSettings(workspaceId: string): Promise<boolean>;
   getSettings(scope: WorkspaceScope): Promise<WorkspaceSettings>;
@@ -81,6 +83,10 @@ export function createWorkspacesService(deps: {
         email: session.email,
         role: scope.role,
       };
+    },
+
+    async workspaceName(scope) {
+      return (await repository.workspaceName(scope)) ?? "";
     },
 
     async listMembers(scope) {

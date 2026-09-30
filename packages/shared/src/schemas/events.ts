@@ -43,6 +43,8 @@ export const EVENT_SCHEMAS = {
   "incident.resolved": { version: 1, schema: z.object({ incidentId: id, auto: z.boolean() }) },
   "incident.reopened": { version: 1, schema: z.object({ incidentId: id }) },
   "incident.escalation_requested": { version: 1, schema: z.object({ incidentId: id }) },
+  /* 5+ state changes in 30 minutes: one notice, then quiet until stable (§9.2). */
+  "incident.flapping_started": { version: 1, schema: z.object({ incidentId: id }) },
   "incident.ai_summary_ready": {
     version: 1,
     schema: z.object({ incidentId: id, generationId: id }),
@@ -71,6 +73,8 @@ export const EVENT_SCHEMAS = {
       template: z.string(),
       to: z.email(),
       data: z.record(z.string(), z.unknown()),
+      /* Stable key for the provider when the same email may be requested twice (alert retries). */
+      idempotencyKey: z.string().min(1).max(200).optional(),
     }),
   },
 } as const;

@@ -24,10 +24,16 @@ export function createEmailRequester(deps: { db: Db; outbox: Outbox }) {
     template: EmailTemplate,
     to: string,
     data: Record<string, unknown>,
-    options: { workspaceId?: string } = {},
+    options: { workspaceId?: string; idempotencyKey?: string } = {},
   ): Promise<void> {
+    const { idempotencyKey, ...meta } = options;
     await deps.db.transaction((tx) =>
-      deps.outbox.emit(tx, "email.requested", { template, to, data }, options),
+      deps.outbox.emit(
+        tx,
+        "email.requested",
+        { template, to, data, ...(idempotencyKey === undefined ? {} : { idempotencyKey }) },
+        meta,
+      ),
     );
   };
 }
@@ -48,7 +54,7 @@ export function createEmailProcessor(deps: {
       "email.requested": async (payload, meta) => {
         const { subject, text } = renderEmail(payload.template, payload.data);
         const { providerRef } = await deps.transport.send(
-          { to: payload.to, subject, text, idempotencyKey: meta.eventId },
+          { to: payload.to, subject, text, idempotencyKey: payload.idempotencyKey ?? meta.eventId },
           deps.from,
         );
         meta.logger.info({ template: payload.template, providerRef }, "email sent");

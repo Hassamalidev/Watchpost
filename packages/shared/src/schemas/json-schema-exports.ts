@@ -3,6 +3,7 @@
  * staleness test both read this list, so adding a schema here is the only step.
  */
 import type { z } from "zod";
+import { alertPolicyBodySchema, createChannelSchema } from "./alerting.js";
 import { EVENT_SCHEMAS } from "./events.js";
 import { createMonitorSchema, monitorConfigSchema, monitorSettingsSchema } from "./monitors.js";
 import {
@@ -28,6 +29,8 @@ export const JSON_SCHEMA_EXPORTS: Record<string, z.ZodType> = {
   "probe-task": probeTaskSchema,
   "probe-heartbeat": probeHeartbeatSchema,
   problem: problemSchema,
+  "create-channel": createChannelSchema,
+  "alert-policy": alertPolicyBodySchema,
   ...Object.fromEntries(
     Object.entries(EVENT_SCHEMAS).map(([type, def]) => [
       `event.${type}.v${def.version}`,

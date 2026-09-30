@@ -35,6 +35,33 @@ export const EMAIL_TEMPLATES = {
       text: `${d.inviterName} invited you to join the "${d.workspaceName}" workspace on Watchpost as ${d.role}.\n\nAccept the invitation:\n${d.url}\n\nThe invitation expires in 48 hours.`,
     }),
   },
+  /* Alert emails from the email channel; the channel adapter renders subject and body (§9.4). */
+  alert: {
+    data: z.object({ subject: z.string().min(1).max(300), text: z.string().min(1).max(20_000) }),
+    render: (d: { subject: string; text: string }) => ({ subject: d.subject, text: d.text }),
+  },
+  /* To workspace admins when a channel keeps failing, at most once per hour (§9.4). */
+  "channel-failing": {
+    data: z.object({
+      workspaceName: z.string(),
+      channelName: z.string(),
+      channelType: z.string(),
+      error: z.string(),
+      url,
+      incidentTitle: z.string().optional(),
+    }),
+    render: (d: {
+      workspaceName: string;
+      channelName: string;
+      channelType: string;
+      error: string;
+      url: string;
+      incidentTitle?: string | undefined;
+    }) => ({
+      subject: `Alert channel "${d.channelName}" is failing in ${d.workspaceName}`,
+      text: `Watchpost couldn't deliver alerts to the ${d.channelType} channel "${d.channelName}" in ${d.workspaceName}.\n\nLast error: ${d.error}\n${d.incidentTitle ? `\nUndelivered alert: ${d.incidentTitle}\n` : ""}\nCheck the channel's settings:\n${d.url}\n\nYou get this email at most once an hour while channels keep failing.`,
+    }),
+  },
 } as const;
 
 export type EmailTemplate = keyof typeof EMAIL_TEMPLATES;

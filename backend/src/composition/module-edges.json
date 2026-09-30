@@ -18,7 +18,7 @@
     "expiry": ["monitors", "results", "incidents"],
     "inbound": ["incidents", "workspaces"],
     "oncall": ["contacts", "workspaces", "audit"],
-    "alerting": ["incidents", "oncall", "contacts", "channels", "credits"],
+    "alerting": ["incidents", "oncall", "contacts", "channels", "credits", "workspaces"],
     "actions": ["incidents", "contacts", "channels"],
     "ai": ["incidents", "results", "monitors", "billing", "credits"],
     "statuspages": ["monitors", "detection", "incidents", "results", "maintenance", "ai"],

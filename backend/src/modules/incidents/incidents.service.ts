@@ -72,6 +72,18 @@ export interface IncidentDetail extends IncidentView {
   comments: CommentView[];
 }
 
+/* Everything alerting needs to route and render an incident's notifications. */
+export interface AlertContext {
+  workspaceId: string;
+  incident: IncidentView;
+  monitor: {
+    id: string;
+    name: string;
+    alertPolicyId: string | null;
+    reminderMinutes: number | null;
+  } | null;
+}
+
 export interface CreateIncidentInput {
   title: string;
   severity: IncidentSeverity;
@@ -92,6 +104,12 @@ export interface IncidentsService {
   ): Promise<IncidentRow | undefined>;
   setFlapping(tx: Tx, incidentId: string, flapping: boolean): Promise<void>;
   findOpenForMonitor(tx: DbOrTx, monitorId: string): Promise<IncidentRow | undefined>;
+  /* System: routing and rendering context for alerting; undefined if the incident is gone. */
+  alertContext(incidentId: string): Promise<AlertContext | undefined>;
+  /* System: IDs of open incidents, paged by ID (reminder recovery). */
+  openIncidentIds(options: { afterId?: string; limit: number }): Promise<string[]>;
+  /* System: a timeline entry written by the platform (for example `delivery_failed`). */
+  addSystemEvent(incidentId: string, type: string, data: Record<string, unknown>): Promise<void>;
 
   /* API (tenant-scoped). `ref` is the incident ID or its per-workspace number. */
   list(
@@ -114,7 +132,7 @@ export interface IncidentsServiceDeps {
   db: Db;
   repository: IncidentsRepository;
   workspaces: Pick<WorkspacesService, "nextIncidentNumber">;
-  monitors: Pick<MonitorsService, "get">;
+  monitors: Pick<MonitorsService, "get" | "getForDetection">;
   outbox: Outbox;
   clock: Clock;
   newId: () => string;
@@ -283,9 +301,46 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
       if (incident === undefined || incident.flapping === flapping) return;
       await repo.update(tx, incidentId, { flapping });
       await addEvent(tx, incident, flapping ? "flapping_started" : "flapping_stopped", "system");
+      if (flapping) {
+        await deps.outbox.emit(
+          tx,
+          "incident.flapping_started",
+          { incidentId },
+          { workspaceId: incident.workspaceId },
+        );
+      }
     },
 
     findOpenForMonitor: (tx, monitorId) => repo.findOpenForMonitor(tx, monitorId),
+
+    async alertContext(incidentId) {
+      const row = await repo.findById(deps.db, incidentId);
+      if (row === undefined) return undefined;
+      const [monitor] =
+        row.monitorId === null ? [] : await deps.monitors.getForDetection([row.monitorId]);
+      return {
+        workspaceId: row.workspaceId,
+        incident: toView(row),
+        monitor:
+          monitor === undefined
+            ? null
+            : {
+                id: monitor.id,
+                name: monitor.name,
+                alertPolicyId: monitor.alertPolicyId,
+                reminderMinutes: monitor.policies.reminderMinutes ?? null,
+              },
+      };
+    },
+
+    openIncidentIds: (options) => repo.openIds(deps.db, options),
+
+    async addSystemEvent(incidentId, type, data) {
+      await deps.db.transaction(async (tx) => {
+        const incident = await repo.findById(tx, incidentId);
+        if (incident !== undefined) await addEvent(tx, incident, type, "system", data);
+      });
+    },
 
     async list(scope, filters) {
       const rows = await repo.list(deps.db, scope, filters);

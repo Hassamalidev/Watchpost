@@ -3,7 +3,9 @@
 Generated from the Zod schemas in `@app/shared` (`packages/shared/src/schemas/json-schema-exports.ts`).
 Do not edit by hand: run `pnpm --filter @app/shared schemas:generate`. A test fails when these are stale.
 
+- [alert-policy](./alert-policy.json)
 - [check-result](./check-result.json)
+- [create-channel](./create-channel.json)
 - [create-monitor](./create-monitor.json)
 - [event.billing.period_renewed.v1](./event.billing.period_renewed.v1.json)
 - [event.billing.plan_changed.v1](./event.billing.plan_changed.v1.json)
@@ -14,6 +16,7 @@ Do not edit by hand: run `pnpm --filter @app/shared schemas:generate`. A test fa
 - [event.incident.ai_summary_ready.v1](./event.incident.ai_summary_ready.v1.json)
 - [event.incident.escalation_requested.v1](./event.incident.escalation_requested.v1.json)
 - [event.incident.false_alarm_marked.v1](./event.incident.false_alarm_marked.v1.json)
+- [event.incident.flapping_started.v1](./event.incident.flapping_started.v1.json)
 - [event.incident.reopened.v1](./event.incident.reopened.v1.json)
 - [event.incident.resolved.v1](./event.incident.resolved.v1.json)
 - [event.incident.snoozed.v1](./event.incident.snoozed.v1.json)

@@ -86,3 +86,20 @@ export {
   type ResultsBatch,
 } from "./schemas/probe-protocol.js";
 export { JSON_SCHEMA_EXPORTS } from "./schemas/json-schema-exports.js";
+export {
+  ALERT_EVENT_KINDS,
+  CHANNEL_STATUSES,
+  CHANNEL_TYPES,
+  alertPolicyBodySchema,
+  alertPolicyRulesSchema,
+  createChannelSchema,
+  emailChannelConfigSchema,
+  updateChannelSchema,
+  type AlertEventKind,
+  type AlertPolicyInput,
+  type AlertPolicyRules,
+  type ChannelStatus,
+  type ChannelType,
+  type CreateChannelInput,
+  type EmailChannelConfig,
+} from "./schemas/alerting.js";
