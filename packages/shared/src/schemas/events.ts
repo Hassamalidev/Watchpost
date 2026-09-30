@@ -80,6 +80,8 @@ export const EVENT_SCHEMAS = {
       data: z.record(z.string(), z.unknown()),
       /* Stable key for the provider when the same email may be requested twice (alert retries). */
       idempotencyKey: z.string().min(1).max(200).optional(),
+      /* Extra email headers, for example List-Unsubscribe on digests. */
+      headers: z.record(z.string(), z.string().max(2_000)).optional(),
     }),
   },
 } as const;

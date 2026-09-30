@@ -87,8 +87,9 @@ const baseEnvSchema = z.object({
   BETTER_AUTH_URL: z.url(),
   /* Cloudflare Turnstile on sign-up (PRODUCT.md §12); required in production. */
   TURNSTILE_SECRET_KEY: z.string().optional(),
-  /* Where transactional email goes. "resend" arrives with the templates in P1-T18. */
+  /* Where transactional email goes: logged (console), captured (memory, tests) or sent (resend). */
   EMAIL_TRANSPORT: z.enum(["console", "memory", "resend"]).default("console"),
+  RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().default("Watchpost <alerts@localhost>"),
   /*
    * Private ranges the API may still reach for outbound webhooks and chat APIs, for local test
@@ -147,11 +148,11 @@ export const envSchema = baseEnvSchema.superRefine((env, ctx) => {
       }
     }
   }
-  if (env.EMAIL_TRANSPORT === "resend") {
+  if (env.EMAIL_TRANSPORT === "resend" && env.RESEND_API_KEY === undefined) {
     ctx.addIssue({
       code: "custom",
-      path: ["EMAIL_TRANSPORT"],
-      message: 'the "resend" transport arrives in P1-T18; use "console" until then',
+      path: ["RESEND_API_KEY"],
+      message: 'is required when EMAIL_TRANSPORT is "resend"',
     });
   }
 });

@@ -50,6 +50,8 @@ export interface WorkspacesService {
   updateSettings(scope: WorkspaceScope, patch: { timezone?: string }): Promise<WorkspaceSettings>;
   /* Next per-workspace incident number (#1, #2, …); pass the caller's transaction. */
   nextIncidentNumber(tx: DbOrTx, scope: WorkspaceScope): Promise<number>;
+  /* System: every workspace ID, paged (digests and other per-workspace jobs). */
+  workspaceIds(options: { afterId?: string; limit: number }): Promise<string[]>;
   /* Recovery: creates settings for workspaces that are missing them. Returns how many. */
   repairMissingSettings(limit?: number): Promise<number>;
 }
@@ -146,6 +148,8 @@ export function createWorkspacesService(deps: {
       if (number === undefined) throw new NotFoundError("Workspace not found.");
       return number;
     },
+
+    workspaceIds: ({ afterId, limit }) => repository.workspaceIds(limit, afterId),
 
     async repairMissingSettings(limit = 500) {
       const missing = await repository.findWorkspacesWithoutSettings(limit);

@@ -34,9 +34,14 @@ describe("auth and email settings", () => {
     ).not.toThrow();
   });
 
-  it("defaults email to the console transport and rejects resend until P1-T18", () => {
+  it("defaults email to the console transport; resend needs its API key", () => {
     expect(toAppConfig(parseEnv(valid)).email.transport).toBe("console");
-    expect(() => parseEnv({ ...valid, EMAIL_TRANSPORT: "resend" })).toThrow(/P1-T18/);
+    expect(() => parseEnv({ ...valid, EMAIL_TRANSPORT: "resend" })).toThrow(
+      /RESEND_API_KEY: is required when EMAIL_TRANSPORT is "resend"/,
+    );
+    expect(
+      toAppConfig(parseEnv({ ...valid, EMAIL_TRANSPORT: "resend", RESEND_API_KEY: "re_x" })).email,
+    ).toMatchObject({ transport: "resend", resendApiKey: "re_x" });
   });
 });
 

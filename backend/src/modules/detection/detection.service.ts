@@ -76,6 +76,13 @@ export interface DetectionService {
     monitorId: string,
     options: { from: Date; to: Date; excludeMaintenance: boolean },
   ): Promise<UptimeSummary>;
+  /* System: outage seconds per monitor inside [from, to), most first (digests). */
+  downtimeByMonitor(
+    workspaceId: string,
+    from: Date,
+    to: Date,
+    limit: number,
+  ): Promise<Array<{ monitorId: string; seconds: number }>>;
   /* Per-day uptime bars for the last `days` UTC days. */
   uptimeDays(
     scope: WorkspaceScope,
@@ -407,6 +414,9 @@ export function createDetectionService(deps: DetectionServiceDeps): DetectionSer
         excludeMaintenance,
       });
     },
+
+    downtimeByMonitor: (workspaceId, from, to, limit) =>
+      repo.downtimeByMonitor(deps.db, workspaceId, from, to, limit),
 
     async uptimeDays(scope, monitorId, { days, excludeMaintenance }) {
       const monitor = await deps.monitors.get(scope, monitorId);

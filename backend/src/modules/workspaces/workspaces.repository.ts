@@ -2,7 +2,7 @@
  * Workspaces data. Better Auth owns `member`, `user` and `organization` (infra/auth); this repository
  * is the only place modules read them (PRODUCT.md §7.4). It also owns workspace_settings.
  */
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gt, isNull, sql } from "drizzle-orm";
 import { assertWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
 import { member, organization, user } from "../../infra/auth/schema.js";
 import type { DbOrTx } from "../../infra/db/index.js";
@@ -104,6 +104,16 @@ export function createWorkspacesRepository(db: DbOrTx) {
     },
 
     /* Workspaces whose settings row was never created (crash between Better Auth and our hook). */
+    async workspaceIds(limit: number, afterId?: string): Promise<string[]> {
+      const rows = await db
+        .select({ id: organization.id })
+        .from(organization)
+        .where(afterId ? gt(organization.id, afterId) : undefined)
+        .orderBy(asc(organization.id))
+        .limit(limit);
+      return rows.map((r) => r.id);
+    },
+
     async findWorkspacesWithoutSettings(limit: number): Promise<string[]> {
       const rows = await db
         .select({ id: organization.id })

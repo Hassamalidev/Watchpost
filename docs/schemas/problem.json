@@ -23,6 +23,7 @@
         "forbidden",
         "not_found",
         "conflict",
+        "gone",
         "payload_too_large",
         "quota_exceeded",
         "rate_limited",

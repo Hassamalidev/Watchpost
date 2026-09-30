@@ -11,6 +11,7 @@ import {
   createConsoleTransport,
   createEmailProcessor,
   createMemoryTransport,
+  createResendTransport,
 } from "./infra/email/index.js";
 import { isEventType } from "@app/shared";
 import { UnrecoverableError } from "bullmq";
@@ -91,13 +92,15 @@ const platformSweeps = defineProcessor({
   },
 });
 
-/* email.requested → rendered and sent (console in development; Resend arrives in P1-T18). */
+/* email.requested → rendered and sent (console in development, Resend in production). */
 const emails = createEmailProcessor({
   db: infra.db,
   transport:
-    config.email.transport === "memory"
-      ? createMemoryTransport()
-      : createConsoleTransport(logger.child({ component: "email" })),
+    config.email.transport === "resend" && config.email.resendApiKey
+      ? createResendTransport({ apiKey: config.email.resendApiKey })
+      : config.email.transport === "memory"
+        ? createMemoryTransport()
+        : createConsoleTransport(logger.child({ component: "email" })),
   from: config.email.from,
   logger,
 });

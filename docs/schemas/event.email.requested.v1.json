@@ -23,6 +23,16 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 200
+    },
+    "headers": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 2000
+      }
     }
   },
   "required": [

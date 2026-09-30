@@ -39,7 +39,15 @@ export { signWebhook } from "./adapters/webhook.js";
 export interface ChannelsModuleDeps {
   infra: Pick<
     Infra,
-    "db" | "clock" | "outbox" | "cipher" | "logger" | "requestEmail" | "http" | "config"
+    | "db"
+    | "clock"
+    | "outbox"
+    | "cipher"
+    | "logger"
+    | "requestEmail"
+    | "http"
+    | "config"
+    | "actionLinks"
   >;
   guards: { session: RequestHandler; workspace: RequestHandler };
   /* Replaces the built-in adapters (tests use fakes). */
@@ -77,7 +85,7 @@ export function createChannelsModule(deps: ChannelsModuleDeps): ChannelsModule {
 
   /* Slack and Telegram exist only when the server has their credentials. */
   const adapters: AnyChannelAdapter[] = deps.adapters ?? [
-    createEmailAdapter({ requestEmail: infra.requestEmail }),
+    createEmailAdapter({ requestEmail: infra.requestEmail, actionLinks: infra.actionLinks }),
     createWebhookAdapter({ http: infra.http, clock: infra.clock }),
     createDiscordAdapter({ http: infra.http }),
     createTeamsAdapter({ http: infra.http }),

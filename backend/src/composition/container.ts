@@ -7,6 +7,7 @@ import { PROBE_API_PREFIX, createAddressPolicy } from "@app/shared";
 import type { AppConfig } from "../config/index.js";
 import { systemClock, type Clock } from "../core/clock.js";
 import { createAuthService, createRedisRateLimitStorage } from "../infra/auth/index.js";
+import { createActionLinks } from "../infra/action-links.js";
 import { createTokenCipher } from "../infra/crypto.js";
 import { createEmailRequester } from "../infra/email/index.js";
 import { createDb, createDbPool, pingDb } from "../infra/db/index.js";
@@ -117,6 +118,11 @@ export function createInfra(
     locks: createLocks(redis),
     auth,
     requestEmail,
+    actionLinks: createActionLinks({
+      secret: config.auth.secret,
+      webOrigin: config.webOrigin,
+      clock: options.clock ?? systemClock,
+    }),
     http:
       options.http ??
       createOutboundHttp({

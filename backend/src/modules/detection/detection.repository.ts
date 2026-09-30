@@ -148,6 +148,33 @@ export function createDetectionRepository() {
         .where(eq(downtimes.id, id));
     },
 
+    /* Outage seconds per monitor inside [from, to), most first. */
+    async downtimeByMonitor(
+      tx: DbOrTx,
+      workspaceId: string,
+      from: Date,
+      to: Date,
+      limit: number,
+    ): Promise<Array<{ monitorId: string; seconds: number }>> {
+      const fromIso = from.toISOString();
+      const toIso = to.toISOString();
+      const result = await tx.execute<{ monitor_id: string; seconds: string }>(sql`
+        select monitor_id, sum(extract(epoch from
+          least(coalesce(${downtimes.endedAt}, now()), ${toIso}::timestamptz)
+          - greatest(${downtimes.startedAt}, ${fromIso}::timestamptz))) as seconds
+        from ${downtimes}
+        where ${downtimes.workspaceId} = ${workspaceId} and ${downtimes.kind} = 'outage'
+          and ${downtimes.startedAt} < ${toIso}::timestamptz
+          and (${downtimes.endedAt} is null or ${downtimes.endedAt} > ${fromIso}::timestamptz)
+        group by monitor_id
+        order by seconds desc
+        limit ${limit}`);
+      return result.rows.map((r) => ({
+        monitorId: r.monitor_id,
+        seconds: Math.max(0, Number(r.seconds)),
+      }));
+    },
+
     /* Downtimes overlapping [from, to). */
     async downtimesBetween(
       tx: DbOrTx,

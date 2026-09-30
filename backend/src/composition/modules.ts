@@ -13,6 +13,8 @@ import { createChannelsModule } from "../modules/channels/index.js";
 import { createAlertingModule } from "../modules/alerting/index.js";
 import { createHeartbeatsModule } from "../modules/heartbeats/index.js";
 import { createExpiryModule } from "../modules/expiry/index.js";
+import { createActionsModule } from "../modules/actions/index.js";
+import { createReportsModule } from "../modules/reports/index.js";
 /* new-module:imports */
 
 export function createModules(infra: Infra): AppModule[] {
@@ -40,16 +42,15 @@ export function createModules(infra: Infra): AppModule[] {
     guards: workspaces.guards,
   });
   modules.push(incidents);
-  modules.push(
-    createDetectionModule({
-      infra,
-      monitors: monitors.service,
-      results: results.service,
-      probes: probes.service,
-      incidents: incidents.service,
-      guards: workspaces.guards,
-    }),
-  );
+  const detection = createDetectionModule({
+    infra,
+    monitors: monitors.service,
+    results: results.service,
+    probes: probes.service,
+    incidents: incidents.service,
+    guards: workspaces.guards,
+  });
+  modules.push(detection);
   modules.push(
     createHeartbeatsModule({
       infra,
@@ -76,6 +77,18 @@ export function createModules(infra: Infra): AppModule[] {
       channels: channels.service,
       workspaces: workspaces.service,
       guards: workspaces.guards,
+    }),
+  );
+  modules.push(
+    createActionsModule({ infra, incidents: incidents.service, workspaces: workspaces.service }),
+  );
+  modules.push(
+    createReportsModule({
+      infra,
+      workspaces: workspaces.service,
+      incidents: incidents.service,
+      detection: detection.service,
+      monitors: monitors.service,
     }),
   );
   /* new-module:create */

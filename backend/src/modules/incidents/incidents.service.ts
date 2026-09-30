@@ -134,6 +134,12 @@ export interface IncidentsService {
   ): Promise<{ incident: IncidentRow; created: boolean }>;
   /* System: resolves the open incident with this key (after a renewal). */
   resolveByDedupKey(tx: Tx, workspaceId: string, dedupKey: string): Promise<boolean>;
+  /* System: incidents started in [from, to) — opened, resolved, mean minutes to resolve (digests). */
+  stats(
+    workspaceId: string,
+    from: Date,
+    to: Date,
+  ): Promise<{ opened: number; resolved: number; mttrMinutes: number | null }>;
   /* System: IDs of open incidents, paged by ID (reminder recovery). */
   openIncidentIds(options: { afterId?: string; limit: number }): Promise<string[]>;
   /* System: a timeline entry written by the platform (for example `delivery_failed`). */
@@ -146,8 +152,17 @@ export interface IncidentsService {
   ): Promise<{ data: IncidentView[]; nextCursor: string | null }>;
   get(scope: WorkspaceScope, ref: string | number): Promise<IncidentDetail>;
   create(scope: WorkspaceScope, input: CreateIncidentInput): Promise<IncidentView>;
-  acknowledge(scope: WorkspaceScope, ref: string | number): Promise<IncidentView>;
-  resolve(scope: WorkspaceScope, ref: string | number): Promise<IncidentView>;
+  /* `via` records where the action came from ("web" by default, "email" for action links). */
+  acknowledge(
+    scope: WorkspaceScope,
+    ref: string | number,
+    options?: { via?: string },
+  ): Promise<IncidentView>;
+  resolve(
+    scope: WorkspaceScope,
+    ref: string | number,
+    options?: { via?: string },
+  ): Promise<IncidentView>;
   comment(scope: WorkspaceScope, ref: string | number, body: string): Promise<CommentView>;
   setFalseAlarm(
     scope: WorkspaceScope,
@@ -242,7 +257,7 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
   async function markResolved(
     tx: Tx,
     open: IncidentRow,
-    input: { auto: boolean; byUserId?: string | undefined },
+    input: { auto: boolean; byUserId?: string | undefined; via?: string | undefined },
   ): Promise<IncidentRow | undefined> {
     const now = clock.now();
     const resolved = await repo.update(tx, open.id, {
@@ -255,6 +270,7 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
     });
     await addEvent(tx, open, "resolved", input.byUserId ?? "system", {
       auto: input.auto,
+      ...(input.via === undefined ? {} : { via: input.via }),
       durationSeconds: Math.round((now.getTime() - open.startedAt.getTime()) / 1_000),
     });
     await deps.outbox.emit(
@@ -364,6 +380,15 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
 
     openIncidentIds: (options) => repo.openIds(deps.db, options),
 
+    async stats(workspaceId, from, to) {
+      const s = await repo.stats(deps.db, workspaceId, from, to);
+      return {
+        opened: s.opened,
+        resolved: s.resolved,
+        mttrMinutes: s.mttrSeconds === null ? null : s.mttrSeconds / 60,
+      };
+    },
+
     async openOrUpdateExpiry(tx, input) {
       const existing = await repo.findOpenByDedupKey(tx, input.workspaceId, input.dedupKey);
       if (existing !== undefined) {
@@ -468,7 +493,8 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
       });
     },
 
-    async acknowledge(scope, ref) {
+    async acknowledge(scope, ref, options = {}) {
+      const via = options.via ?? "web";
       return deps.db.transaction(async (tx) => {
         const incident = await mustFind(tx, scope, ref, true);
         if (incident.status === "resolved") {
@@ -481,14 +507,14 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
           ackedBy: scope.actorUserId ?? null,
           snoozedUntil: null,
         });
-        await addEvent(tx, incident, "acknowledged", actorOf(scope), { via: "web" });
+        await addEvent(tx, incident, "acknowledged", actorOf(scope), { via });
         await deps.outbox.emit(
           tx,
           "incident.acknowledged",
           {
             incidentId: incident.id,
             ...(scope.actorUserId === undefined ? {} : { byUserId: scope.actorUserId }),
-            via: "web",
+            via,
           },
           { workspaceId: incident.workspaceId },
         );
@@ -496,13 +522,14 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
       });
     },
 
-    async resolve(scope, ref) {
+    async resolve(scope, ref, options = {}) {
       return deps.db.transaction(async (tx) => {
         const incident = await mustFind(tx, scope, ref, true);
         if (incident.status === "resolved") return toView(incident);
         const resolved = await markResolved(tx, incident, {
           auto: false,
           byUserId: scope.actorUserId,
+          ...(options.via === undefined ? {} : { via: options.via }),
         });
         return toView(resolved ?? incident);
       });

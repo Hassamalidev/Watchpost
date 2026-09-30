@@ -3,6 +3,7 @@ import type { RequestHandler, Router } from "express";
 import type { Redis } from "ioredis";
 import type { AppConfig } from "../config/index.js";
 import type { Clock } from "../core/clock.js";
+import type { ActionLinks } from "../infra/action-links.js";
 import type { AuthService } from "../infra/auth/index.js";
 import type { TokenCipher } from "../infra/crypto.js";
 import type { RequestEmail } from "../infra/email/index.js";
@@ -35,6 +36,8 @@ export interface Infra {
   requestEmail: RequestEmail;
   /* SSRF-safe HTTP for URLs users give us (webhooks, chat APIs). */
   http: OutboundHttp;
+  /* Signed single-use action links for alert emails. */
+  actionLinks: ActionLinks;
 }
 
 export interface MountedRouter {

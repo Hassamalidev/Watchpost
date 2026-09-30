@@ -48,6 +48,13 @@ export class ConflictError extends AppError {
   }
 }
 
+/* The thing existed but is no longer usable (an expired link). */
+export class GoneError extends AppError {
+  constructor(message = "This is no longer available.") {
+    super(410, "gone", message);
+  }
+}
+
 export class QuotaExceededError extends AppError {
   constructor(message = "Your plan's limit has been reached.") {
     super(402, "quota_exceeded", message);

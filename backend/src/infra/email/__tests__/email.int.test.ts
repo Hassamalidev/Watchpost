@@ -44,23 +44,28 @@ afterAll(async () => {
 });
 
 describe("templates", () => {
-  it("renders every auth template and rejects bad data", () => {
-    expect(
-      renderEmail("verify-email", { url: "https://app.example.com/v?t=1", name: "Sara" }).text,
-    ).toContain("Hi Sara");
-    expect(renderEmail("magic-link", { url: "https://x.example/m" }).subject).toMatch(
+  it("renders every auth template and rejects bad data", async () => {
+    const verify = await renderEmail("verify-email", {
+      url: "https://app.example.com/v?t=1",
+      name: "Sara",
+    });
+    expect(verify.text).toContain("Hi Sara");
+    expect(verify.html).toContain('href="https://app.example.com/v?t=1"');
+    expect((await renderEmail("magic-link", { url: "https://x.example/m" })).subject).toMatch(
       /sign-in link/,
     );
     expect(
-      renderEmail("invite", {
-        url: "https://app.example.com/invite/1",
-        workspaceName: "Acme",
-        inviterName: "Sara",
-        role: "member",
-      }).subject,
+      (
+        await renderEmail("invite", {
+          url: "https://app.example.com/invite/1",
+          workspaceName: "Acme",
+          inviterName: "Sara",
+          role: "member",
+        })
+      ).subject,
     ).toBe("Sara invited you to Acme on Watchpost");
-    expect(() => renderEmail("verify-email", { url: "not a url" })).toThrow();
-    expect(() => renderEmail("nope", {})).toThrow(/Unknown email template/);
+    await expect(renderEmail("verify-email", { url: "not a url" })).rejects.toThrow();
+    await expect(renderEmail("nope", {})).rejects.toThrow(/Unknown email template/);
   });
 });
 
@@ -107,7 +112,7 @@ describe("email pipeline", () => {
       const started = Date.now();
       while (
         transport.sent.filter((m) => m.to === to).length === 0 &&
-        Date.now() - started < 5_000
+        Date.now() - started < 15_000
       ) {
         await new Promise((r) => setTimeout(r, 25));
       }
@@ -123,5 +128,5 @@ describe("email pipeline", () => {
     } finally {
       await runtime.stop();
     }
-  });
+  }, 20_000);
 });

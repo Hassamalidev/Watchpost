@@ -321,5 +321,20 @@
     "hero": "Know about real outages first. Confirmed, explained, actionable.",
     "subhead": "Watchpost checks your sites and APIs from around the world, confirms each failure before it pages anyone, and lets your team acknowledge from wherever they are.",
     "openApp": "Open the app"
+  },
+  "actionLink": {
+    "title": "Incident action",
+    "loading": "Checking the link…",
+    "confirmAcknowledge": "Acknowledge incident #{number}?",
+    "confirmResolve": "Resolve incident #{number}?",
+    "for": "Link for {email}. It works once.",
+    "acknowledge": "Acknowledge",
+    "resolve": "Resolve",
+    "working": "Working…",
+    "doneAcknowledge": "Acknowledged #{number}. The team has been told.",
+    "doneResolve": "Resolved #{number}.",
+    "already": "#{number} is already {status}.",
+    "used": "This link was already used.",
+    "open": "Open Watchpost"
   }
 }

@@ -18,7 +18,11 @@ export interface AppConfig {
   /* Keys for infra/crypto: the active key plus retired keys still needed to decrypt. */
   encryption: { activeKeyId: string; keys: Record<string, Buffer> };
   auth: { secret: string; baseURL: string; turnstileSecretKey: string | undefined };
-  email: { transport: "console" | "memory"; from: string };
+  email: {
+    transport: "console" | "memory" | "resend";
+    from: string;
+    resendApiKey: string | undefined;
+  };
   heartbeat: { baseUrl: string };
   /* Outbound requests to user URLs (webhooks, chat APIs) go through the SSRF guard (§12). */
   outbound: { allowCidrs: string[] };
@@ -49,10 +53,10 @@ export function toAppConfig(env: Env): AppConfig {
       baseURL: env.BETTER_AUTH_URL,
       turnstileSecretKey: env.TURNSTILE_SECRET_KEY,
     },
-    /* "resend" is rejected by the schema until P1-T18. */
     email: {
-      transport: env.EMAIL_TRANSPORT === "memory" ? "memory" : "console",
+      transport: env.EMAIL_TRANSPORT,
       from: env.EMAIL_FROM,
+      resendApiKey: env.RESEND_API_KEY,
     },
     heartbeat: {
       baseUrl: (env.HEARTBEAT_BASE_URL ?? `${env.BETTER_AUTH_URL}/api/hb`).replace(/\/+$/, ""),

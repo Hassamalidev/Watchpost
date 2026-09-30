@@ -135,6 +135,35 @@ export function createIncidentsRepository() {
       return rows.map((r) => r.id);
     },
 
+    /* Incidents (not expiry warnings) started in [from, to): opened, resolved and mean time to resolve. */
+    async stats(tx: DbOrTx, workspaceId: string, from: Date, to: Date) {
+      const [row] = await tx
+        .select({
+          opened: sql<number>`count(*)::int`,
+          resolved: sql<number>`(count(*) filter (where ${incidents.status} = 'resolved'))::int`,
+          mttrSeconds: sql<
+            number | null
+          >`avg(extract(epoch from ${incidents.resolvedAt} - ${incidents.startedAt})) filter (where ${incidents.status} = 'resolved')`,
+        })
+        .from(incidents)
+        .where(
+          and(
+            eq(incidents.workspaceId, workspaceId),
+            ne(incidents.source, "expiry"),
+            sql`${incidents.startedAt} >= ${from.toISOString()}::timestamptz`,
+            sql`${incidents.startedAt} < ${to.toISOString()}::timestamptz`,
+          ),
+        );
+      return {
+        opened: row?.opened ?? 0,
+        resolved: row?.resolved ?? 0,
+        mttrSeconds:
+          row?.mttrSeconds === null || row?.mttrSeconds === undefined
+            ? null
+            : Number(row.mttrSeconds),
+      };
+    },
+
     /* Tenant queries (the API). */
 
     async findScoped(

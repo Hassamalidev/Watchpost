@@ -5,6 +5,7 @@ export const API_ERROR_CODES = [
   "forbidden",
   "not_found",
   "conflict",
+  "gone",
   "payload_too_large",
   "quota_exceeded",
   "rate_limited",
