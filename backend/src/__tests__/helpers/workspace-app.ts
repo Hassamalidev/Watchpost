@@ -14,6 +14,10 @@ import { createDb, type DbPool } from "../../infra/db/index.js";
 import { createOutbox } from "../../infra/outbox/index.js";
 import type { RedisClient } from "../../infra/redis.js";
 import { createWorkspacesModule } from "../../modules/workspaces/index.js";
+import { createMonitorsModule } from "../../modules/monitors/index.js";
+import { createTokenCipher, parseKey } from "../../infra/crypto.js";
+import type { WorkspaceScope } from "../../core/workspace-scope.js";
+import type { PlanLimits } from "../../config/plans.js";
 
 export const WEB_ORIGIN = "http://localhost:3000";
 export const PASSWORD = "correct horse battery";
@@ -30,6 +34,7 @@ export function buildWorkspaceTestApp(options: {
   emails: CapturedEmail[];
   clock?: Clock;
   turnstileVerifyUrl?: string;
+  limits?: (scope: WorkspaceScope) => Promise<PlanLimits>;
 }) {
   const db = createDb(options.pool);
   const onCreated: Array<(id: string) => Promise<void>> = [];
@@ -49,10 +54,16 @@ export function buildWorkspaceTestApp(options: {
       ? { turnstile: { secretKey: "test", siteVerifyURLOverride: options.turnstileVerifyUrl } }
       : {}),
   });
-  const workspaces = createWorkspacesModule({
-    infra: { db, clock: options.clock ?? systemClock, auth, outbox: createOutbox() },
-  });
+  const clock = options.clock ?? systemClock;
+  const outbox = createOutbox();
+  const cipher = createTokenCipher({ activeKeyId: "test", keys: { test: parseKey(TEST_KEY) } });
+  const workspaces = createWorkspacesModule({ infra: { db, clock, auth, outbox } });
   if (workspaces.hooks?.onWorkspaceCreated) onCreated.push(workspaces.hooks.onWorkspaceCreated);
+  const monitors = createMonitorsModule({
+    infra: { db, clock, outbox, cipher },
+    guards: workspaces.guards,
+    ...(options.limits ? { limits: options.limits } : {}),
+  });
 
   const app = createApp({
     config: { webOrigin: WEB_ORIGIN, api: { port: 0, trustProxy: "loopback" } },
@@ -60,11 +71,13 @@ export function buildWorkspaceTestApp(options: {
     redis: options.redis,
     readinessChecks: {},
     rawBodyRouters: [{ path: "/", router: auth.router }],
-    routers: workspaces.routers ?? [],
+    routers: [...(workspaces.routers ?? []), ...(monitors.routers ?? [])],
     ipRateLimit: { windowMs: 60_000, limit: 10_000 },
   });
-  return { app, db, auth, workspaces };
+  return { app, db, auth, workspaces, monitors, cipher };
 }
+
+const TEST_KEY = Buffer.alloc(32, 7).toString("base64");
 
 export const uniqueEmail = (who: string) => `${who}-${randomBytes(4).toString("hex")}@example.com`;
 

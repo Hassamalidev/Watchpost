@@ -41,6 +41,7 @@ export {
   jsonQueryConfigSchema,
   keywordConfigSchema,
   monitorConfigSchema,
+  monitorSettingsObject,
   monitorSettingsSchema,
   pingConfigSchema,
   sslConfigSchema,

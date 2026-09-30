@@ -209,30 +209,32 @@ export type MonitorConfig = z.infer<typeof monitorConfigSchema>;
 export type MonitorConfigInput = z.input<typeof monitorConfigSchema>;
 
 /* Options every monitor has (§6.2). Plan limits (interval, regions) are enforced by the API. */
-export const monitorSettingsSchema = z
-  .object({
-    name: z.string().trim().min(1).max(200),
-    intervalSeconds: z.number().int().min(15).max(86_400).default(300),
-    timeoutMs: z.number().int().min(1_000).max(30_000).default(10_000),
-    regions: z.array(z.enum(REGIONS)).min(1).max(REGIONS.length).default(["eu-central", "us-east"]),
-    /* Failing regions needed before an incident opens (default 2; 1 in single-region setups). */
-    minFailingRegions: z.number().int().min(1).max(REGIONS.length).default(2),
-    /* Consecutive successes needed to recover; 0 means "pick by interval" (§6.2). */
-    recoverySuccesses: z.number().int().min(0).max(10).default(0),
-    degradedLatencyMs: z.number().int().min(1).max(60_000).optional(),
-    degradedAfterChecks: z.number().int().min(1).max(20).default(3),
-    upsideDown: z.boolean().default(false),
-    /* Re-notify channels every N minutes while down; off when omitted. */
-    reminderMinutes: z.number().int().min(5).max(1_440).optional(),
-    severity: z.enum(SEVERITIES).default("high"),
-    tags: z.array(z.string().trim().min(1).max(64)).max(20).default([]),
-    groupId: z.uuid().optional(),
-    parentId: z.uuid().optional(),
-    alertPolicyId: z.uuid().optional(),
-    runbookUrl: z.url().max(2_048).optional(),
-    notes: z.string().max(10_000).optional(),
-    publicName: z.string().trim().max(200).optional(),
-  })
+/* The plain object, for partial updates; use monitorSettingsSchema to validate complete settings. */
+export const monitorSettingsObject = z.object({
+  name: z.string().trim().min(1).max(200),
+  intervalSeconds: z.number().int().min(15).max(86_400).default(300),
+  timeoutMs: z.number().int().min(1_000).max(30_000).default(10_000),
+  regions: z.array(z.enum(REGIONS)).min(1).max(REGIONS.length).default(["eu-central", "us-east"]),
+  /* Failing regions needed before an incident opens (default 2; 1 in single-region setups). */
+  minFailingRegions: z.number().int().min(1).max(REGIONS.length).default(2),
+  /* Consecutive successes needed to recover; 0 means "pick by interval" (§6.2). */
+  recoverySuccesses: z.number().int().min(0).max(10).default(0),
+  degradedLatencyMs: z.number().int().min(1).max(60_000).optional(),
+  degradedAfterChecks: z.number().int().min(1).max(20).default(3),
+  upsideDown: z.boolean().default(false),
+  /* Re-notify channels every N minutes while down; off when omitted. */
+  reminderMinutes: z.number().int().min(5).max(1_440).optional(),
+  severity: z.enum(SEVERITIES).default("high"),
+  tags: z.array(z.string().trim().min(1).max(64)).max(20).default([]),
+  groupId: z.uuid().optional(),
+  parentId: z.uuid().optional(),
+  alertPolicyId: z.uuid().optional(),
+  runbookUrl: z.url().max(2_048).optional(),
+  notes: z.string().max(10_000).optional(),
+  publicName: z.string().trim().max(200).optional(),
+});
+
+export const monitorSettingsSchema = monitorSettingsObject
   .refine((s) => s.timeoutMs < s.intervalSeconds * 1_000, {
     message: "timeout must be shorter than the interval",
     path: ["timeoutMs"],
