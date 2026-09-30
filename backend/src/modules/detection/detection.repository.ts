@@ -1,5 +1,6 @@
 /* Queries on monitor_state, monitor_region_state and downtimes, owned by the detection module. */
 import { and, eq, isNull, sql } from "drizzle-orm";
+import { assertWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
 import type { DbOrTx } from "../../infra/db/index.js";
 import {
   downtimes,
@@ -74,6 +75,11 @@ export function createDetectionRepository() {
         .where(eq(monitorState.monitorId, monitorId))
         .for("update");
       return rows[0];
+    },
+
+    async statesForWorkspace(tx: DbOrTx, scope: WorkspaceScope): Promise<MonitorStateRow[]> {
+      assertWorkspaceScope(scope);
+      return tx.select().from(monitorState).where(eq(monitorState.workspaceId, scope.workspaceId));
     },
 
     async findState(tx: DbOrTx, monitorId: string): Promise<MonitorStateRow | undefined> {

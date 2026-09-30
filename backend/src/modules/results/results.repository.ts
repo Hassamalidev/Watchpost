@@ -27,12 +27,31 @@ export type RollupSize = "5m" | "1h" | "1d";
 const ROLLUP_TABLES = { "5m": rollups5m, "1h": rollups1h, "1d": rollups1d } as const;
 const BOUNDS = sql.raw(`array[${LATENCY_BOUNDS_MS.join(",")}]::int[]`);
 
-/* The upsert every rollup level shares: recomputed buckets replace what was there (idempotent). */
-const UPSERT = sql`on conflict (monitor_id, region, bucket) do update set
+/*
+ * Histograms in one GROUP BY pass (no unnest/join): a filtered count per latency bucket from raw
+ * results, and an element-wise sum for larger rollups. Postgres arrays are 1-based.
+ */
+const RAW_HISTOGRAM = sql.raw(
+  `array[${Array.from({ length: HISTOGRAM_SIZE }, (_, i) => `(count(*) filter (where ok and hb = ${i}))::int`).join(", ")}]`,
+);
+const SUMMED_HISTOGRAM = sql.raw(
+  `array[${Array.from({ length: HISTOGRAM_SIZE }, (_, i) => `coalesce(sum(histogram[${i + 1}]), 0)::int`).join(", ")}]`,
+);
+
+/*
+ * The upsert every rollup level shares: recomputed buckets replace what was there (idempotent), and
+ * unchanged rows aren't rewritten.
+ */
+const upsert = (table: (typeof ROLLUP_TABLES)[RollupSize]) => sql`
+  on conflict (monitor_id, region, bucket) do update set
   workspace_id = excluded.workspace_id, count = excluded.count, fail_count = excluded.fail_count,
   ok_count = excluded.ok_count, latency_sum = excluded.latency_sum,
   latency_min = excluded.latency_min, latency_max = excluded.latency_max,
-  histogram = excluded.histogram`;
+  histogram = excluded.histogram
+  where (${table}.count, ${table}.fail_count, ${table}.ok_count, ${table}.latency_sum,
+    ${table}.latency_min, ${table}.latency_max, ${table}.histogram)
+    is distinct from (excluded.count, excluded.fail_count, excluded.ok_count, excluded.latency_sum,
+      excluded.latency_min, excluded.latency_max, excluded.histogram)`;
 
 export function createResultsRepository(db: DbOrTx) {
   /*
@@ -114,33 +133,17 @@ export function createResultsRepository(db: DbOrTx) {
             width_bucket(latency_ms, ${BOUNDS}) as hb
           from ${checkResults}
           where checked_at >= ${from.toISOString()}::timestamptz and checked_at < ${to.toISOString()}::timestamptz
-        ),
-        hist as (
-          select monitor_id, region, bucket, hb, count(*)::int as c from raw where ok group by 1, 2, 3, 4
-        ),
-        agg as (
-          select monitor_id, region, bucket, min(workspace_id::text)::uuid as workspace_id,
-            count(*)::int as cnt, (count(*) filter (where not ok))::int as fails,
-            (count(*) filter (where ok))::int as oks,
-            coalesce(sum(latency_ms) filter (where ok), 0)::bigint as lsum,
-            min(latency_ms) filter (where ok) as lmin, max(latency_ms) filter (where ok) as lmax
-          from raw group by 1, 2, 3
-        ),
-        arrays as (
-          select a.monitor_id, a.region, a.bucket, array_agg(coalesce(h.c, 0) order by s.i) as histogram
-          from agg a
-          cross join generate_series(0, ${HISTOGRAM_SIZE - 1}) as s(i)
-          left join hist h on h.monitor_id = a.monitor_id and h.region = a.region
-            and h.bucket = a.bucket and h.hb = s.i
-          group by 1, 2, 3
         )
         insert into ${rollups5m} (monitor_id, region, bucket, workspace_id, count, fail_count, ok_count,
           latency_sum, latency_min, latency_max, histogram)
-        select a.monitor_id, a.region, a.bucket, a.workspace_id, a.cnt, a.fails, a.oks, a.lsum, a.lmin,
-          a.lmax, x.histogram
-        from agg a
-        join arrays x on x.monitor_id = a.monitor_id and x.region = a.region and x.bucket = a.bucket
-        ${UPSERT}`);
+        select monitor_id, region, bucket, min(workspace_id::text)::uuid,
+          count(*)::int, (count(*) filter (where not ok))::int, (count(*) filter (where ok))::int,
+          coalesce(sum(latency_ms) filter (where ok), 0)::bigint,
+          min(latency_ms) filter (where ok), max(latency_ms) filter (where ok),
+          ${RAW_HISTOGRAM}
+        from raw
+        group by monitor_id, region, bucket
+        ${upsert(rollups5m)}`);
         return result.rowCount ?? 0;
       });
     },
@@ -152,37 +155,15 @@ export function createResultsRepository(db: DbOrTx) {
       const unit = sql.raw(size === "1h" ? "'hour'" : "'day'");
       return guarded(`rollup-${size}`, async (tx) => {
         const result = await tx.execute(sql`
-        with src as (
-          select *, date_trunc(${unit}, bucket, 'UTC') as target_bucket from ${source}
-          where bucket >= ${from.toISOString()}::timestamptz and bucket < ${to.toISOString()}::timestamptz
-        ),
-        hist as (
-          select monitor_id, region, target_bucket, u.i, sum(u.h)::int as s
-          from src, unnest(histogram) with ordinality as u(h, i) group by 1, 2, 3, 4
-        ),
-        agg as (
-          select monitor_id, region, target_bucket, min(workspace_id::text)::uuid as workspace_id,
-            sum(count)::int as cnt, sum(fail_count)::int as fails, sum(ok_count)::int as oks,
-            sum(latency_sum)::bigint as lsum, min(latency_min) as lmin, max(latency_max) as lmax
-          from src group by 1, 2, 3
-        ),
-        arrays as (
-          select a.monitor_id, a.region, a.target_bucket,
-            array_agg(coalesce(h.s, 0) order by k.k) as histogram
-          from agg a
-          cross join generate_series(1, ${HISTOGRAM_SIZE}) as k(k)
-          left join hist h on h.monitor_id = a.monitor_id and h.region = a.region
-            and h.target_bucket = a.target_bucket and h.i = k.k
-          group by 1, 2, 3
-        )
         insert into ${target} (monitor_id, region, bucket, workspace_id, count, fail_count, ok_count,
           latency_sum, latency_min, latency_max, histogram)
-        select a.monitor_id, a.region, a.target_bucket, a.workspace_id, a.cnt, a.fails, a.oks, a.lsum,
-          a.lmin, a.lmax, x.histogram
-        from agg a
-        join arrays x on x.monitor_id = a.monitor_id and x.region = a.region
-          and x.target_bucket = a.target_bucket
-        ${UPSERT}`);
+        select monitor_id, region, date_trunc(${unit}, bucket, 'UTC'), min(workspace_id::text)::uuid,
+          sum(count)::int, sum(fail_count)::int, sum(ok_count)::int, sum(latency_sum)::bigint,
+          min(latency_min), max(latency_max), ${SUMMED_HISTOGRAM}
+        from ${source}
+        where bucket >= ${from.toISOString()}::timestamptz and bucket < ${to.toISOString()}::timestamptz
+        group by monitor_id, region, date_trunc(${unit}, bucket, 'UTC')
+        ${upsert(target)}`);
         return result.rowCount ?? 0;
       });
     },

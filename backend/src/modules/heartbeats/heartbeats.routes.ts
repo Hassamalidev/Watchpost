@@ -21,6 +21,9 @@ export function createHeartbeatsRouter(
   const router = Router({ mergeParams: true });
   router.use("/heartbeats", guards.session, guards.workspace);
 
+  router.get("/heartbeats", requireRole("viewer"), async (req, res) => {
+    res.json({ data: await service.list(scopeOf(req, res)) });
+  });
   router.get(
     "/heartbeats/:monitorId",
     requireRole("viewer"),

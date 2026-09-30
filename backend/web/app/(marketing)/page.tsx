@@ -17,7 +17,7 @@ export default async function HomePage() {
         <p className="text-lg text-muted-foreground text-pretty">{t("subhead")}</p>
         <div>
           <Button asChild>
-            <Link href="/w/demo/overview">{t("openApp")}</Link>
+            <Link href="/w">{t("openApp")}</Link>
           </Button>
         </div>
       </main>

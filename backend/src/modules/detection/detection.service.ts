@@ -40,6 +40,14 @@ export type DetectionJob =
   | { kind: "verify"; monitorId: string; workspaceId: string; regions: string[] }
   | { kind: "sweep" };
 
+export interface MonitorStateView {
+  monitorId: string;
+  status: MonitorStateRow["status"];
+  since: string;
+  reason: string | null;
+  lastResultAt: string | null;
+}
+
 export interface IngestResponse {
   accepted: number;
   duplicates: number;
@@ -60,6 +68,8 @@ export interface DetectionService {
   /* Queues evaluations for results no evaluation has seen. Returns how many were queued. */
   sweep(): Promise<number>;
   state(monitorId: string): Promise<MonitorStateRow | undefined>;
+  /* Status of every monitor in the workspace that has reported (the status wall). */
+  states(scope: WorkspaceScope): Promise<MonitorStateView[]>;
   /* Uptime for a range, from downtimes (§9.9). */
   uptime(
     scope: WorkspaceScope,
@@ -374,6 +384,16 @@ export function createDetectionService(deps: DetectionServiceDeps): DetectionSer
     },
 
     state: (monitorId) => repo.findState(deps.db, monitorId),
+
+    async states(scope) {
+      return (await repo.statesForWorkspace(deps.db, scope)).map((s) => ({
+        monitorId: s.monitorId,
+        status: s.status,
+        since: s.since.toISOString(),
+        reason: s.reason,
+        lastResultAt: s.lastResultAt?.toISOString() ?? null,
+      }));
+    },
 
     async uptime(scope, monitorId, { from, to, excludeMaintenance }) {
       const monitor = await deps.monitors.get(scope, monitorId);

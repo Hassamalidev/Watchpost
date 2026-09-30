@@ -66,6 +66,28 @@ jobs:
     name: Web e2e and accessibility
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: watchpost
+          POSTGRES_PASSWORD: watchpost
+          POSTGRES_DB: watchpost
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U watchpost -d watchpost"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL: postgres://watchpost:watchpost@localhost:5432/watchpost
+      REDIS_URL: redis://localhost:6379
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -74,9 +96,16 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Build web (and the packages it depends on)
-        run: pnpm turbo run build --filter=@app/web...
-      - name: Playwright (light and dark, axe)
+      - name: Build web, API (and the packages they depend on)
+        run: pnpm turbo run build --filter=@app/web... --filter=@app/api...
+      - name: Migrate the database
+        run: pnpm db:migrate
+        env:
+          WEB_ORIGIN: http://127.0.0.1:3100
+          BETTER_AUTH_URL: http://127.0.0.1:3100
+          BETTER_AUTH_SECRET: ci-e2e-only-secret-xxxxxxxxxxxxxxxxxxxxxxx
+          TOKEN_ENC_KEY: CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQk=
+      - name: Playwright (sign-up to test alert, light and dark, axe)
         working-directory: backend/web
         run: pnpm test:e2e
       - name: Lighthouse accessibility >= 95

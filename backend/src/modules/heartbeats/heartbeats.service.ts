@@ -63,6 +63,8 @@ export interface HeartbeatsService {
   /* Creates or replaces the ping token; the URL is shown once. */
   rotateToken(scope: WorkspaceScope, monitorId: string): Promise<{ url: string }>;
   get(scope: WorkspaceScope, monitorId: string): Promise<HeartbeatView>;
+  /* Every heartbeat with a ping URL in the workspace, without ping logs. */
+  list(scope: WorkspaceScope): Promise<Array<Omit<HeartbeatView, "pings">>>;
   ping(token: string, signal: PingSignal, body?: string): Promise<"ok" | "not_found">;
   sweep(): Promise<SweepOutcome>;
   /* The API process says it is alive (every 10 s). */
@@ -221,6 +223,19 @@ export function createHeartbeatsService(deps: {
           excerpt: p.excerpt,
         })),
       };
+    },
+
+    async list(scope) {
+      return (await repo.listForWorkspace(deps.db, scope.workspaceId)).map((state) => ({
+        monitorId: state.monitorId,
+        status: state.status,
+        since: iso(state.since),
+        reason: state.reason,
+        hasToken: true,
+        lastPingAt: iso(state.lastPingAt),
+        nextExpectedAt: iso(state.nextExpectedAt),
+        runningSince: iso(state.runningSince),
+      }));
     },
 
     async ping(token, signal, body) {

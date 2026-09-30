@@ -13,12 +13,13 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
+import type messages from "@/messages/en.json";
 
 export interface NavItem {
   /* Path segment under /w/[ws]/ */
   segment: string;
   /* Key in messages/en.json under "nav" */
-  labelKey: string;
+  labelKey: keyof (typeof messages)["nav"];
   icon: LucideIcon;
 }
 

@@ -26,6 +26,10 @@ export function createHeartbeatsRepository() {
       return rows[0];
     },
 
+    async listForWorkspace(tx: DbOrTx, workspaceId: string): Promise<HeartbeatStateRow[]> {
+      return tx.select().from(heartbeatState).where(eq(heartbeatState.workspaceId, workspaceId));
+    },
+
     async findByTokenHash(tx: DbOrTx, tokenHash: string): Promise<HeartbeatStateRow | undefined> {
       const rows = await tx
         .select()

@@ -20,6 +20,7 @@ import {
 import { createDetectionProcessors } from "./jobs/index.js";
 
 export type {
+  MonitorStateView,
   DetectionJob,
   DetectionService,
   EvaluationOutcome,
@@ -61,6 +62,9 @@ function createUptimeRouter(
 ): Router {
   const router = Router({ mergeParams: true });
   const read = [guards.session, guards.workspace, requireRole("viewer")];
+  router.get("/monitor-states", ...read, async (req, res) => {
+    res.json({ data: await service.states(scopeOf(req, res)) });
+  });
   router.get(
     "/monitors/:monitorId/uptime",
     ...read,

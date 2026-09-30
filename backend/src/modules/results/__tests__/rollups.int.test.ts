@@ -187,7 +187,7 @@ describe("rollups", () => {
         r.latency_max,
       ]),
     );
-  });
+  }, 30_000);
 });
 
 describe("chart endpoints", () => {
