@@ -1,9 +1,25 @@
 {
   "name": "@app/probe",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx watch src/main.ts",
+    "start": "node dist/main.js",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
   "dependencies": {
-    "@app/shared": "workspace:*"
+    "@app/shared": "workspace:*",
+    "pino": "10.3.1",
+    "uuid": "14.0.2",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.0",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3"
   }
 }
