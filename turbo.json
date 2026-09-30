@@ -1,5 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalPassThroughEnv": ["CI", "NODE_ENV", "PLAYWRIGHT_CHANNEL"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -10,7 +11,8 @@
       "dependsOn": ["^build"]
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "env": ["DATABASE_URL", "REDIS_URL"]
     },
     "dev": {
       "cache": false,
