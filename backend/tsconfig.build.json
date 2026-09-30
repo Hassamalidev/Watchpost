@@ -1,8 +1,12 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    "noEmit": false,
+    "rootDir": "src",
+    "outDir": "dist",
     "declaration": false,
     "declarationMap": false
   },
-  "exclude": ["web", "src/**/__tests__/**"]
+  "include": ["src"],
+  "exclude": ["web", ".arch-selftest", "src/**/__tests__/**"]
 }

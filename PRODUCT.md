@@ -1,7 +1,7 @@
 # Watchpost — Product Spec and Build Plan (`PRODUCT.md`)
 
 > **Working name:** Watchpost. Replace it and `<domain>` everywhere once the final name and domain are chosen (Open decision #1).
-> **Status:** In progress · **Current phase:** 0 · **Next task:** `P0-T09` · **Last updated:** 2026-09-30 (P0-T08 done; owner action: branch ruleset in `docs/ci.md`)
+> **Status:** In progress · **Current phase:** 0 · **Next task:** `P0-T10` · **Last updated:** 2026-09-30 (P0-T09 done; owner action: branch ruleset in `docs/ci.md`)
 > The build agent keeps this status block current.
 
 **Companion files**
@@ -588,7 +588,9 @@ Cross-module calls inside a transaction pass `tx` explicitly (for example, `dete
 
 Job data holds IDs only, never whole objects; processors reload from Postgres.
 
-**Job ID format:** the patterns above are written with `:` for readability, but the code joins parts with `.` through `buildJobId()` (for example `timer.snooze.{refId}.{dueAt}`), because BullMQ rejects custom job IDs containing `:` unless they have exactly three parts (D-021). The registry lives in `backend/src/infra/queues/registry.ts`.
+**Job ID format:** the patterns above are written with `:` for readability, but the code joins parts with `.` through `buildJobId()` (for example `timer.snooze.{refId}.{dueAt}`), because BullMQ rejects custom job IDs containing `:` unless they have exactly three parts (D-021). The registry lives in `backend/src/infra/queues/registry.ts`. Event-handler jobs use `evt.{eventId}.{handler}`.
+
+**Where the contract lives in code (P0-T09):** module edges in `backend/src/composition/module-edges.json` (typed by `architecture.ts`, enforced by `.dependency-cruiser.cjs`); event subscriptions in `architecture.ts` (`EVENT_SUBSCRIPTIONS`); payload schemas in `@app/shared` (`EVENT_SCHEMAS`); outbox in `backend/src/infra/outbox/` (`emit`, relay, consumer via `defineEventProcessor`, hourly cleanup on the `sweeps` queue, lag check in `/api/ready`).
 
 ### 7.6 Probe architecture and protocol
 ```
@@ -1130,7 +1132,7 @@ Targets assume a start on Monday 2026-10-05 with one developer and a coding agen
   *AC:* CI green; a failing test blocks the PR.
 - [x] **P0-T08 Infra helpers.** AES-256-GCM helper with key IDs, Redis locks, UUIDv7 IDs, pino redaction, `WorkspaceScope` repository helper.
   *AC:* tests for encrypt/decrypt/rotation and for scope enforcement.
-- [ ] **P0-T09 Architecture guardrails.** Composition root and `architecture.ts` allow-list (§7.3–7.4); `infra/outbox` with `emit`, relay, cleanup and lag metric (§7.5); `.dependency-cruiser.cjs` rules and `pnpm arch` in CI; architecture tests and PR template (§7.13); `pnpm new:module` generator.
+- [x] **P0-T09 Architecture guardrails.** Composition root and `architecture.ts` allow-list (§7.3–7.4); `infra/outbox` with `emit`, relay, cleanup and lag metric (§7.5); `.dependency-cruiser.cjs` rules and `pnpm arch` in CI; architecture tests and PR template (§7.13); `pnpm new:module` generator.
   *AC:* a deliberate forbidden import and a deliberate cycle both fail CI; a generated sample module passes lint, typecheck and `pnpm arch`; an event emitted in a rolled-back transaction is never dispatched; a duplicated dispatch is handled harmlessly.
 - [ ] **P0-T10 Agent code search (CocoIndex, measured).** Per §2.8: install `cocoindex-code[full]`, run `ccc index`, commit the project-scoped `.mcp.json`, gitignore the index files, add the search-order lines to CLAUDE.md/AGENTS.md, and create `docs/agent-benchmark.md` with 10 "find the code" questions (answers filled in during P1).
   *AC:* `ccc search` returns results from this repo; `.mcp.json` contains no secrets; the benchmark file exists. The keep-or-drop decision is made at the P1 exit and recorded in D-013.
@@ -1366,6 +1368,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | D-023 | 2026-09-30 | Web skeleton: shadcn/ui primitives written by hand on the unified `radix-ui` package and `cmdk` (no CLI); theme via `next-themes` (`class` on `<html>`, default "system"); next-intl without locale routing (English only); placeholder brand hue `oklch(0.5 0.2 275)` until Open decision #2; status tones darker in light mode and lighter in dark mode for AA contrast; test gates are Vitest + Testing Library (components), Playwright + axe in light and dark projects (`pnpm test:e2e`, system Chrome locally), and `pnpm lighthouse` (accessibility ≥ 95; measured 100 in light and dark); `@parcel/watcher` and `@swc/core` install scripts denied (prebuilt binaries are used) | Keeps components owned by us and restylable per DESIGN.md; proves the a11y AC with repeatable tools | shadcn CLI; locale-prefixed routes from day one |
 | D-024 | 2026-09-30 | CI: two jobs (checks with Postgres/Redis services; web e2e + Lighthouse using the runner's Google Chrome). Turborepo strict env mode drops undeclared variables, so `turbo.json` lists `DATABASE_URL`/`REDIS_URL` for `test` and passes through `CI`, `NODE_ENV`, `PLAYWRIGHT_CHANNEL`. Readiness errors expand `AggregateError` (dual-stack connect failures had an empty message). Verified: green run 36731052545; a deliberately failing test on a throwaway branch failed run 36731352274 | CI found a real bug (tests silently used the local port) and a real product gap (empty readiness errors) | Loose env mode; Playwright's bundled Chromium in CI |
 | D-025 | 2026-09-30 | Infra helpers: encrypted values are `v1.<keyId>.<iv>.<ciphertext>.<tag>` (AES-256-GCM, 12-byte IV, optional associated data binding a value to its row, e.g. `channel:<id>`); rotation via `TOKEN_ENC_PREVIOUS_KEYS` + `rotate()`/`needsRotation()`. Redis locks are SET NX PX with an owner token and Lua compare-and-delete/extend; they only prevent duplicate work, never guarantee correctness. `WorkspaceScope` is a frozen, branded object created by `createWorkspaceScope`; repositories use `createTenantRepository`/`tenantWhere`/`withWorkspace`, which take `workspaceId` only from the scope (caller-supplied values are overwritten, including on update). Drizzle ORM 0.45 added now (`infra/db/`). | Scope enforcement is structural, not a convention; AAD stops ciphertext being copied between rows | Postgres row-level security (revisit in P9); per-module hand-written filters |
+| D-026 | 2026-09-30 | Architecture guardrails: module edges live in one JSON file read by both `architecture.ts` and `.dependency-cruiser.cjs`; `pnpm arch` (`scripts/arch-check.mjs`) cruises backend/shared/probe and the web app separately, each with its own tsconfig, via the dependency-cruiser API (the CLI's `--ts-config` was overridden by the config, and relative `extends` needed an absolute tsconfig path). Outbox timestamps use the database clock (`now()`), so lag and retention don't depend on app-server clocks. The relay coalesces wake-ups and records `attempts`/`last_error` on failed dispatches. Architecture tests run the same rules against scratch fixtures under `backend/.arch-selftest/` (gitignored) and generate a module on a scratch copy to run tsc, ESLint and the rules on it. Generated modules mount at `/api/<name>` until workspace routing lands in P1-T01. | One source of truth for the graph; the AC is proven by tests, not by breaking `main` | Separate `.dependency-cruiser.json` edges; a throwaway CI branch per rule |
 
 ---
 
@@ -1415,6 +1418,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | 2026-09-30 | §20, §21.2 | D-023 (web skeleton and its test gates); backlog: mobile navigation | P0-T06 |
 | 2026-09-30 | §20, §22 | D-024 (CI and Turborepo env); owner action for the branch ruleset added to Open decisions | P0-T07 |
 | 2026-09-30 | §20, Appendix A, runbooks | D-025 (infra helpers); `TOKEN_ENC_PREVIOUS_KEYS`; `docs/runbooks/secret-rotation.md` | P0-T08 |
+| 2026-09-30 | §7.5, §20 | Pointers to where the architecture contract lives in code; `evt.{eventId}.{handler}` job IDs; D-026 | P0-T09 |
 
 *Phase retro template (added at each phase exit):* shipped · slipped and why · what we learned · key metrics (including agent tokens and time per task, with and without the code index) · proposals added to §21.1.
 

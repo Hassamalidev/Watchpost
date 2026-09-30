@@ -1,9 +1,8 @@
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "src",
-    "outDir": "dist"
+    "noEmit": true
   },
-  "include": ["src"],
-  "exclude": ["web"]
+  "include": ["src", "scripts"],
+  "exclude": ["web", ".arch-selftest"]
 }

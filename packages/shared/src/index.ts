@@ -3,3 +3,10 @@ export { PRODUCT_NAME, MONITOR_STATUSES, type MonitorStatus } from "./constants/
 export { API_ERROR_CODES, type ApiErrorCode } from "./constants/api-errors.js";
 export { monitorStatusSchema } from "./schemas/monitor-status.js";
 export { problemSchema, type Problem } from "./schemas/problem.js";
+export {
+  EVENT_SCHEMAS,
+  EVENT_TYPES,
+  isEventType,
+  type EventPayload,
+  type EventType,
+} from "./schemas/events.js";

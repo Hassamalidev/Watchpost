@@ -1,9 +1,7 @@
-/* HTTP entry point: load config, build infra, mount the app, shut down gracefully. */
+/* HTTP entry point: load config, build the container, mount the app, shut down gracefully. */
 import { ConfigError, loadConfig, type AppConfig } from "./config/index.js";
 import { createApp } from "./app.js";
-import { createLogger } from "./infra/logger.js";
-import { createDbPool, pingDb } from "./infra/db/index.js";
-import { createRedis, pingRedis } from "./infra/redis.js";
+import { createContainer } from "./composition/container.js";
 
 const SHUTDOWN_GRACE_MS = 10_000;
 
@@ -20,23 +18,23 @@ function bootConfig(): AppConfig {
 }
 
 const config = bootConfig();
-const logger = createLogger({ level: config.logLevel, pretty: config.env === "development" });
-const db = createDbPool(config.databaseUrl);
-const redis = createRedis(config.redisUrl);
-redis.on("error", (err) => logger.warn({ err: err.message }, "redis connection error"));
+const container = createContainer(config, { service: "api" });
+const { logger } = container.infra;
 
 const app = createApp({
   config,
   logger,
-  redis,
-  readinessChecks: {
-    postgres: () => pingDb(db),
-    redis: () => pingRedis(redis),
-  },
+  redis: container.infra.redis,
+  readinessChecks: container.readinessChecks,
+  routers: container.routers,
+  rawBodyRouters: container.rawBodyRouters,
 });
 
 const server = app.listen(config.api.port, () => {
-  logger.info({ port: config.api.port }, "api listening");
+  logger.info(
+    { port: config.api.port, modules: container.modules.map((m) => m.name) },
+    "api listening",
+  );
 });
 
 let shuttingDown = false;
@@ -47,7 +45,7 @@ async function shutdown(signal: string): Promise<void> {
   const force = setTimeout(() => server.closeAllConnections(), SHUTDOWN_GRACE_MS);
   await new Promise<void>((resolve) => server.close(() => resolve()));
   clearTimeout(force);
-  await Promise.allSettled([db.end(), redis.quit()]);
+  await container.close();
   process.exit(0);
 }
 

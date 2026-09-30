@@ -10,9 +10,12 @@
     "dev:worker": "tsx watch src/worker.ts",
     "start": "node dist/server.js",
     "start:worker": "node dist/worker.js",
-    "lint": "eslint . --ignore-pattern \"web/**\"",
+    "lint": "eslint . --ignore-pattern \"web/**\" --ignore-pattern \".arch-selftest/**\"",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/migrate.ts",
+    "new:module": "tsx scripts/new-module.ts"
   },
   "dependencies": {
     "@app/shared": "workspace:*",

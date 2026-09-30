@@ -1,0 +1,30 @@
+{
+  "$comment": "Allowed module calls (PRODUCT.md §7.4). architecture.ts types this file; .dependency-cruiser.cjs enforces it. Change §7.4 in the same commit.",
+  "modules": {
+    "audit": [],
+    "workspaces": ["audit"],
+    "apikeys": ["workspaces", "audit"],
+    "billing": ["workspaces", "audit"],
+    "credits": ["billing"],
+    "monitors": ["workspaces", "billing", "audit"],
+    "maintenance": ["monitors", "audit"],
+    "contacts": ["workspaces", "audit"],
+    "channels": ["credits", "audit"],
+    "results": ["monitors"],
+    "probes": ["monitors", "results"],
+    "incidents": ["monitors", "workspaces", "audit"],
+    "detection": ["monitors", "results", "probes", "maintenance", "incidents"],
+    "heartbeats": ["monitors", "maintenance", "incidents"],
+    "expiry": ["monitors", "results", "incidents"],
+    "inbound": ["incidents", "workspaces"],
+    "oncall": ["contacts", "workspaces", "audit"],
+    "alerting": ["incidents", "oncall", "contacts", "channels", "credits"],
+    "actions": ["incidents", "contacts", "channels"],
+    "ai": ["incidents", "results", "monitors", "billing", "credits"],
+    "statuspages": ["monitors", "detection", "incidents", "results", "maintenance", "ai"],
+    "reports": ["monitors", "detection", "incidents", "results", "statuspages"],
+    "imports": ["monitors", "channels", "contacts", "oncall", "statuspages"],
+    "badges": ["monitors", "detection", "results"],
+    "admin": ["*"]
+  }
+}

@@ -19,6 +19,9 @@ coverage/
 playwright-report/
 test-results/
 
+# Architecture self-test scratch copies
+.arch-selftest/
+
 # Code index (CocoIndex, P0-T10)
 .cocoindex_code/
 
