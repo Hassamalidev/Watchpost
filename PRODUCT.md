@@ -1,7 +1,7 @@
 # Watchpost — Product Spec and Build Plan (`PRODUCT.md`)
 
 > **Working name:** Watchpost. Replace it and `<domain>` everywhere once the final name and domain are chosen (Open decision #1).
-> **Status:** In progress · **Current phase:** 0 · **Next task:** `P0-T07` · **Last updated:** 2026-09-30 (P0-T06 done)
+> **Status:** In progress · **Current phase:** 0 · **Next task:** `P0-T08` · **Last updated:** 2026-09-30 (P0-T07 done; owner action: branch ruleset in `docs/ci.md`)
 > The build agent keeps this status block current.
 
 **Companion files**
@@ -1126,7 +1126,7 @@ Targets assume a start on Monday 2026-10-05 with one developer and a coding agen
   *AC:* a test job runs; SIGTERM waits for the active job.
 - [x] **P0-T06 Web skeleton.** Next.js 16 in `backend/web`, Tailwind v4, shadcn/ui, Geist, theme tokens (brand and status colors), TanStack Query, app shell with sidebar and ⌘K placeholder, `next-intl`.
   *AC:* light and dark shell render; Lighthouse accessibility ≥ 95.
-- [ ] **P0-T07 CI.** GitHub Actions on push and PR: install with pnpm cache, lint, typecheck, tests with Postgres and Redis services, build; weekly Dependabot. Use the current major versions of the official actions.
+- [x] **P0-T07 CI.** GitHub Actions on push and PR: install with pnpm cache, lint, typecheck, tests with Postgres and Redis services, build; weekly Dependabot. Use the current major versions of the official actions.
   *AC:* CI green; a failing test blocks the PR.
 - [ ] **P0-T08 Infra helpers.** AES-256-GCM helper with key IDs, Redis locks, UUIDv7 IDs, pino redaction, `WorkspaceScope` repository helper.
   *AC:* tests for encrypt/decrypt/rotation and for scope enforcement.
@@ -1364,6 +1364,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | D-021 | 2026-09-30 | Job IDs use `.` as the separator (`buildJobId`), not `:` | BullMQ 6 throws "Custom Id cannot contain :" for IDs with `:` unless they have exactly 3 parts, which breaks `timer:{kind}:{refId}:{dueAt}` and `esc:{incidentId}:{round}:{step}`; UUIDs and integer timestamps never contain `.` | Keep `:` and hash 4-part IDs; `\|` separator |
 | D-022 | 2026-09-30 | Worker runtime: queue registry declares each queue's recovery mode (sweep with its Postgres source, re-registered schedules, or ephemeral with a reason); processors validate job data with Zod and fail invalid data permanently (`UnrecoverableError`); recovery sweeps run before workers start and a failing sweep is logged, not fatal; `stop()` relies on `worker.close()` to finish active jobs, with a 60 s forced exit; `msgpackr-extract` install script denied (optional native speed-up; pure-JS fallback) | Makes rule 2 checkable in P0-T09 and keeps shutdown safe | One worker class per module |
 | D-023 | 2026-09-30 | Web skeleton: shadcn/ui primitives written by hand on the unified `radix-ui` package and `cmdk` (no CLI); theme via `next-themes` (`class` on `<html>`, default "system"); next-intl without locale routing (English only); placeholder brand hue `oklch(0.5 0.2 275)` until Open decision #2; status tones darker in light mode and lighter in dark mode for AA contrast; test gates are Vitest + Testing Library (components), Playwright + axe in light and dark projects (`pnpm test:e2e`, system Chrome locally), and `pnpm lighthouse` (accessibility ≥ 95; measured 100 in light and dark); `@parcel/watcher` and `@swc/core` install scripts denied (prebuilt binaries are used) | Keeps components owned by us and restylable per DESIGN.md; proves the a11y AC with repeatable tools | shadcn CLI; locale-prefixed routes from day one |
+| D-024 | 2026-09-30 | CI: two jobs (checks with Postgres/Redis services; web e2e + Lighthouse using the runner's Google Chrome). Turborepo strict env mode drops undeclared variables, so `turbo.json` lists `DATABASE_URL`/`REDIS_URL` for `test` and passes through `CI`, `NODE_ENV`, `PLAYWRIGHT_CHANNEL`. Readiness errors expand `AggregateError` (dual-stack connect failures had an empty message). Verified: green run 36731052545; a deliberately failing test on a throwaway branch failed run 36731352274 | CI found a real bug (tests silently used the local port) and a real product gap (empty readiness errors) | Loose env mode; Playwright's bundled Chromium in CI |
 
 ---
 
@@ -1396,6 +1397,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 7. **Monthly infrastructure budget cap** (suggested $50–100 at the start).
 8. **Open-source the probe** (recommended: MIT).
 9. **Launch timing and Opsgenie offer** (for example, 3 months free for teams migrating before April 5, 2027).
+10. **Owner action (from P0-T07): turn on the `main` branch ruleset** so failing CI blocks merges. Steps in `docs/ci.md` (needs repository admin; the agent has no GitHub token by design).
 
 ---
 
@@ -1410,6 +1412,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | 2026-09-30 | §7.9, §20, STACK.md §6–7 | Error-code list completed (`unauthorized`, `payload_too_large`, `service_unavailable`, `internal_error`); D-019, D-020; Postgres host port 5433; `TRUST_PROXY` | P0-T04 |
 | 2026-09-30 | §7.5, §20, Appendix A | Job ID separator note; D-021, D-022; `WORKER_QUEUES` env var | P0-T05 |
 | 2026-09-30 | §20, §21.2 | D-023 (web skeleton and its test gates); backlog: mobile navigation | P0-T06 |
+| 2026-09-30 | §20, §22 | D-024 (CI and Turborepo env); owner action for the branch ruleset added to Open decisions | P0-T07 |
 
 *Phase retro template (added at each phase exit):* shipped · slipped and why · what we learned · key metrics (including agent tokens and time per task, with and without the code index) · proposals added to §21.1.
 
