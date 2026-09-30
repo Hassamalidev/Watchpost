@@ -1,0 +1,57 @@
+{
+  "app": {
+    "name": "Watchpost",
+    "skipToContent": "Skip to content",
+    "primaryNav": "Primary",
+    "workspace": "Workspace"
+  },
+  "nav": {
+    "overview": "Overview",
+    "monitors": "Monitors",
+    "heartbeats": "Heartbeats",
+    "incidents": "Incidents",
+    "onCall": "On-call",
+    "statusPages": "Status pages",
+    "integrations": "Integrations",
+    "reports": "Reports",
+    "team": "Team",
+    "settings": "Settings",
+    "billing": "Billing"
+  },
+  "theme": {
+    "toggle": "Toggle theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "command": {
+    "open": "Search or jump to…",
+    "title": "Command palette",
+    "placeholder": "Type a command or search…",
+    "empty": "No results.",
+    "navigate": "Go to"
+  },
+  "status": {
+    "pending": "Pending",
+    "up": "Up",
+    "verifying": "Verifying",
+    "degraded": "Degraded",
+    "down": "Down",
+    "maintenance": "Maintenance",
+    "paused": "Paused"
+  },
+  "overview": {
+    "title": "Overview",
+    "intro": "Your monitors, incidents and on-call status will appear here.",
+    "statusLegend": "Status colors"
+  },
+  "placeholder": {
+    "title": "Coming soon",
+    "body": "This section is built in a later phase."
+  },
+  "marketing": {
+    "hero": "Know about real outages first. Confirmed, explained, actionable.",
+    "subhead": "Watchpost checks your sites and APIs from around the world, confirms each failure before it pages anyone, and lets your team acknowledge from wherever they are.",
+    "openApp": "Open the app"
+  }
+}

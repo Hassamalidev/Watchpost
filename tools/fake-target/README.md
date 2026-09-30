@@ -1,6 +1,6 @@
 # fake-target (dev-only outage simulator)
 
-Started by `docker compose up -d`, or locally with `pnpm --filter @app/fake-target dev`.
+Started by `docker compose up -d`, or locally with `pnpm --filter @app/fake-target dev:local` (stop the compose service first; both use port 4100).
 
 | Port | What                                                                                                     |
 | ---- | -------------------------------------------------------------------------------------------------------- |

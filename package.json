@@ -12,6 +12,7 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "test:e2e": "pnpm --filter @app/web build && pnpm --filter @app/web test:e2e",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

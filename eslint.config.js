@@ -7,7 +7,16 @@ import local from "@app/eslint-plugin";
 
 export default tseslint.config(
   {
-    ignores: ["**/node_modules/**", "**/dist/**", "**/.next/**", "**/coverage/**", "**/.turbo/**"],
+    ignores: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/.next/**",
+      "**/coverage/**",
+      "**/.turbo/**",
+      "**/next-env.d.ts",
+      "**/playwright-report/**",
+      "**/test-results/**",
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -27,6 +36,11 @@ export default tseslint.config(
       "@typescript-eslint/consistent-type-imports": "error",
       "no-console": "error",
     },
+  },
+  {
+    /* The Next.js app runs in the browser as well as on the server. */
+    files: ["backend/web/**/*.{ts,tsx,js,mjs}"],
+    languageOptions: { globals: { ...globals.browser, ...globals.node } },
   },
   prettier,
 );
