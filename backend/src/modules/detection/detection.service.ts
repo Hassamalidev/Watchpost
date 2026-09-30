@@ -8,6 +8,7 @@
 import { effectiveRecoverySuccesses, resultsBatchSchema, type CheckResult } from "@app/shared";
 import type { Clock } from "../../core/clock.js";
 import { ValidationError } from "../../core/errors.js";
+import type { WorkspaceScope } from "../../core/workspace-scope.js";
 import type { Db, DbOrTx } from "../../infra/db/index.js";
 import type { Logger } from "../../infra/logger.js";
 import type { Outbox } from "../../infra/outbox/index.js";
@@ -27,6 +28,7 @@ import {
   type EngineResult,
 } from "./detection.engine.js";
 import type { MonitorStateRow } from "./schema/detection.js";
+import { computeUptime, uptimeDays, type UptimeDay, type UptimeSummary } from "./uptime.js";
 
 /* Same-region verification waits a little so a blip has time to clear (§9.2). */
 export const SAME_REGION_VERIFY_DELAY_MS = 5_000;
@@ -58,12 +60,24 @@ export interface DetectionService {
   /* Queues evaluations for results no evaluation has seen. Returns how many were queued. */
   sweep(): Promise<number>;
   state(monitorId: string): Promise<MonitorStateRow | undefined>;
+  /* Uptime for a range, from downtimes (§9.9). */
+  uptime(
+    scope: WorkspaceScope,
+    monitorId: string,
+    options: { from: Date; to: Date; excludeMaintenance: boolean },
+  ): Promise<UptimeSummary>;
+  /* Per-day uptime bars for the last `days` UTC days. */
+  uptimeDays(
+    scope: WorkspaceScope,
+    monitorId: string,
+    options: { days: number; excludeMaintenance: boolean },
+  ): Promise<UptimeDay[]>;
 }
 
 export interface DetectionServiceDeps {
   db: Db;
   repository: DetectionRepository;
-  monitors: Pick<MonitorsService, "getForProbes" | "getForDetection">;
+  monitors: Pick<MonitorsService, "getForProbes" | "getForDetection" | "get">;
   results: Pick<ResultsService, "ingest" | "recent">;
   probes: Pick<ProbesService, "isAssigned" | "completeTasks" | "createTasks" | "healthyRegions">;
   incidents: Pick<
@@ -360,6 +374,33 @@ export function createDetectionService(deps: DetectionServiceDeps): DetectionSer
     },
 
     state: (monitorId) => repo.findState(deps.db, monitorId),
+
+    async uptime(scope, monitorId, { from, to, excludeMaintenance }) {
+      const monitor = await deps.monitors.get(scope, monitorId);
+      const spans = await repo.downtimesBetween(deps.db, monitorId, from, to);
+      return computeUptime({
+        spans,
+        from,
+        to,
+        now: clock.now(),
+        since: new Date(monitor.createdAt),
+        excludeMaintenance,
+      });
+    },
+
+    async uptimeDays(scope, monitorId, { days, excludeMaintenance }) {
+      const monitor = await deps.monitors.get(scope, monitorId);
+      const now = clock.now();
+      const from = new Date(now.getTime() - (days + 1) * 86_400_000);
+      const spans = await repo.downtimesBetween(deps.db, monitorId, from, now);
+      return uptimeDays({
+        spans,
+        days,
+        now,
+        since: new Date(monitor.createdAt),
+        excludeMaintenance,
+      });
+    },
   };
 
   /* Keeps exactly one open downtime matching the status; closes it when the status moves on. */

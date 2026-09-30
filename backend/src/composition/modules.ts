@@ -21,7 +21,11 @@ export function createModules(infra: Infra): AppModule[] {
   modules.push(workspaces);
   const monitors = createMonitorsModule({ infra, guards: workspaces.guards });
   modules.push(monitors);
-  const results = createResultsModule({ infra });
+  const results = createResultsModule({
+    infra,
+    monitors: monitors.service,
+    guards: workspaces.guards,
+  });
   modules.push(results);
   const probes = createProbesModule({
     infra,
@@ -43,6 +47,7 @@ export function createModules(infra: Infra): AppModule[] {
       results: results.service,
       probes: probes.service,
       incidents: incidents.service,
+      guards: workspaces.guards,
     }),
   );
   modules.push(

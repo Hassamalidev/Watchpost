@@ -250,13 +250,9 @@ describe("domains", () => {
       details: { registrar: "Test Registrar", source: "rdap" },
     });
 
-    const lookupsBefore = http.requests.filter((r) =>
-      r.url.includes(`/domain/${domain}`),
-    ).length;
+    const lookupsBefore = http.requests.filter((r) => r.url.includes(`/domain/${domain}`)).length;
     await service.sweep();
-    const lookupsAfter = http.requests.filter((r) =>
-      r.url.includes(`/domain/${domain}`),
-    ).length;
+    const lookupsAfter = http.requests.filter((r) => r.url.includes(`/domain/${domain}`)).length;
     expect(lookupsAfter).toBe(lookupsBefore);
     expect(await expiryIncidents(monitorId)).toHaveLength(1);
   });

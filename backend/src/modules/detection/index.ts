@@ -1,8 +1,12 @@
 /* Public API of the detection module. Other modules import only from this file (PRODUCT.md §7.1). */
-import { Router } from "express";
+import { Router, type RequestHandler } from "express";
+import { z } from "zod";
 import type { AppModule, Infra } from "../../composition/types.js";
 import { newId } from "../../infra/ids.js";
 import { probeOf } from "../../middleware/probe-auth.js";
+import { requireRole } from "../../middleware/roles.js";
+import { inputOf, validate } from "../../middleware/validate.js";
+import { scopeOf } from "../../middleware/workspace.js";
 import type { IncidentsService } from "../incidents/index.js";
 import type { MonitorsService } from "../monitors/index.js";
 import type { ProbesService } from "../probes/index.js";
@@ -22,6 +26,7 @@ export type {
   IngestResponse,
 } from "./detection.service.js";
 export type { DowntimeKind, MonitorStateRow, RegionStatus } from "./schema/detection.js";
+export type { DayStatus, UptimeDay, UptimeSummary } from "./uptime.js";
 
 export interface DetectionModuleDeps {
   infra: Pick<Infra, "db" | "logger" | "outbox" | "clock" | "queues">;
@@ -29,6 +34,66 @@ export interface DetectionModuleDeps {
   results: ResultsService;
   probes: ProbesService;
   incidents: IncidentsService;
+  guards: { session: RequestHandler; workspace: RequestHandler };
+}
+
+const monitorParams = z.object({ monitorId: z.uuid() });
+const flag = z
+  .enum(["true", "false"])
+  .default("false")
+  .transform((v) => v === "true");
+const uptimeQuery = z
+  .object({
+    from: z.iso.datetime({ offset: true }).optional(),
+    to: z.iso.datetime({ offset: true }).optional(),
+    excludeMaintenance: flag,
+  })
+  .refine((q) => !q.from || !q.to || q.from < q.to, "from must be before to");
+const daysQuery = z.object({
+  days: z.coerce.number().int().min(1).max(366).default(90),
+  excludeMaintenance: flag,
+});
+
+/* /api/w/:workspaceId/monitors/:monitorId/uptime[/days] (viewers and above). */
+function createUptimeRouter(
+  service: DetectionService,
+  guards: { session: RequestHandler; workspace: RequestHandler },
+): Router {
+  const router = Router({ mergeParams: true });
+  const read = [guards.session, guards.workspace, requireRole("viewer")];
+  router.get(
+    "/monitors/:monitorId/uptime",
+    ...read,
+    validate({ params: monitorParams, query: uptimeQuery }),
+    async (req, res) => {
+      const { params, query } = inputOf<{
+        params: typeof monitorParams;
+        query: typeof uptimeQuery;
+      }>(req, res);
+      const to = query.to ? new Date(query.to) : new Date();
+      const from = query.from ? new Date(query.from) : new Date(to.getTime() - 30 * 86_400_000);
+      res.json(
+        await service.uptime(scopeOf(req, res), params.monitorId, {
+          from,
+          to,
+          excludeMaintenance: query.excludeMaintenance,
+        }),
+      );
+    },
+  );
+  router.get(
+    "/monitors/:monitorId/uptime/days",
+    ...read,
+    validate({ params: monitorParams, query: daysQuery }),
+    async (req, res) => {
+      const { params, query } = inputOf<{ params: typeof monitorParams; query: typeof daysQuery }>(
+        req,
+        res,
+      );
+      res.json({ data: await service.uptimeDays(scopeOf(req, res), params.monitorId, query) });
+    },
+  );
+  return router;
 }
 
 export interface DetectionModule extends AppModule {
@@ -58,6 +123,7 @@ export function createDetectionModule(deps: DetectionModuleDeps): DetectionModul
     name: "detection",
     service,
     probeRouters: [probeRouter],
+    routers: [{ path: "/api/w/:workspaceId", router: createUptimeRouter(service, deps.guards) }],
     processors: createDetectionProcessors(service),
     recoverySweeps: [{ name: "detection-unevaluated", run: () => service.sweep() }],
     schedules: [

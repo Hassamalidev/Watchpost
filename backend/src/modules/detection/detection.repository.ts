@@ -142,6 +142,26 @@ export function createDetectionRepository() {
         .where(eq(downtimes.id, id));
     },
 
+    /* Downtimes overlapping [from, to). */
+    async downtimesBetween(
+      tx: DbOrTx,
+      monitorId: string,
+      from: Date,
+      to: Date,
+    ): Promise<DowntimeRow[]> {
+      return tx
+        .select()
+        .from(downtimes)
+        .where(
+          and(
+            eq(downtimes.monitorId, monitorId),
+            sql`${downtimes.startedAt} < ${to.toISOString()}::timestamptz`,
+            sql`(${downtimes.endedAt} is null or ${downtimes.endedAt} > ${from.toISOString()}::timestamptz)`,
+          ),
+        )
+        .orderBy(downtimes.startedAt);
+    },
+
     async downtimesFor(tx: DbOrTx, monitorId: string): Promise<DowntimeRow[]> {
       return tx
         .select()
