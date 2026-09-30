@@ -12,6 +12,10 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "arch": "node scripts/arch-check.mjs",
+    "new:module": "pnpm --filter @app/api new:module",
+    "db:migrate": "pnpm --filter @app/api db:migrate",
+    "test:e2e": "pnpm --filter @app/web build && pnpm --filter @app/web test:e2e",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
@@ -19,6 +23,7 @@
     "@app/eslint-plugin": "workspace:*",
     "@eslint/js": "10.0.1",
     "@types/node": "24.19.0",
+    "dependency-cruiser": "18.4.0",
     "eslint": "10.11.0",
     "eslint-config-prettier": "10.1.8",
     "globals": "17.12.0",

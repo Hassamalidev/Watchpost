@@ -1,7 +1,7 @@
 # Watchpost — Product Spec and Build Plan (`PRODUCT.md`)
 
 > **Working name:** Watchpost. Replace it and `<domain>` everywhere once the final name and domain are chosen (Open decision #1).
-> **Status:** In progress · **Current phase:** 0 · **Next task:** `P0-T03` · **Last updated:** 2026-09-30 (P0-T02 done)
+> **Status:** In progress · **Current phase:** 1 · **Next task:** `P1-T01` · **Last updated:** 2026-09-30 (Phase 0 done, tagged `v0.0.1`; owner action: branch ruleset in `docs/ci.md`)
 > The build agent keeps this status block current.
 
 **Companion files**
@@ -588,6 +588,10 @@ Cross-module calls inside a transaction pass `tx` explicitly (for example, `dete
 
 Job data holds IDs only, never whole objects; processors reload from Postgres.
 
+**Job ID format:** the patterns above are written with `:` for readability, but the code joins parts with `.` through `buildJobId()` (for example `timer.snooze.{refId}.{dueAt}`), because BullMQ rejects custom job IDs containing `:` unless they have exactly three parts (D-021). The registry lives in `backend/src/infra/queues/registry.ts`. Event-handler jobs use `evt.{eventId}.{handler}`.
+
+**Where the contract lives in code (P0-T09):** module edges in `backend/src/composition/module-edges.json` (typed by `architecture.ts`, enforced by `.dependency-cruiser.cjs`); event subscriptions in `architecture.ts` (`EVENT_SUBSCRIPTIONS`); payload schemas in `@app/shared` (`EVENT_SCHEMAS`); outbox in `backend/src/infra/outbox/` (`emit`, relay, consumer via `defineEventProcessor`, hourly cleanup on the `sweeps` queue, lag check in `/api/ready`).
+
 ### 7.6 Probe architecture and protocol
 ```
 probe/src/
@@ -663,7 +667,7 @@ P2: `eu-central` (Frankfurt), `us-east` (New York/Virginia), `ap-southeast` (Sin
 | `/api/integrations/:provider/*` | Slack, Telegram, Twilio, Teams | OAuth callbacks and interactions |
 | `/api/internal/*` | Caddy, ops | Docker network only |
 
-**Conventions:** JSON with camelCase fields; timestamps in ISO-8601 UTC; IDs as UUIDv7 strings · cursor pagination `?limit=&cursor=` → `{ data, nextCursor }` · errors as RFC 9457 problem details with a stable `code` (`validation_failed`, `not_found`, `forbidden`, `quota_exceeded`, `conflict`, `rate_limited`, `provider_error`) · public API writes accept an `Idempotency-Key` header (kept 24 h) · request and response schemas live in `@app/shared/schemas/api`, and the web client parses responses with the same schemas in development.
+**Conventions:** JSON with camelCase fields; timestamps in ISO-8601 UTC; IDs as UUIDv7 strings · cursor pagination `?limit=&cursor=` → `{ data, nextCursor }` · errors as RFC 9457 problem details with a stable `code` (`validation_failed`, `unauthorized`, `forbidden`, `not_found`, `conflict`, `payload_too_large`, `quota_exceeded`, `rate_limited`, `provider_error`, `service_unavailable`, `internal_error`; the list lives in `@app/shared` `API_ERROR_CODES`) · public API writes accept an `Idempotency-Key` header (kept 24 h) · request and response schemas live in `@app/shared/schemas/api`, and the web client parses responses with the same schemas in development.
 
 ### 7.10 Frontend architecture
 ```
@@ -1040,7 +1044,7 @@ Events can arrive out of order, so keep `last_event_at` per subscription and ign
 - **Unit (Vitest):** detection engine with at least 40 table-driven scenarios (transient blip, regional outage, confirmed outage, recovery, flapping, maintenance, dependency suppression, quarantined probe, single-region mode); SSRF guard; schedule math across DST; escalation timing; entitlements; credit ledger idempotency; out-of-order Paddle events; channel renderers (snapshots).
 - **Integration (Supertest with real Postgres and Redis in CI):** probe protocol and signatures, result idempotency, webhook signature checks (Paddle, Slack, Twilio, Telegram), heartbeat endpoints, cross-workspace access denial.
 - **E2E (Playwright):** signup → monitor → outage → alert → acknowledge → recovery; status page publish → subscribe → update; billing in Paddle sandbox (nightly, optional).
-- **Simulation:** `tools/fake-target` exposes `/ok`, `/fail`, `/slow?ms=`, `/flap?period=`, `/keyword?word=`, `/json`, `/big`, `/redirect-private`, an expiring self-signed TLS port, and TCP and WebSocket echo. A probe chaos mode drops a region, adds latency or fails everything, to test quarantine.
+- **Simulation:** `tools/fake-target` exposes `/ok`, `/fail`, `/slow?ms=`, `/flap?period=`, `/keyword?word=`, `/json`, `/big`, `/redirect-private`, an expiring self-signed TLS port, and TCP and WebSocket echo. It also has `/gzip-bomb`, `/redirect-loop`, `/invalid-json` and a `/switch` endpoint flipped by `POST /control/switch?state=ok|fail|slow` for E2E outage tests (see `tools/fake-target/README.md`). A probe chaos mode drops a region, adds latency or fails everything, to test quarantine.
 - **Load:** ingest must sustain 1,000 results/s on the production box before launch (autocannon or k6).
 - **CI gates:** lint (including a small local ESLint rule that rejects `//` line comments), typecheck, tests, build. Coverage of at least 90% of lines in `detection`, `oncall`, `billing` and `credits`.
 
@@ -1116,22 +1120,24 @@ Targets assume a start on Monday 2026-10-05 with one developer and a coding agen
   *AC:* `pnpm install` works on a clean clone; `main` and `phase/0-foundations` exist on GitHub.
 - [x] **P0-T02 Tooling.** Strict TypeScript (`tsconfig.base.json`), ESLint and Prettier, a local ESLint rule banning `//` comments, Turbo pipelines (`lint`, `typecheck`, `test`, `build`), Vitest config, `@app/shared` package.
   *AC:* all four pipelines green; a `//` comment fails lint.
-- [ ] **P0-T03 Local infra.** `docker-compose.yml` per STACK.md §6 plus `tools/fake-target` (§15).
+- [x] **P0-T03 Local infra.** `docker-compose.yml` per STACK.md §6 plus `tools/fake-target` (§15).
   *AC:* healthy Postgres and Redis; fake-target endpoints respond.
-- [ ] **P0-T04 API skeleton.** Express 5 app factory, pino-http, helmet, CORS, rate limit with Redis store, error handler, Zod env validation, `/api/health` and `/api/ready`.
+- [x] **P0-T04 API skeleton.** Express 5 app factory, pino-http, helmet, CORS, rate limit with Redis store, error handler, Zod env validation, `/api/health` and `/api/ready`.
   *AC:* bad env fails boot with a clear message; `/api/ready` reflects DB and Redis state (tested).
-- [ ] **P0-T05 Worker skeleton.** Queue registry (§7.5), shared job defaults, recovery-sweep hook, graceful SIGTERM.
+- [x] **P0-T05 Worker skeleton.** Queue registry (§7.5), shared job defaults, recovery-sweep hook, graceful SIGTERM.
   *AC:* a test job runs; SIGTERM waits for the active job.
-- [ ] **P0-T06 Web skeleton.** Next.js 16 in `backend/web`, Tailwind v4, shadcn/ui, Geist, theme tokens (brand and status colors), TanStack Query, app shell with sidebar and ⌘K placeholder, `next-intl`.
+- [x] **P0-T06 Web skeleton.** Next.js 16 in `backend/web`, Tailwind v4, shadcn/ui, Geist, theme tokens (brand and status colors), TanStack Query, app shell with sidebar and ⌘K placeholder, `next-intl`.
   *AC:* light and dark shell render; Lighthouse accessibility ≥ 95.
-- [ ] **P0-T07 CI.** GitHub Actions on push and PR: install with pnpm cache, lint, typecheck, tests with Postgres and Redis services, build; weekly Dependabot. Use the current major versions of the official actions.
+- [x] **P0-T07 CI.** GitHub Actions on push and PR: install with pnpm cache, lint, typecheck, tests with Postgres and Redis services, build; weekly Dependabot. Use the current major versions of the official actions.
   *AC:* CI green; a failing test blocks the PR.
-- [ ] **P0-T08 Infra helpers.** AES-256-GCM helper with key IDs, Redis locks, UUIDv7 IDs, pino redaction, `WorkspaceScope` repository helper.
+- [x] **P0-T08 Infra helpers.** AES-256-GCM helper with key IDs, Redis locks, UUIDv7 IDs, pino redaction, `WorkspaceScope` repository helper.
   *AC:* tests for encrypt/decrypt/rotation and for scope enforcement.
-- [ ] **P0-T09 Architecture guardrails.** Composition root and `architecture.ts` allow-list (§7.3–7.4); `infra/outbox` with `emit`, relay, cleanup and lag metric (§7.5); `.dependency-cruiser.cjs` rules and `pnpm arch` in CI; architecture tests and PR template (§7.13); `pnpm new:module` generator.
+- [x] **P0-T09 Architecture guardrails.** Composition root and `architecture.ts` allow-list (§7.3–7.4); `infra/outbox` with `emit`, relay, cleanup and lag metric (§7.5); `.dependency-cruiser.cjs` rules and `pnpm arch` in CI; architecture tests and PR template (§7.13); `pnpm new:module` generator.
   *AC:* a deliberate forbidden import and a deliberate cycle both fail CI; a generated sample module passes lint, typecheck and `pnpm arch`; an event emitted in a rolled-back transaction is never dispatched; a duplicated dispatch is handled harmlessly.
-- [ ] **P0-T10 Agent code search (CocoIndex, measured).** Per §2.8: install `cocoindex-code[full]`, run `ccc index`, commit the project-scoped `.mcp.json`, gitignore the index files, add the search-order lines to CLAUDE.md/AGENTS.md, and create `docs/agent-benchmark.md` with 10 "find the code" questions (answers filled in during P1).
+- [x] **P0-T10 Agent code search (CocoIndex, measured).** *(Setup done; the working index moved to P1-T21 per PC-001.)* Per §2.8: install `cocoindex-code[full]`, run `ccc index`, commit the project-scoped `.mcp.json`, gitignore the index files, add the search-order lines to CLAUDE.md/AGENTS.md, and create `docs/agent-benchmark.md` with 10 "find the code" questions (answers filled in during P1).
   *AC:* `ccc search` returns results from this repo; `.mcp.json` contains no secrets; the benchmark file exists. The keep-or-drop decision is made at the P1 exit and recorded in D-013.
+  - [x] **P0-T10a Setup and docs.** `cocoindex-code[full]` 0.2.41 installed with `uv tool` (pipx isn't on this machine; same isolated install); global settings pin `Snowflake/snowflake-arctic-embed-xs` on CPU; `.mcp.json` (no secrets); `.cocoindex_code/` gitignored; search order in CLAUDE.md/AGENTS.md; `docs/agent-code-search.md`; `docs/agent-benchmark.md` (10 questions, 8 answered, 3 tasks).
+  - [→] **P0-T10b Working local index.** Moved to **P1-T21** (PC-001 ✅): `ccc index` fails because Windows Application Control blocks PyTorch's unsigned `torch\lib\shm.dll` on the dev machine.
 
 **Exit:** CI green, `pnpm dev` runs api, worker and web; merge to `main`; tag `v0.0.1`.
 
@@ -1176,6 +1182,8 @@ Targets assume a start on Monday 2026-10-05 with one developer and a coding agen
   *AC:* runs in CI in under 5 minutes.
 - [ ] **P1-T20 💰 Production deploy.** Needs Open decisions #1 and #7, a server and DNS. `docker-compose.prod.yml`, Caddy (app and hb hosts), backups to R2, firewall per STACK.md, first deploy, dogfooding on our own sites.
   *AC:* restore from the latest backup tested; runbook written.
+- [ ] **P1-T21 Code index and benchmark (from P0-T10b, PC-001).** Get `ccc index` working without weakening the machine's Application Control (for example the official `cocoindex-code:full` Docker image with only this repo mounted, if the owner agrees), then run `docs/agent-benchmark.md` with and without the index. If it still can't run, drop CocoIndex and record why in D-013.
+  *AC:* D-013 updated with measured results and a keep/drop decision.
 
 **Exit:** internal alpha live; merge; tag `v0.1.0`.
 
@@ -1356,6 +1364,16 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | D-015 | 2026-09-30 | STACK.md reconstructed from this spec (marked draft); ENV_SETUP.md is a placeholder | Neither file was in the repo at P0-T01; the owner chose a reconstructed draft over waiting | Wait for the original files |
 | D-016 | 2026-09-30 | pnpm via Corepack, pinned in `packageManager` (pnpm 12.8.1); Node 24 | Reproducible installs across machines and CI | Global npm install of pnpm |
 | D-017 | 2026-09-30 | `//` ban is a local ESLint plugin (`tools/eslint-plugin`) that still allows `///` triple-slash directives; `@app/shared` builds to `dist/` and Turbo builds it before typecheck and test | Next.js generates `///` references; Node can't load `.ts` from a workspace dependency at runtime | Source-only internal package with a bundler |
+| D-018 | 2026-09-30 | pnpm 12 fails installs on unapproved dependency build scripts; allow-list them in `pnpm-workspace.yaml` (`allowBuilds`), starting with `esbuild` | Keeps installs reproducible and reviewable; each new entry is a deliberate choice | Disable the check globally |
+| D-019 | 2026-09-30 | Docker Postgres is published on host port 5433 by default (`POSTGRES_HOST_PORT`) | The dev machine runs a Windows Postgres service on 5432 that silently answered `localhost` connections; 5433 avoids this on any machine | Stop the local service; keep 5432 |
+| D-020 | 2026-09-30 | API skeleton: health endpoints sit outside rate limits; rate limits fail open when Redis is down (`passOnStoreError`); the Redis client queues commands while connecting but fails after one retry; `/api/ready` runs pluggable checks with a 2 s timeout each; `TRUST_PROXY` env var for Express behind Caddy | Matches §13 degraded modes; per-IP limits need the real client IP behind Caddy | Fail closed on Redis errors |
+| D-021 | 2026-09-30 | Job IDs use `.` as the separator (`buildJobId`), not `:` | BullMQ 6 throws "Custom Id cannot contain :" for IDs with `:` unless they have exactly 3 parts, which breaks `timer:{kind}:{refId}:{dueAt}` and `esc:{incidentId}:{round}:{step}`; UUIDs and integer timestamps never contain `.` | Keep `:` and hash 4-part IDs; `\|` separator |
+| D-022 | 2026-09-30 | Worker runtime: queue registry declares each queue's recovery mode (sweep with its Postgres source, re-registered schedules, or ephemeral with a reason); processors validate job data with Zod and fail invalid data permanently (`UnrecoverableError`); recovery sweeps run before workers start and a failing sweep is logged, not fatal; `stop()` relies on `worker.close()` to finish active jobs, with a 60 s forced exit; `msgpackr-extract` install script denied (optional native speed-up; pure-JS fallback) | Makes rule 2 checkable in P0-T09 and keeps shutdown safe | One worker class per module |
+| D-023 | 2026-09-30 | Web skeleton: shadcn/ui primitives written by hand on the unified `radix-ui` package and `cmdk` (no CLI); theme via `next-themes` (`class` on `<html>`, default "system"); next-intl without locale routing (English only); placeholder brand hue `oklch(0.5 0.2 275)` until Open decision #2; status tones darker in light mode and lighter in dark mode for AA contrast; test gates are Vitest + Testing Library (components), Playwright + axe in light and dark projects (`pnpm test:e2e`, system Chrome locally), and `pnpm lighthouse` (accessibility ≥ 95; measured 100 in light and dark); `@parcel/watcher` and `@swc/core` install scripts denied (prebuilt binaries are used) | Keeps components owned by us and restylable per DESIGN.md; proves the a11y AC with repeatable tools | shadcn CLI; locale-prefixed routes from day one |
+| D-024 | 2026-09-30 | CI: two jobs (checks with Postgres/Redis services; web e2e + Lighthouse using the runner's Google Chrome). Turborepo strict env mode drops undeclared variables, so `turbo.json` lists `DATABASE_URL`/`REDIS_URL` for `test` and passes through `CI`, `NODE_ENV`, `PLAYWRIGHT_CHANNEL`. Readiness errors expand `AggregateError` (dual-stack connect failures had an empty message). Verified: green run 36731052545; a deliberately failing test on a throwaway branch failed run 36731352274 | CI found a real bug (tests silently used the local port) and a real product gap (empty readiness errors) | Loose env mode; Playwright's bundled Chromium in CI |
+| D-025 | 2026-09-30 | Infra helpers: encrypted values are `v1.<keyId>.<iv>.<ciphertext>.<tag>` (AES-256-GCM, 12-byte IV, optional associated data binding a value to its row, e.g. `channel:<id>`); rotation via `TOKEN_ENC_PREVIOUS_KEYS` + `rotate()`/`needsRotation()`. Redis locks are SET NX PX with an owner token and Lua compare-and-delete/extend; they only prevent duplicate work, never guarantee correctness. `WorkspaceScope` is a frozen, branded object created by `createWorkspaceScope`; repositories use `createTenantRepository`/`tenantWhere`/`withWorkspace`, which take `workspaceId` only from the scope (caller-supplied values are overwritten, including on update). Drizzle ORM 0.45 added now (`infra/db/`). | Scope enforcement is structural, not a convention; AAD stops ciphertext being copied between rows | Postgres row-level security (revisit in P9); per-module hand-written filters |
+| D-026 | 2026-09-30 | Architecture guardrails: module edges live in one JSON file read by both `architecture.ts` and `.dependency-cruiser.cjs`; `pnpm arch` (`scripts/arch-check.mjs`) cruises backend/shared/probe and the web app separately, each with its own tsconfig, via the dependency-cruiser API (the CLI's `--ts-config` was overridden by the config, and relative `extends` needed an absolute tsconfig path). Outbox timestamps use the database clock (`now()`), so lag and retention don't depend on app-server clocks. The relay coalesces wake-ups and records `attempts`/`last_error` on failed dispatches. Architecture tests run the same rules against scratch fixtures under `backend/.arch-selftest/` (gitignored) and generate a module on a scratch copy to run tsc, ESLint and the rules on it. Generated modules mount at `/api/<name>` until workspace routing lands in P1-T01. | One source of truth for the graph; the AC is proven by tests, not by breaking `main` | Separate `.dependency-cruiser.json` edges; a throwaway CI branch per rule |
+| D-027 | 2026-09-30 | Phase merges happen over SSH: once CI is green on the phase branch head, `git merge --no-ff` into `main` (every commit kept, no squash), push `main`, tag, push the tag. No PR, because the agent has no GitHub token and must not create one (§2.3). Owner-approved. | Same result as "PR, green CI, merge without squashing" with the tools available | Owner opens each PR by hand; skip merging until later |
 
 ---
 
@@ -1363,7 +1381,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 
 ### 21.1 Proposed changes (need owner ✅)
 *Format: `⏳ PC-### (date) — change — reason — impact on plan`. The owner replaces ⏳ with ✅ or ❌.*
-- (none yet)
+- ✅ PC-001 (2026-09-30, owner chose option c: defer) — Unblock or defer P0-T10b (local code index). Windows Application Control blocks PyTorch's DLLs, so `ccc index` can't run natively. Options: (a) run the official `cocoindex/cocoindex-code:full` Docker image (~5 GB, local embeddings, mount only this repo); (b) the owner allow-lists the uv tool folder in Application Control / Smart App Control; (c) defer P0-T10b to the P1 benchmark and drop CocoIndex if it can't run (D-013 already allows dropping). Never the slim cloud variant (code would leave the machine). — Reason: the only native path is blocked by a machine security policy the agent must not bypass. — Impact: Phase 0 exit waits on this unless (c); P0-T10a is done either way.
 
 ### 21.2 Improvement backlog (not scheduled)
 - **Request log:** record which missing channels or monitor types users ask for, with counts, to order P6-T06.
@@ -1374,6 +1392,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 - Email round-trip monitoring (send and receive).
 - SLA-credit calculator for customers' own contracts.
 - Move edge-hosted status pages earlier if status-page uptime becomes a sales objection.
+- **Mobile navigation (P1-T17):** the sidebar is hidden below the `md` breakpoint and the ⌘K palette is the only navigation on phones; add a menu button with a sheet. Needed for the "usable on a phone at 3 a.m." incident screen (§14).
 
 ---
 
@@ -1387,6 +1406,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 7. **Monthly infrastructure budget cap** (suggested $50–100 at the start).
 8. **Open-source the probe** (recommended: MIT).
 9. **Launch timing and Opsgenie offer** (for example, 3 months free for teams migrating before April 5, 2027).
+10. **Owner action (from P0-T07): turn on the `main` branch ruleset** so failing CI blocks merges. Steps in `docs/ci.md` (needs repository admin; the agent has no GitHub token by design).
 
 ---
 
@@ -1397,6 +1417,23 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | 2026-09-30 | §2.7, §2.8, §7, §8, §17, §20 | v1.1: architecture blueprint (rules, trust zones, module template, table ownership and allowed calls, transactional outbox, event catalog, rebuildable queues, probe internals, API and frontend conventions, enforcement in CI); agent code search with CocoIndex; tasks P0-T09 and P0-T10; decisions D-011 to D-013 | Owner request: a clean, accurate architecture that is easy to build, and better agent efficiency |
 | 2026-09-30 | Companion files, §20 | Spec saved as `PRODUCT.md`; STACK.md drafted from this spec (needs owner review); ENV_SETUP.md placeholder; D-014 to D-016 | P0-T01; original STACK.md and setup guide were not in the repo |
 | 2026-09-30 | §20 | D-017 (lint rule and shared build) | P0-T02 |
+| 2026-09-30 | §15, §20 | fake-target extra routes (`/switch` control, gzip bomb, redirect loop, invalid JSON); D-018 | P0-T03 |
+| 2026-09-30 | §7.9, §20, STACK.md §6–7 | Error-code list completed (`unauthorized`, `payload_too_large`, `service_unavailable`, `internal_error`); D-019, D-020; Postgres host port 5433; `TRUST_PROXY` | P0-T04 |
+| 2026-09-30 | §7.5, §20, Appendix A | Job ID separator note; D-021, D-022; `WORKER_QUEUES` env var | P0-T05 |
+| 2026-09-30 | §20, §21.2 | D-023 (web skeleton and its test gates); backlog: mobile navigation | P0-T06 |
+| 2026-09-30 | §20, §22 | D-024 (CI and Turborepo env); owner action for the branch ruleset added to Open decisions | P0-T07 |
+| 2026-09-30 | §20, Appendix A, runbooks | D-025 (infra helpers); `TOKEN_ENC_PREVIOUS_KEYS`; `docs/runbooks/secret-rotation.md` | P0-T08 |
+| 2026-09-30 | §7.5, §20 | Pointers to where the architecture contract lives in code; `evt.{eventId}.{handler}` job IDs; D-026 | P0-T09 |
+| 2026-09-30 | §17, §21.1 | P0-T10 split into P0-T10a (done) and P0-T10b (blocked by Windows Application Control); proposal PC-001 | P0-T10 |
+| 2026-09-30 | §17, §20, §23 | PC-001 ✅ (defer): P0-T10b moved to new task P1-T21; D-027 (phase merge over SSH); Phase 0 retro | Phase 0 exit |
+
+### Phase 0 retro (2026-09-30, `v0.0.1`)
+
+- **Shipped:** P0-T01 to P0-T09 and P0-T10a. Monorepo (pnpm 12 + Turbo), strict TypeScript and lint rules (including the `//` ban), Docker dev stack with the fake-target simulator, Express API and BullMQ worker skeletons, Next.js app shell (Lighthouse accessibility 100 in light and dark), CI on GitHub Actions, infra helpers (AES-256-GCM with rotation, locks, tenancy scope), and the architecture guardrails (composition root, transactional outbox, dependency-cruiser rules, module generator).
+- **Slipped:** P0-T10b (local code index) because Windows Application Control blocks PyTorch's DLLs; moved to P1-T21 by owner decision (PC-001). STACK.md and ENV_SETUP.md are still the agent's reconstruction/placeholder (D-015) and need owner review.
+- **Learned:** CI surfaced two real bugs, not just style: Turborepo strict env mode silently dropped `DATABASE_URL` (tests used the local default port), and readiness errors were empty for dual-stack connection failures. BullMQ 6 rejects most job IDs containing `:` (D-021). pnpm 12 fails installs on unapproved build scripts, so each native dependency is now a deliberate allow/deny (D-018). The dev machine needs Docker Postgres on port 5433 (D-019).
+- **Key metrics:** 136 unit and integration tests (Vitest, real Postgres and Redis), 20 Playwright tests in light and dark with axe, Lighthouse accessibility 100; CI about 5–6 minutes per push. Agent token and time per task were not measured (no index yet; see P1-T21).
+- **Proposals:** PC-001 (resolved). Owner actions still open: the `main` branch ruleset (Open decision #10) and a review of STACK.md.
 
 *Phase retro template (added at each phase exit):* shipped · slipped and why · what we learned · key metrics (including agent tokens and time per task, with and without the code index) · proposals added to §21.1.
 
@@ -1410,6 +1447,12 @@ STATUS_BASE_DOMAIN=status.example.com
 CUSTOM_DOMAIN_CNAME_TARGET=pages.example.com
 HEARTBEAT_BASE_URL=https://hb.example.com
 CLOUDFLARE_API_TOKEN=
+
+# Worker
+WORKER_QUEUES=
+
+# Encryption key rotation (TOKEN_ENC_KEY and TOKEN_ENC_KEY_ID are in STACK.md §7)
+TOKEN_ENC_PREVIOUS_KEYS=
 
 # Probes (API side)
 REGIONS=eu-central,us-east,ap-southeast

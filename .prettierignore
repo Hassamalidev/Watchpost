@@ -3,5 +3,7 @@ dist
 .next
 coverage
 .turbo
+.arch-selftest
+backend/drizzle/meta
 pnpm-lock.yaml
 PRODUCT.md
