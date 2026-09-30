@@ -7,6 +7,7 @@ Uptime monitoring, on-call and status pages that only page you for confirmed out
 - Keys and accounts: [ENV_SETUP.md](ENV_SETUP.md)
 
 ## Quick start
+
 ```sh
 corepack enable
 pnpm install

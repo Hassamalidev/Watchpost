@@ -3,6 +3,7 @@
 Task: P?-T??
 
 ## Checklist
+
 - [ ] Layers respected (routes → controller → service → repository)
 - [ ] Outbox used for cross-module side effects
 - [ ] `WorkspaceScope` passed to every tenant query

@@ -1,4 +1,5 @@
 # Agent instructions
+
 1. Read PRODUCT.md §2 and STACK.md before doing anything.
 2. Work only on the task in PRODUCT.md's "Next task"; follow its acceptance criteria.
 3. After each task: pnpm lint, typecheck, test → commit (Conventional Commits + task ID) → push.
