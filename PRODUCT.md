@@ -1,7 +1,7 @@
 # Watchpost — Product Spec and Build Plan (`PRODUCT.md`)
 
 > **Working name:** Watchpost. Replace it and `<domain>` everywhere once the final name and domain are chosen (Open decision #1).
-> **Status:** In progress · **Current phase:** 1 · **Next task:** `P1-T20` · **Last updated:** 2026-10-01 (PC-002 tasks P1-T22 to P1-T28 and PC-003 task P1-T29 done; P1-T20 needs owner decisions #1 and #7, P1-T21 waits for the owner; owner action: branch ruleset in `docs/ci.md`)
+> **Status:** In progress · **Current phase:** 1 · **Next task:** `P1-T20` · **Last updated:** 2026-10-01 (PC-002 tasks P1-T22 to P1-T28 and PC-003 task P1-T29 done; P1-T21 closed, CocoIndex dropped by the owner; P1-T20 is the only open Phase 1 task and needs owner decisions #1 and #7; owner action: branch ruleset in `docs/ci.md`)
 > The build agent keeps this status block current.
 
 **Companion files**
@@ -137,30 +137,21 @@ Create `CLAUDE.md`, and `AGENTS.md` with the same text if other agents are used:
 4. Update PRODUCT.md in the same commit (tick task, next task, decisions, backlog, changelog).
 5. Never commit secrets or force-push main. Ask the owner before spending money or changing scope.
 6. Before writing code, read PRODUCT.md §7.1 (architecture rules) and follow the module template in §7.3.
-7. To find code: module map (§7.4) → exact names with grep/ripgrep → meaning-based search with the code index (§2.8).
+7. To find code: module map (§7.4) → exact names with grep/ripgrep → grep the owning module for domain words (§2.8). No code index.
 ```
 
-### 2.8 Finding code efficiently (architecture map + CocoIndex)
+### 2.8 Finding code efficiently (architecture map + grep)
 Every session also reads §7.1 (architecture rules) as part of step 2 in §2.1.
 
-**What CocoIndex is.** An open-source (Apache 2.0) incremental indexing framework with a Rust core. Its companion tool **CocoIndex Code** (`cocoindex-code`, CLI `ccc`) builds an AST-aware semantic index of a repository and serves it to coding agents as a CLI, a skill or an MCP server. The agent can ask "where do we verify Paddle signatures?" and get the exact functions instead of opening many files.
-
-**Does it make the agent more efficient? Sometimes.** The maker advertises about 70% token savings. Independent results are mixed: at least one published test (August 2026) measured higher token use in its own workflow. It helps most in large or unfamiliar codebases and for "where is the logic for…" questions; for exact names, grep/ripgrep is just as good. In this project the biggest efficiency gain is the architecture itself: with the module map (§7.4) and fixed file names (§7.3), the agent can usually open the right file without searching. So we use CocoIndex Code, measure it, and keep it only if it wins on our repo.
-
-**Setup (task P0-T10)**
-- Developer tooling only. It is not part of the product and adds nothing to production; STACK.md is unchanged.
-- Install the version with local embeddings so our source code never leaves the machine: `pipx install 'cocoindex-code[full]'`. The slim version sends code chunks to a cloud embedding provider; don't use it here.
-- Build the index from the repo root with `ccc index`. Re-runs are incremental (only changed files are re-indexed), and the MCP search tool refreshes the index before each query by default.
-- Register it for the whole project so every session gets it: `claude mcp add --scope project cocoindex-code -- ccc mcp`. This writes `.mcp.json` at the repo root; commit it. Claude Code asks once to approve project-scoped servers. For other agents, use the command from the CocoIndex Code README (for example `codex mcp add cocoindex-code -- ccc mcp`).
-- Never commit the index database files (`ccc status` shows where they live); add them to `.gitignore`. `ccc reset` deletes the index if it gets into a bad state.
+The biggest efficiency gain is the architecture itself: with the module map (§7.4) and fixed file names (§7.3), the agent can usually open the right file without searching.
 
 **Search order for the agent**
 1. Module map (§7.4) and file-naming rules (§7.3) → open the file directly.
 2. Exact identifier, route, table or error code → grep/ripgrep.
-3. Conceptual question ("how do we decide a monitor is down?") → the CocoIndex search tool.
+3. Conceptual question ("how do we decide a monitor is down?") → find the owning module in the module map, then grep its files for the domain words.
 4. Only then read whole folders.
 
-**Keep-or-drop check** (end of Phase 1, repeated at each phase retro). `docs/agent-benchmark.md` holds 10 "find the code for X" questions with known answers plus 3 real tasks. Run them with and without the code index and record tokens, tool calls, time and correctness in D-013 (§20). Keep it only if tokens or time drop by at least 20% with no loss of correctness; otherwise remove it from `.mcp.json` and note why.
+**No semantic code index.** CocoIndex Code was set up in P0-T10a as optional agent tooling, but its local index never ran on the dev machine (Windows Application Control blocks PyTorch's DLLs), and the owner dropped it on 2026-10-01 before any benchmark was run (D-013, D-056). Don't use or reinstall it; adding a code index again needs a §21.1 proposal.
 
 ---
 
@@ -470,7 +461,7 @@ flowchart LR
 ├─ docs/
 │  ├─ runbooks/                   (our own ops: restore, probe down, mass false alarms …)
 │  ├─ integrations/               (user-facing setup guides per channel)
-│  └─ agent-benchmark.md          (code-search benchmark, §2.8)
+│  └─ agent-benchmark.md          ("find the code" questions with answers; benchmark retired, D-056)
 ├─ packages/shared/src/
 │  ├─ schemas/                    (monitor configs, probe protocol, API requests/responses, events)
 │  ├─ constants/                  (plans, regions, error codes, roles)
@@ -1197,7 +1188,7 @@ Targets assume a start on Monday 2026-10-05 with one developer and a coding agen
   *AC:* runs in CI in under 5 minutes.
 - [ ] **P1-T20 💰 Production deploy.** Needs Open decisions #1 and #7, a server and DNS. `docker-compose.prod.yml`, Caddy (app and hb hosts), backups to R2, firewall per STACK.md, first deploy, dogfooding on our own sites.
   *AC:* restore from the latest backup tested; runbook written.
-- [ ] **P1-T21 Code index and benchmark (from P0-T10b, PC-001).** Get `ccc index` working without weakening the machine's Application Control (for example the official `cocoindex-code:full` Docker image with only this repo mounted, if the owner agrees), then run `docs/agent-benchmark.md` with and without the index. If it still can't run, drop CocoIndex and record why in D-013.
+- [x] **P1-T21 Code index and benchmark (from P0-T10b, PC-001).** *(Closed 2026-10-01 without a benchmark: the owner dropped CocoIndex, D-056. `.mcp.json` and `docs/agent-code-search.md` removed; search order in §2.8 is map → grep.)* Get `ccc index` working without weakening the machine's Application Control (for example the official `cocoindex-code:full` Docker image with only this repo mounted, if the owner agrees), then run `docs/agent-benchmark.md` with and without the index. If it still can't run, drop CocoIndex and record why in D-013.
   *AC:* D-013 updated with measured results and a keep/drop decision.
 - [x] **P1-T22 Insight features (PC-002).** Things competitors don't do: a plain-language "likely cause and what to check first" in every alert (`explainFailure` in `@app/shared`, D-047); "what changed before this incident" (address and certificate changes per region, settings edits, response-time jumps); monthly error budgets per monitor (`sloTarget`, burn rate, at-risk status); alert-accuracy summary (false-alarm rate, MTTA, MTTR); admin alert drills; a per-incident delivery log.
   *AC:* endpoints `GET /incidents/summary`, `POST /incidents/drill`, `GET /incidents/:id/deliveries`, `GET /monitors/:id/changes`, `GET /monitors/:id/error-budget`, `GET /error-budgets`; explanations in Slack, Teams, Discord, webhook, email and plain text; tests for each.
@@ -1432,6 +1423,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | D-052 | 2026-10-01 | Review pass 2 (P1-T27), eight findings fixed: settings PATCH applied schema defaults to keys the caller didn't send (Zod 4 `.partial()` keeps defaults), silently resetting regions, tags and policies, so the validator now keeps only sent keys; "what changed" counts an address or certificate only when it cleanly replaced the earlier ones (rotating pools overlap); delivery recovery uses one job ID per attempt so the minutely sweep can't pile up duplicates; the monitor edit form offers to drop saved credentials when the target changes; deploy ingest has its own per-IP (120/min) and per-token (30/min) limits; error budgets page through all monitors (cap 5,000) and query one monitor's downtime directly; deploy URL rotation is an upsert; the probe refuses to resend a request body to another origin on 307/308. | An independent review catches what the author misses | — |
 | D-053 | 2026-10-01 | Alert tuning advisor (P1-T28). `suggestTuning` in `@app/shared` is a pure rule table over 30 days of check-driven incidents per monitor (false alarms, flapping, auto-resolved within 5 minutes): two or more blips on a one-region monitor → add a launch region and require 2; otherwise → require one more failing region (never more than the monitor has); two or more flapping incidents → one more recovery check than the effective default (capped at 3); short timeouts (< 10 s) with blips → double the timeout within the interval and 30 s. Each suggestion carries the exact settings patch; the UI applies it with a partial PATCH (safe since D-052). `/alert-tuning` lists the 10 noisiest monitors; the overview shows them only when there is advice. | Competitors report noise; we fix it with one click and explain why | Auto-applying changes (silent changes to paging behaviour); an LLM for advice |
 | D-054 | 2026-10-01 | Integrations catalog and channels wave 2 (P1-T29). Competitor check (vendor pages, 2026-10-01): UptimeRobot 21, Better Stack ~30 for uptime, Hyperping 17, StatusCake 13, Spike ~127 (mostly inbound), Uptime Kuma 109 notification providers; the outbound channels at three or more of them that we lacked were Google Chat, Mattermost, Pushover, Pushbullet, PagerDuty, Splunk On-Call and Opsgenie. One catalog in `@app/shared` (`CHANNEL_FIELDS`, `CHANNEL_CAPABILITIES`, `INTEGRATIONS`) describes every channel; the API derives secret handling from it (`adapters/config.ts` `formConfig`) and the web app derives the gallery and forms, so a new channel is a schema, an adapter and a catalog entry. Secrets are write-only: the API answers `********` (a secret URL shows only its origin); an empty or masked value on update keeps the stored one only while the address it is sent to is unchanged, compared as the whole URL because hosted services (Zapier, Make) separate tenants by path. Channel rules live in `channels.rules` (jsonb, `{}` = everything); PATCH merges partial rules without defaults (the D-052 lesson); state-sync channels always get acknowledged/resolved. `PUT /alert-policies/default/channels/:id` adds a channel to the default policy under a row lock (the old read-then-PATCH lost updates when two channels were added at once), and policies drop IDs of deleted channels instead of refusing every later edit. Gallery tiles are monograms, not vendor logos. Provider facts that shaped the code: Opsgenie ends April 5, 2027 and JSM's alert API is compatible; Pushover's quota is per account; ntfy turns messages over 4,096 bytes into attachments; Matrix room IDs may have no server part; Teams workflow URLs moved to `*.api.powerplatform.com`. An independent review found 11 issues, 10 fixed here (partial rules reset, kept webhook headers on a shared host, sync events that could be switched off, silent list errors, tokens with non-ASCII characters, a topic URL as ntfy server, mislabelled JSM channels) and one documented (Opsgenie may process a test's close before its create). | Beats competitors on what happens after the click (test on save, per-integration rules, state sync, health) rather than on logo count; no plan gating of integrations | A `channels.integration` column; provider SDKs; vendor logos; one hand-written form per integration |
+| D-056 | 2026-10-01 | CocoIndex Code dropped (closes P1-T21, supersedes D-013). No measured results: the local index never ran on the dev machine (Windows Application Control blocks PyTorch's DLLs, PC-001) and the owner decided not to use it rather than unblock it. Removed `.mcp.json` (it only registered this server) and `docs/agent-code-search.md`; CLAUDE.md, AGENTS.md and §2.8 now say module map → grep → grep the owning module. `docs/agent-benchmark.md` stays as a list of "find the code" questions with answers; the `.cocoindex_code/` gitignore line stays so a leftover local index can't be committed | Owner direction; the module map and fixed file names already make search cheap, and the tool was unproven here | Docker image `cocoindex-code:full` (~5 GB); allow-listing the tool in Application Control; the slim cloud variant (code would leave the machine) |
 
 ---
 
@@ -1516,6 +1508,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | 2026-10-01 | §17, §20 | D-052 (review pass 2 fixes); new task P1-T28 (alert tuning advisor) | P1-T27 |
 | 2026-10-01 | §17, §20 | D-053 (alert tuning advisor); PC-002 tasks done, next task back to P1-T20 | P1-T28 |
 | 2026-10-01 | §6.4, §9.4, §10, §17, §20, §21, §22 | PC-003 ✅; P1-T29 (integrations catalog, 13 new channel types, channel rules, write-only secrets, webhook headers); D-054; `channels.rules` column (migration 0017); P6-T06 narrowed; owner action 12 | P1-T29 |
+| 2026-10-01 | §2.7, §2.8, §17, §20 | CocoIndex dropped: §2.8 rewritten to map → grep, P1-T21 closed without a benchmark, D-056; `.mcp.json` and `docs/agent-code-search.md` removed | Owner direction ("don't use cocoindex") |
 
 ### Phase 0 retro (2026-09-30, `v0.0.1`)
 
@@ -1525,7 +1518,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 - **Key metrics:** 136 unit and integration tests (Vitest, real Postgres and Redis), 20 Playwright tests in light and dark with axe, Lighthouse accessibility 100; CI about 5–6 minutes per push. Agent token and time per task were not measured (no index yet; see P1-T21).
 - **Proposals:** PC-001 (resolved). Owner actions still open: the `main` branch ruleset (Open decision #10) and a review of STACK.md.
 
-*Phase retro template (added at each phase exit):* shipped · slipped and why · what we learned · key metrics (including agent tokens and time per task, with and without the code index) · proposals added to §21.1.
+*Phase retro template (added at each phase exit):* shipped · slipped and why · what we learned · key metrics (including agent tokens and time per task) · proposals added to §21.1.
 
 ---
 
