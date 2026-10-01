@@ -5,11 +5,15 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Plus } from "lucide-react";
 import { can, useWorkspace } from "@/components/app/workspace-context";
+import { Alert } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
+import { Loading } from "@/components/ui/skeleton";
+import { errorMessage } from "@/lib/api";
 import { workspaceHref } from "@/lib/navigation";
 import { IncidentList } from "@/features/incidents/components/incident-list";
 import { BudgetList } from "@/features/insights/components/budget";
 import { HealthSummary } from "@/features/insights/components/summary";
+import { useMonitor } from "../hooks";
 import { MonitorForm } from "./monitor-form";
 import { MonitorList } from "./monitor-list";
 
@@ -71,6 +75,24 @@ export function MonitorsIndex() {
         )}
       </div>
       <MonitorList ws={workspace.id} />
+    </div>
+  );
+}
+
+export function EditMonitorView({ monitorId }: { monitorId: string }) {
+  const t = useTranslations("monitors");
+  const workspace = useWorkspace();
+  const monitor = useMonitor(workspace.id, monitorId);
+  return (
+    <div className="grid gap-4">
+      <h1 className="text-2xl font-semibold tracking-tight">{t("editTitle")}</h1>
+      {monitor.isPending ? (
+        <Loading rows={4} className="max-w-xl" />
+      ) : monitor.isError ? (
+        <Alert tone="error">{errorMessage(monitor.error)}</Alert>
+      ) : (
+        <MonitorForm ws={workspace.id} monitor={monitor.data} />
+      )}
     </div>
   );
 }

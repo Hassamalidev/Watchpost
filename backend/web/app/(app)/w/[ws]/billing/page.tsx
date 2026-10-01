@@ -4,6 +4,7 @@ import { SectionPlaceholder } from "@/components/app/section-placeholder";
 export const metadata: Metadata = { title: "Billing" };
 
 /* Built in a later phase (PRODUCT.md §20). */
-export default function PlaceholderPage() {
-  return <SectionPlaceholder labelKey="billing" />;
+export default async function PlaceholderPage({ params }: { params: Promise<{ ws: string }> }) {
+  const { ws } = await params;
+  return <SectionPlaceholder ws={ws} labelKey="billing" />;
 }

@@ -11,9 +11,12 @@ export const WEB_ORIGIN = `http://127.0.0.1:${WEB_PORT}`;
 const channel = process.env.PLAYWRIGHT_CHANNEL ?? "chrome";
 export const STORAGE_STATE = "e2e/.auth/user.json";
 
-/* The e2e API talks to the same database the tests read verification links from. */
+/*
+ * The e2e API talks to the same database the tests read verification links from. Locally that is a
+ * separate `watchpost_e2e` database, recreated per run by e2e/prepare-db.mjs.
+ */
 export const E2E_DATABASE_URL =
-  process.env.DATABASE_URL ?? "postgres://watchpost:watchpost@localhost:5433/watchpost";
+  process.env.DATABASE_URL ?? "postgres://watchpost:watchpost@localhost:5433/watchpost_e2e";
 
 /* The API and the worker (started by e2e/stack.mjs) share this environment. */
 const BACKEND_ENV = {
@@ -56,7 +59,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: "node ../dist/server.js",
+      command: "node e2e/prepare-db.mjs && node ../dist/server.js",
       url: `http://127.0.0.1:${API_PORT}/api/health`,
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,

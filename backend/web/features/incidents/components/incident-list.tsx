@@ -33,17 +33,20 @@ export function IncidentList({
   ws,
   status,
   monitorId,
+  severity,
   emptyTitle,
 }: {
   ws: string;
   status?: string;
   monitorId?: string;
+  severity?: string;
   emptyTitle?: string;
 }) {
   const t = useTranslations("incidents");
   const incidents = useIncidents(ws, {
     ...(status ? { status } : {}),
     ...(monitorId ? { monitorId } : {}),
+    ...(severity ? { severity } : {}),
   });
   if (incidents.isPending) return <Loading rows={2} />;
   const list = incidents.data ?? [];

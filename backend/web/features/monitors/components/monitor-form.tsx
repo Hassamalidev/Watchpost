@@ -1,11 +1,13 @@
 /*
- * Create a monitor: type, target and the common settings. The request is checked with the API's own
- * schema (createMonitorSchema) before it is sent, and the API's field errors land on the same inputs.
+ * Create or edit a monitor: type, target and the common settings. The request is checked with the
+ * API's own schema (createMonitorSchema) before it is sent, and the API's field errors land on the same
+ * inputs. Editing keeps config the form doesn't show (headers, auth) and can't change the type.
  */
 "use client";
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { useTranslations } from "next-intl";
 import { DNS_RECORD_TYPES, LAUNCH_REGIONS, SEVERITIES, createMonitorSchema } from "@app/shared";
@@ -15,8 +17,8 @@ import { Field } from "@/components/ui/field";
 import { Input, Select } from "@/components/ui/input";
 import { ApiError, errorMessage } from "@/lib/api";
 import { workspaceHref } from "@/lib/navigation";
-import type { CreateMonitorBody } from "../api";
-import { useCreateMonitor } from "../hooks";
+import { monitorsApi, type CreateMonitorBody, type Monitor } from "../api";
+import { monitorKeys, useCreateMonitor } from "../hooks";
 
 const FORM_TYPES = ["http", "keyword", "tcp", "ping", "dns", "ssl", "domain"] as const;
 type FormType = (typeof FORM_TYPES)[number];
@@ -88,28 +90,54 @@ function toBody(v: Values): CreateMonitorBody {
   }
 }
 
-export function MonitorForm({ ws }: { ws: string }) {
+const DEFAULTS: Values = {
+  type: "http",
+  name: "",
+  url: "https://",
+  keyword: "",
+  keywordMode: "contains",
+  host: "",
+  port: "443",
+  recordType: "A",
+  intervalSeconds: "300",
+  regions: ["eu-central", "us-east"],
+  severity: "high",
+  sloTarget: "99.9",
+};
+
+/* Form values for an existing monitor. */
+function valuesOf(monitor: Monitor): Values {
+  const c = monitor.config;
+  const text = (key: string) => (typeof c[key] === "string" ? (c[key] as string) : "");
+  return {
+    ...DEFAULTS,
+    type: (FORM_TYPES as readonly string[]).includes(monitor.type)
+      ? (monitor.type as FormType)
+      : "http",
+    name: monitor.name,
+    url: text("url") || DEFAULTS.url,
+    keyword: text("keyword"),
+    keywordMode: c.mode === "not_contains" ? "not_contains" : "contains",
+    host: text("host") || text("hostname") || text("domain"),
+    port: typeof c.port === "number" ? String(c.port) : DEFAULTS.port,
+    recordType: (DNS_RECORD_TYPES as readonly string[]).includes(text("recordType"))
+      ? (text("recordType") as Values["recordType"])
+      : "A",
+    intervalSeconds: String(monitor.intervalSeconds),
+    regions: monitor.regions,
+    severity: monitor.severity,
+    sloTarget: String(monitor.sloTarget ?? 99.9),
+  };
+}
+
+export function MonitorForm({ ws, monitor }: { ws: string; monitor?: Monitor }) {
   const t = useTranslations("monitors");
   const tc = useTranslations("common");
   const router = useRouter();
   const create = useCreateMonitor(ws);
+  const client = useQueryClient();
   const [formError, setFormError] = React.useState<string | null>(null);
-  const form = useForm<Values>({
-    defaultValues: {
-      type: "http",
-      name: "",
-      url: "https://",
-      keyword: "",
-      keywordMode: "contains",
-      host: "",
-      port: "443",
-      recordType: "A",
-      intervalSeconds: "300",
-      regions: ["eu-central", "us-east"],
-      severity: "high",
-      sloTarget: "99.9",
-    },
-  });
+  const form = useForm<Values>({ defaultValues: monitor ? valuesOf(monitor) : DEFAULTS });
   const type = form.watch("type");
   const errors = form.formState.errors;
   const usesUrl = type === "http" || type === "keyword";
@@ -128,8 +156,19 @@ export function MonitorForm({ ws }: { ws: string }) {
       return;
     }
     try {
-      const monitor = await create.mutateAsync(body);
-      router.push(workspaceHref(ws, `monitors/${monitor.id}`));
+      if (monitor) {
+        await monitorsApi.update(ws, monitor.id, {
+          settings: body.settings,
+          config: { ...monitor.config, ...body.config },
+        });
+        await client.invalidateQueries({ queryKey: monitorKeys.all(ws) });
+        await client.invalidateQueries({ queryKey: ["error-budget", ws, monitor.id] });
+        await client.invalidateQueries({ queryKey: ["error-budgets", ws] });
+        router.push(workspaceHref(ws, `monitors/${monitor.id}`));
+        return;
+      }
+      const created = await create.mutateAsync(body);
+      router.push(workspaceHref(ws, `monitors/${created.id}`));
     } catch (err) {
       if (err instanceof ApiError) {
         for (const e of err.fieldErrors) {
@@ -145,7 +184,7 @@ export function MonitorForm({ ws }: { ws: string }) {
     <form onSubmit={onSubmit} className="grid max-w-xl gap-4" noValidate>
       {formError && <Alert tone="error">{formError}</Alert>}
       <Field label={t("type")} htmlFor="monitor-type">
-        <Select id="monitor-type" {...form.register("type")}>
+        <Select id="monitor-type" disabled={monitor !== undefined} {...form.register("type")}>
           {FORM_TYPES.map((value) => (
             <option key={value} value={value}>
               {t(`types.${value}`)}
@@ -248,7 +287,7 @@ export function MonitorForm({ ws }: { ws: string }) {
       </Field>
       <div>
         <Button type="submit" disabled={form.formState.isSubmitting}>
-          {form.formState.isSubmitting ? tc("saving") : tc("create")}
+          {form.formState.isSubmitting ? tc("saving") : monitor ? tc("save") : tc("create")}
         </Button>
       </div>
     </form>

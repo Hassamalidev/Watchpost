@@ -10,6 +10,7 @@ export interface Monitor {
   intervalSeconds: number;
   regions: string[];
   severity: "critical" | "high" | "low";
+  sloTarget: number;
   paused: boolean;
   createdAt: string;
 }
@@ -81,6 +82,8 @@ export const monitorsApi = {
   get: (ws: string, id: string) => api<Monitor>(wsPath(ws, `/monitors/${id}`)),
   create: (ws: string, body: CreateMonitorBody) =>
     api<Monitor>(wsPath(ws, "/monitors"), { method: "POST", body }),
+  update: (ws: string, id: string, body: { settings?: object; config?: object }) =>
+    api<Monitor>(wsPath(ws, `/monitors/${id}`), { method: "PATCH", body }),
   setPaused: (ws: string, id: string, paused: boolean) =>
     api<Monitor>(wsPath(ws, `/monitors/${id}/${paused ? "pause" : "resume"}`), {
       method: "POST",

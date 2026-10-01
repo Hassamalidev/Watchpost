@@ -46,6 +46,7 @@ export interface MonitorView {
   degradedAfterChecks: number;
   upsideDown: boolean;
   reminderMinutes: number | null;
+  sloTarget: number;
   severity: "critical" | "high" | "low";
   tags: string[];
   groupId: string | null;
@@ -200,6 +201,7 @@ function toView(row: MonitorRow, tags: string[]): MonitorView {
     degradedAfterChecks: row.policies.degradedAfterChecks,
     upsideDown: row.policies.upsideDown,
     reminderMinutes: row.policies.reminderMinutes ?? null,
+    sloTarget: row.policies.sloTarget ?? 99.9,
     severity: row.severity,
     tags,
     groupId: row.groupId,

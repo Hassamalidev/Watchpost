@@ -34,6 +34,28 @@ export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
   const incident = useIncident(ws, incidentRef);
   const action = useIncidentAction(ws, incidentRef);
   const [comment, setComment] = React.useState("");
+  const canRespondNow = can(workspace.role, "responder");
+
+  /* A acknowledges and R resolves, unless the user is typing (PRODUCT.md §14 keyboard-first). */
+  React.useEffect(() => {
+    const current = incident.data;
+    if (!current || !canRespondNow) return;
+    function onKey(event: KeyboardEvent) {
+      if (!current || event.metaKey || event.ctrlKey || event.altKey || action.isPending) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
+      const key = event.key.toLowerCase();
+      if (key === "a" && current.status === "triggered") {
+        event.preventDefault();
+        action.mutate(() => incidentsApi.act(ws, current.id, "acknowledge"));
+      } else if (key === "r" && current.status !== "resolved") {
+        event.preventDefault();
+        action.mutate(() => incidentsApi.act(ws, current.id, "resolve"));
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [incident.data, canRespondNow, action, ws]);
 
   if (incident.isPending) return <Loading rows={4} className="max-w-3xl" />;
   if (incident.isError) return <Alert tone="error">{errorMessage(incident.error)}</Alert>;
@@ -81,20 +103,34 @@ export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
           {data.status === "triggered" && (
             <Button
               className="h-11 px-6"
+              aria-keyshortcuts="A"
               disabled={action.isPending}
               onClick={() => action.mutate(() => incidentsApi.act(ws, data.id, "acknowledge"))}
             >
               {t("acknowledge")}
+              <kbd
+                aria-hidden
+                className="ml-1 hidden rounded border border-current/30 px-1 text-xs font-normal opacity-80 sm:inline"
+              >
+                A
+              </kbd>
             </Button>
           )}
           {open && (
             <Button
               variant="outline"
               className="h-11 px-6"
+              aria-keyshortcuts="R"
               disabled={action.isPending}
               onClick={() => action.mutate(() => incidentsApi.act(ws, data.id, "resolve"))}
             >
               {t("resolve")}
+              <kbd
+                aria-hidden
+                className="ml-1 hidden rounded border border-current/30 px-1 text-xs font-normal opacity-80 sm:inline"
+              >
+                R
+              </kbd>
             </Button>
           )}
           {canFlag && (

@@ -5,15 +5,16 @@
  */
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { explainFailure } from "@app/shared";
-import { Pause, Play, Trash2 } from "lucide-react";
+import { Pause, Pencil, Play, Trash2 } from "lucide-react";
 import { StatusBadge } from "@/components/app/status-badge";
 import { can, useWorkspace } from "@/components/app/workspace-context";
 import { Alert } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loading } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/api";
@@ -121,7 +122,16 @@ export function MonitorDetail({ monitorId }: { monitorId: string }) {
       {canEdit && (
         <div className="flex flex-wrap gap-2">
           {!data.paused && <TestNow ws={ws} monitorId={data.id} />}
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {data.type !== "heartbeat" && (
+              <Link
+                href={workspaceHref(ws, `monitors/${data.id}/edit`)}
+                className={buttonVariants({ variant: "outline" })}
+              >
+                <Pencil aria-hidden />
+                {t("edit")}
+              </Link>
+            )}
             <Button variant="outline" onClick={() => setPaused(!data.paused)}>
               {data.paused ? <Play aria-hidden /> : <Pause aria-hidden />}
               {data.paused ? t("resume") : t("pause")}

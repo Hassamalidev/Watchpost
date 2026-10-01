@@ -204,7 +204,9 @@
     "sloHint": "Sets this monitor's monthly error budget: the downtime you can afford before missing the target.",
     "sloOption": "{target}% (about {allowance} down per month)",
     "noChecksYet": "No checks yet. The first results arrive within one interval, or use Test now.",
-    "noChecksPaused": "No checks while paused."
+    "noChecksPaused": "No checks while paused.",
+    "editTitle": "Edit monitor",
+    "edit": "Edit"
   },
   "incidents": {
     "title": "Incidents",
@@ -245,7 +247,12 @@
       "resolved": "Resolved"
     },
     "severityLabel": "{severity} severity",
-    "regionsOf": "{count} of {total}"
+    "regionsOf": "{count} of {total}",
+    "filterSeverity": "Filter by severity",
+    "filterMonitor": "Filter by monitor",
+    "allSeverities": "All severities",
+    "allMonitors": "All monitors",
+    "emptyFiltered": "No incidents match these filters."
   },
   "integrations": {
     "title": "Integrations",
@@ -324,8 +331,29 @@
     "saved": "Settings saved."
   },
   "placeholder": {
-    "title": "Coming soon",
-    "body": "This section is built in a later phase."
+    "title": "Coming in Phase {phase}",
+    "sections": {
+      "statusPages": {
+        "what": "Public status pages on your own domain, with components, 90-day uptime bars, incident updates and subscribers.",
+        "meanwhile": "Until then, every monitor page shows 90-day uptime and response times you can share with your team.",
+        "action": "Open monitors"
+      },
+      "billing": {
+        "what": "Plans, upgrades, invoices and payment details.",
+        "meanwhile": "Your workspace is on the Free plan: up to 20 monitors, checked from up to 2 regions.",
+        "action": "Open settings"
+      },
+      "onCall": {
+        "what": "Schedules, rotations, overrides and escalation policies, with no per-seat pricing.",
+        "meanwhile": "Until then, alerts go to every channel in your alert routes, with reminders while an incident stays open.",
+        "action": "Set up alert channels"
+      },
+      "reports": {
+        "what": "Monthly SLA reports as PDF and CSV, and uptime history you can send to clients.",
+        "meanwhile": "A weekly digest already arrives by email every Monday, and the overview shows alert accuracy, response times and error budgets.",
+        "action": "Open the overview"
+      }
+    }
   },
   "marketing": {
     "hero": "Know about real outages first. Confirmed, explained, actionable.",

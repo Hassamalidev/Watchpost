@@ -39,11 +39,18 @@ export interface IncidentDetail extends Incident {
   explanation: Explanation | null;
 }
 
+export interface IncidentQuery {
+  status?: string;
+  monitorId?: string;
+  severity?: string;
+}
+
 export const incidentsApi = {
-  list: (ws: string, query: { status?: string; monitorId?: string }) => {
+  list: (ws: string, query: IncidentQuery) => {
     const params = new URLSearchParams({ limit: "100" });
     if (query.status) params.set("status", query.status);
     if (query.monitorId) params.set("monitorId", query.monitorId);
+    if (query.severity) params.set("severity", query.severity);
     return api<{ data: Incident[] }>(wsPath(ws, `/incidents?${params.toString()}`));
   },
   get: (ws: string, ref: string) => api<IncidentDetail>(wsPath(ws, `/incidents/${ref}`)),
@@ -58,7 +65,7 @@ export const incidentsApi = {
     }),
 };
 
-export function useIncidents(ws: string, query: { status?: string; monitorId?: string }) {
+export function useIncidents(ws: string, query: IncidentQuery) {
   return useQuery({
     queryKey: ["incidents", ws, query],
     queryFn: async () => (await incidentsApi.list(ws, query)).data,
