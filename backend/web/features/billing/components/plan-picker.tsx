@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { errorMessage } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { SELECTED_PLAN_STORAGE_KEY, parseSelectedPlan } from "@/features/marketing/plans";
 import { billingApi, billingKeys, type BillingState } from "../api";
 import { openCheckout } from "../paddle";
 import { formatCheckInterval, formatUsd, planAction, type PlanAction } from "../plan";
@@ -76,6 +77,24 @@ export function PlanPicker({
   const [interval, setInterval] = React.useState<BillingInterval>(
     state.subscription?.interval ?? "month",
   );
+
+  /* The plan picked on the public site before sign-up: start on its billing period and point at it. */
+  const [chosen, setChosen] = React.useState<PaidPlanKey | null>(null);
+  const hasSubscription = state.subscription !== null;
+  React.useEffect(() => {
+    try {
+      if (hasSubscription) {
+        window.localStorage.removeItem(SELECTED_PLAN_STORAGE_KEY);
+        return;
+      }
+      const selected = parseSelectedPlan(window.localStorage.getItem(SELECTED_PLAN_STORAGE_KEY));
+      if (!selected) return;
+      setChosen(selected.plan);
+      setInterval(selected.interval);
+    } catch {
+      /* Storage can be blocked; the picker works without the hint. */
+    }
+  }, [hasSubscription]);
 
   const subscribe = useMutation({
     mutationFn: async (plan: PaidPlanKey) => {
@@ -199,6 +218,9 @@ export function PlanPicker({
             <Card key={plan.key} className={cn("flex flex-col", current && "border-brand")}>
               <CardHeader>
                 <h3 className="text-base font-semibold">{plan.name}</h3>
+                {chosen === plan.key && !current && !hasSubscription && (
+                  <p className="text-xs font-medium text-brand">{t("chosenOnSite")}</p>
+                )}
                 <p className="text-sm font-medium">{priceLine(plan)}</p>
               </CardHeader>
               <CardContent className="flex flex-1 flex-col justify-between gap-4">

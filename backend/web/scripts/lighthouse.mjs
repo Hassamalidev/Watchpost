@@ -8,7 +8,7 @@ import * as chromeLauncher from "chrome-launcher";
 
 const BASE_URL = process.env.LIGHTHOUSE_BASE_URL ?? "http://127.0.0.1:3000";
 const MIN_SCORE = 0.95;
-const PATHS = ["/", "/login", "/signup"];
+const PATHS = ["/", "/pricing", "/login", "/signup"];
 const MODES = [
   { name: "light", flags: [] },
   { name: "dark", flags: ["--force-dark-mode"] },

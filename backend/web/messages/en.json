@@ -67,7 +67,7 @@
     "loginTitle": "Sign in to Watchpost",
     "signupTitle": "Create your Watchpost account",
     "signupIntro": "Free for 20 monitors. No card needed.",
-    "planSelected": "{plan} plan selected. Your account starts free with no card; you can upgrade to {plan} from Billing once your workspace is set up.",
+    "planSelected": "{plan} plan selected. Your workspace starts with a free 14-day Pro trial and no card; you can subscribe to {plan} from Billing at any time.",
     "changePlan": "Change plan",
     "email": "Work email",
     "password": "Password",
@@ -782,7 +782,8 @@
       "not_needed": "I don't need monitoring any more",
       "too_noisy": "Too many false or noisy alerts",
       "other": "Something else"
-    }
+    },
+    "chosenOnSite": "You picked this plan before signing up"
   },
   "placeholder": {
     "title": "Coming in Phase {phase}",
@@ -896,6 +897,169 @@
         "f4": "Unlimited team members, SSO and audit log",
         "f5": "500 SMS and voice credits a month",
         "f6": "25 months of history"
+      }
+    },
+    "navDocs": "Docs",
+    "compareAll": "Compare every feature",
+    "footerProduct": "Product",
+    "footerCompare": "Compare",
+    "footerLegal": "Legal",
+    "footerCompareWith": "Watchpost vs {name}",
+    "comingSoon": "Coming soon",
+    "included": "Included",
+    "notIncluded": "Not included",
+    "pricingPageTitle": "Pricing",
+    "pricingPageIntro": "Flat prices for the whole team. Start free without a card; every new workspace gets 14 days of Pro to try.",
+    "tableTitle": "What each plan includes",
+    "tableCaption": "Plan limits and features. Rows marked \"Coming soon\" are planned and not available yet.",
+    "tableFeature": "Feature",
+    "calculatorTitle": "What per-seat pricing costs your team",
+    "calculatorIntro": "Many tools charge for every person who can be alerted. Watchpost Pro is one flat price with unlimited team members.",
+    "calculatorTeamSize": "People on your team",
+    "calculatorTool": "Tool",
+    "calculatorMonthly": "Per month",
+    "calculatorDifference": "More than Watchpost Pro, per year",
+    "calculatorPerSeat": "{price} per user",
+    "calculatorFlat": "flat, any team size",
+    "calculatorSame": "No more",
+    "calculatorNote": "Per-user prices as reported by the sources on our comparison pages on {date}, billed annually. Watchpost Pro billed annually. On-call schedules in Watchpost are coming soon.",
+    "faqTitle": "Questions",
+    "compareIndexTitle": "How Watchpost compares",
+    "compareTitle": "Watchpost vs {name}",
+    "compareIntro": "A short, honest comparison. Check the vendor's own site before you decide.",
+    "compareWhatItIs": "What {name} is",
+    "comparePricing": "Reported pricing",
+    "compareGoodFit": "Where {name} fits well",
+    "compareDifferences": "How Watchpost differs",
+    "compareSources": "Sources",
+    "compareChecked": "Checked on {date} from the third-party pages listed below, not from {name}'s own price list. Prices and terms change; we will correct anything that is out of date.",
+    "compareCta": "Try Watchpost free",
+    "docsTitle": "Documentation",
+    "docsIntro": "Short guides for setting up and running Watchpost.",
+    "docsBack": "All docs",
+    "legalDraft": "Draft, needs owner review. This page is not final and is not legal advice. Text in [square brackets] still has to be filled in.",
+    "legalUpdated": "Last updated {date}",
+    "faq": {
+      "q1": "Is the Free plan really free?",
+      "a1": "Yes. It has no time limit, needs no card and may be used for commercial projects.",
+      "q2": "What happens when the 14-day trial ends?",
+      "a2": "The workspace moves to the Free plan unless you choose a paid one. Nothing is deleted: monitors over the Free limits are paused and you pick which ones stay active.",
+      "q3": "Do you charge per user?",
+      "a3": "No. Free includes 3 team members, Starter 5, and Pro and Business have unlimited members at the same price.",
+      "q4": "How do I pay, and what about tax?",
+      "a4": "Payments go through Paddle, which accepts cards and other common methods, adds tax where it applies and issues the invoices. You can download invoices from the billing page.",
+      "q5": "Can I change or cancel my plan?",
+      "a5": "At any time. An upgrade starts at once. A move to a smaller plan or a cancellation takes effect at the end of the period you already paid for. Your data is kept either way.",
+      "q6": "What are alert credits?",
+      "a6": "Credits pay for SMS and voice alerts. Paid plans include some every month and you can buy more. Credits used by an incident you mark as a false alarm are returned. SMS and voice alerts are coming soon.",
+      "q7": "What does \"Coming soon\" mean in the table?",
+      "a7": "The feature is planned but not available yet. It will be added to the plans shown at no extra cost."
+    },
+    "table": {
+      "monitors": {
+        "label": "Monitors",
+        "free": "20",
+        "starter": "50",
+        "pro": "150",
+        "business": "500"
+      },
+      "heartbeats": {
+        "label": "Heartbeat (cron) monitors",
+        "free": "5",
+        "starter": "20",
+        "pro": "75",
+        "business": "250"
+      },
+      "interval": {
+        "label": "Fastest check interval",
+        "free": "3 minutes",
+        "starter": "1 minute",
+        "pro": "30 seconds",
+        "business": "15 seconds"
+      },
+      "regions": {
+        "label": "Regions per monitor",
+        "free": "2",
+        "starter": "3",
+        "pro": "5",
+        "business": "All"
+      },
+      "members": {
+        "label": "Team members",
+        "free": "3",
+        "starter": "5",
+        "pro": "Unlimited",
+        "business": "Unlimited"
+      },
+      "channels": {
+        "label": "Email, chat, push and webhook alerts",
+        "free": "Included",
+        "starter": "Included",
+        "pro": "Included",
+        "business": "Included"
+      },
+      "history": {
+        "label": "Data history",
+        "free": "30 days",
+        "starter": "6 months",
+        "pro": "13 months",
+        "business": "25 months"
+      },
+      "credits": {
+        "label": "SMS and voice credits per month",
+        "free": "None",
+        "starter": "25",
+        "pro": "150",
+        "business": "500"
+      },
+      "statusPages": {
+        "label": "Status pages",
+        "free": "1",
+        "starter": "3",
+        "pro": "10",
+        "business": "50"
+      },
+      "onCall": {
+        "label": "On-call schedules and escalation",
+        "free": "None",
+        "starter": "1 each",
+        "pro": "Unlimited",
+        "business": "Unlimited"
+      },
+      "ai": {
+        "label": "AI summaries and drafts",
+        "free": "20 a month",
+        "starter": "100 a month",
+        "pro": "Fair use",
+        "business": "Fair use"
+      },
+      "privateProbes": {
+        "label": "Private probes",
+        "free": "None",
+        "starter": "None",
+        "pro": "1",
+        "business": "5"
+      },
+      "api": {
+        "label": "API",
+        "free": "Read-only",
+        "starter": "Full",
+        "pro": "Full",
+        "business": "Full"
+      },
+      "sso": {
+        "label": "Single sign-on and audit log",
+        "free": "None",
+        "starter": "None",
+        "pro": "None",
+        "business": "Included"
+      },
+      "support": {
+        "label": "Support",
+        "free": "Docs",
+        "starter": "Email",
+        "pro": "Email, 1 business day",
+        "business": "Priority, 4 business hours"
       }
     }
   },
