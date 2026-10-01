@@ -283,7 +283,11 @@ export function createHeartbeatsService(deps: {
           maxDurationSeconds: config.maxDurationSeconds,
         };
         if (monitor.paused) {
-          await repo.updateState(tx, monitorId, { ...patch, lastPingAt: now });
+          await repo.updateState(tx, monitorId, {
+            ...patch,
+            lastPingAt: now,
+            nextExpectedAt: nextExpectedAt(config.schedule, now),
+          });
           return "ok";
         }
 
@@ -355,7 +359,15 @@ export function createHeartbeatsService(deps: {
             continue;
           }
           const { monitor, config } = found;
-          if (monitor.paused) continue;
+          if (monitor.paused) {
+            /* Keep the deadline moving, so resuming gives the job a full period, not an alert. */
+            await repo.updateState(tx, state.monitorId, {
+              nextExpectedAt: nextExpectedAt(config.schedule, now),
+              schedule: config.schedule,
+              graceSeconds: config.graceSeconds,
+            });
+            continue;
+          }
 
           /*
            * The stored deadline, unless the schedule was edited since the last ping: then judge

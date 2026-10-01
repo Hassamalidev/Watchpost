@@ -286,6 +286,24 @@ describe("insights", () => {
     );
   });
 
+  it("incident detail names the monitor and explains only what we can", async () => {
+    const monitor = await post(owner, `/api/w/${ws}/monitors`, {
+      settings: { name: "Search", regions: ["eu-central", "us-east"] },
+      config: { type: "tcp", host: "search.example.com", port: 443 },
+    });
+    const opened = await post(member, base(), {
+      title: "Search slow",
+      monitorId: monitor.body.id,
+    });
+    expect(opened.status, opened.text).toBe(201);
+    const detail = await get(viewer, `${base()}/${opened.body.id}`);
+    expect(detail.body).toMatchObject({
+      monitor: { name: "Search", target: "search.example.com", regionCount: 2 },
+      explanation: null,
+    });
+    await post(owner, `${base()}/${opened.body.id}/resolve`);
+  });
+
   it("monitors have an error budget and a change timeline", async () => {
     const budget = await get(viewer, `/api/w/${ws}/monitors/${monitorId}/error-budget`);
     expect(budget.status, budget.text).toBe(200);
@@ -294,9 +312,9 @@ describe("insights", () => {
 
     const all = await get(viewer, `/api/w/${ws}/error-budgets`);
     expect(all.status, all.text).toBe(200);
-    expect(all.body.data).toEqual([
+    expect(all.body.data).toContainEqual(
       expect.objectContaining({ monitorId, name: "Checkout", status: "healthy" }),
-    ]);
+    );
 
     const changes = await get(viewer, `/api/w/${ws}/monitors/${monitorId}/changes`);
     expect(changes.status, changes.text).toBe(200);

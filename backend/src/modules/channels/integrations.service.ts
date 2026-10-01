@@ -104,6 +104,8 @@ export function createIntegrationsService(deps: {
         ...(token ? { authorization: `Bearer ${token}` } : {}),
       },
       body: new URLSearchParams(form).toString(),
+      /* Channel lists in big workspaces run to megabytes. */
+      maxBodyBytes: 8 * 1024 * 1024,
     });
     const body = JSON.parse(res.body || "{}") as Record<string, unknown>;
     if (body.ok !== true) {

@@ -145,6 +145,11 @@ export function createMonitorsRepository(db: DbOrTx) {
       tx: DbOrTx,
       change: { monitorId: string; workspaceId: string; op: "upsert" | "delete" },
     ): Promise<number> {
+      /*
+       * One writer at a time until commit, so `seq` order is commit order. Without it a later seq can
+       * commit first, a probe's cursor moves past it, and the earlier change is never delivered.
+       */
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('monitor-config-changes'))`);
       const [row] = await tx.insert(monitorConfigChanges).values(change).returning({
         seq: monitorConfigChanges.seq,
       });

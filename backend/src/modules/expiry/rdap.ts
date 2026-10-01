@@ -37,6 +37,8 @@ export async function fetchBootstrap(http: OutboundHttp): Promise<Map<string, st
     url: RDAP_BOOTSTRAP_URL,
     headers: { accept: "application/json" },
     timeoutMs: 15_000,
+    /* About 70 KB today; leave room to grow. */
+    maxBodyBytes: 1024 * 1024,
   });
   if (res.status !== 200) throw new Error(`IANA RDAP bootstrap answered HTTP ${res.status}`);
   const map = parseBootstrap(JSON.parse(res.body));
@@ -97,6 +99,7 @@ export async function lookupDomain(
         url,
         headers: { accept: "application/rdap+json, application/json" },
         timeoutMs: 15_000,
+        maxBodyBytes: 1024 * 1024,
       });
       if (res.status === 404) {
         return {

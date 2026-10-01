@@ -264,18 +264,24 @@ export async function httpRequest(options: HttpRequestOptions): Promise<HttpResp
   let url = new URL(options.url);
   let method = (options.method ?? "GET").toUpperCase();
   let body = options.body;
-  const baseHeaders: Record<string, string> = {
+  const defaultHeaders: Record<string, string> = {
     "user-agent": USER_AGENT,
     accept: "*/*",
     "accept-encoding": "gzip, deflate, br",
   };
+  const baseHeaders = { ...defaultHeaders };
   for (const h of options.headers ?? []) baseHeaders[h.name.toLowerCase()] = h.value;
+  /*
+   * The user's headers (auth, cookies, API keys under any name) go only to the origin they configured:
+   * a redirect elsewhere must not receive them.
+   */
+  const trustedOrigin = url.origin;
 
   for (let hop = 0; ; hop += 1) {
     if (url.protocol !== "http:" && url.protocol !== "https:") {
       throw new CheckError("http_redirect_blocked", `unsupported protocol ${url.protocol}`);
     }
-    const headers = { ...baseHeaders };
+    const headers = { ...(url.origin === trustedOrigin ? baseHeaders : defaultHeaders) };
     if (body !== undefined) headers["content-length"] = String(Buffer.byteLength(body));
     const { res, ip, tls, dnsMs, timings } = await requestHop(
       url,

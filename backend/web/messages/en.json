@@ -336,5 +336,19 @@
     "already": "#{number} is already {status}.",
     "used": "This link was already used.",
     "open": "Open Watchpost"
+  },
+  "invite": {
+    "title": "Join a workspace",
+    "loading": "Opening the invitation…",
+    "signInFirst": "You've been invited to a Watchpost workspace. Sign in, or create an account with the address the invitation was sent to.",
+    "signIn": "Sign in to accept",
+    "signUp": "Create an account",
+    "unavailable": "This invitation can't be opened while you're signed in as {email}. It may be for another address, expired or already used.",
+    "summary": "<strong>{inviter}</strong> invited you to join <strong>{workspace}</strong> as {role}.",
+    "accept": "Join {workspace}",
+    "joining": "Joining…",
+    "decline": "Decline",
+    "declined": "Invitation declined. You can close this page.",
+    "notPending": "This invitation was already accepted, declined or withdrawn."
   }
 }

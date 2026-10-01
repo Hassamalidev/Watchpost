@@ -16,6 +16,12 @@ export interface OutboundRequest {
   headers?: Record<string, string>;
   body?: string;
   timeoutMs?: number;
+  /*
+   * Set when the caller needs the whole body (JSON APIs): a larger response fails with `too_large`
+   * instead of being cut. Without it the body is quietly capped, which is fine when only the status
+   * matters (alert deliveries).
+   */
+  maxBodyBytes?: number;
 }
 
 export interface OutboundResponse {
@@ -24,7 +30,8 @@ export interface OutboundResponse {
   body: string;
 }
 
-export type OutboundErrorCode = "invalid_url" | "blocked" | "dns" | "timeout" | "network";
+export type OutboundErrorCode =
+  "invalid_url" | "blocked" | "dns" | "timeout" | "network" | "too_large";
 
 export class OutboundError extends Error {
   constructor(
@@ -127,9 +134,17 @@ export function createOutboundHttp(options: {
           (response) => {
             const chunks: Buffer[] = [];
             let size = 0;
+            const limit = req.maxBodyBytes ?? maxBody;
             response.on("data", (chunk: Buffer) => {
-              if (size >= maxBody) return;
-              chunks.push(chunk.subarray(0, maxBody - size));
+              if (req.maxBodyBytes !== undefined && size + chunk.length > limit) {
+                reject(
+                  new OutboundError("too_large", `The response is larger than ${limit} bytes.`),
+                );
+                response.destroy();
+                return;
+              }
+              if (size >= limit) return;
+              chunks.push(chunk.subarray(0, limit - size));
               size += chunk.length;
             });
             response.on("end", () => {

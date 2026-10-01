@@ -4,6 +4,7 @@
  * alarm, manual incidents). Every change writes an incident_events row — the timeline is the audit
  * trail — and emits an outbox event in the same transaction.
  */
+import { explainFailure, type Explanation } from "@app/shared";
 import type { Clock } from "../../core/clock.js";
 import { ConflictError, NotFoundError } from "../../core/errors.js";
 import { createWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
@@ -69,9 +70,36 @@ export interface CommentView {
   createdAt: string;
 }
 
+export interface IncidentMonitor {
+  id: string;
+  name: string;
+  target: string | null;
+  regionCount: number;
+}
+
 export interface IncidentDetail extends IncidentView {
   timeline: TimelineEntry[];
   comments: CommentView[];
+  monitor: IncidentMonitor | null;
+  /* The likely cause and first checks, as alerts show them; null when we can't say. */
+  explanation: Explanation | null;
+}
+
+/* One explanation for alerts and the incident page (§4 pillar 2). */
+export function explainIncident(
+  incident: Pick<IncidentView, "causeCode" | "evidence" | "failingRegions">,
+  monitor: Pick<IncidentMonitor, "target" | "regionCount"> | null,
+): Explanation | null {
+  if (incident.causeCode === null) return null;
+  const evidence = incident.evidence ?? {};
+  const explanation = explainFailure({
+    errorCode: incident.causeCode,
+    httpStatus: typeof evidence.httpStatus === "number" ? evidence.httpStatus : null,
+    failingRegions: incident.failingRegions,
+    totalRegions: monitor?.regionCount,
+    target: monitor?.target,
+  });
+  return explanation.category === "unknown" ? null : explanation;
 }
 
 /* Everything alerting needs to route and render an incident's notifications. */
@@ -518,7 +546,25 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
         repo.events(deps.db, scope, row.id),
         repo.comments(deps.db, scope, row.id),
       ]);
-      return { ...toView(row), timeline: events.map(toEntry), comments: comments.map(toComment) };
+      const [found] =
+        row.monitorId === null ? [] : await deps.monitors.getForDetection([row.monitorId]);
+      const monitor =
+        found === undefined
+          ? null
+          : {
+              id: found.id,
+              name: found.name,
+              target: found.target,
+              regionCount: found.regions.length,
+            };
+      const view = toView(row);
+      return {
+        ...view,
+        timeline: events.map(toEntry),
+        comments: comments.map(toComment),
+        monitor,
+        explanation: explainIncident(view, monitor),
+      };
     },
 
     async create(scope, input) {

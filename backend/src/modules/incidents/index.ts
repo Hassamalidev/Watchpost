@@ -16,11 +16,13 @@ export type {
   ExpiryIncidentInput,
   IncidentSummary,
   IncidentDetail,
+  IncidentMonitor,
   IncidentView,
   IncidentsService,
   OpenForMonitorInput,
   TimelineEntry,
 } from "./incidents.service.js";
+export { explainIncident } from "./incidents.service.js";
 export type {
   IncidentRow,
   IncidentSeverity,

@@ -89,7 +89,7 @@ export function MonitorDetail({ monitorId }: { monitorId: string }) {
 
       {canEdit && (
         <div className="flex flex-wrap gap-2">
-          <TestNow ws={ws} monitorId={data.id} />
+          {!data.paused && <TestNow ws={ws} monitorId={data.id} />}
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setPaused(!data.paused)}>
               {data.paused ? <Play aria-hidden /> : <Pause aria-hidden />}

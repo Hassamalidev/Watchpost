@@ -427,11 +427,19 @@ export function createMonitorsService(deps: MonitorsServiceDeps): MonitorsServic
               [{ path: "config.type", message: `must stay "${row.type}"` }],
             );
           }
-          const merged = applySecrets(configResult.data, decryptSecrets(row));
+          /*
+           * Stored secrets stay with the target they were entered for: pointing the monitor somewhere
+           * else while keeping masked values would send the secrets to the new target.
+           */
+          const sameTarget = targetOf(row.config) === targetOf(configResult.data);
+          const merged = applySecrets(configResult.data, sameTarget ? decryptSecrets(row) : null);
           if (hasUnresolvedMask(merged)) {
-            throw new ValidationError("A masked secret has no stored value; enter it again.", [
-              { path: "config", message: "masked value without a stored secret" },
-            ]);
+            throw new ValidationError(
+              sameTarget
+                ? "A masked secret has no stored value; enter it again."
+                : "The target changed, so enter the secrets again for the new target.",
+              [{ path: "config", message: "masked value without a stored secret" }],
+            );
           }
           const split = extractSecrets(merged);
           config = split.config;
@@ -632,6 +640,19 @@ export function createMonitorsService(deps: MonitorsServiceDeps): MonitorsServic
     };
   }
   return service;
+}
+
+/* Where a monitor sends its requests: the URL's origin, or host and port. */
+function targetOf(config: MonitorRow["config"] | MonitorConfig): string {
+  const c = config as Record<string, unknown>;
+  if (typeof c.url === "string") {
+    try {
+      return new URL(c.url).origin;
+    } catch {
+      return c.url;
+    }
+  }
+  return `${String(c.host ?? c.hostname ?? c.domain ?? "")}:${String(c.port ?? "")}`;
 }
 
 /* The hostname a monitor checks, from its (secret-free) stored config. */

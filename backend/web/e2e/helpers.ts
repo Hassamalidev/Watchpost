@@ -9,25 +9,28 @@ import { E2E_DATABASE_URL } from "../playwright.config";
 
 export const uniqueEmail = (who: string) => `${who}-${randomBytes(4).toString("hex")}@example.com`;
 
-export async function verificationLink(email: string): Promise<string> {
+/* The link in the newest queued email of a template (verify-email, invite, ...) to an address. */
+export async function emailLink(email: string, template: string): Promise<string> {
   const client = new pg.Client({ connectionString: E2E_DATABASE_URL });
   await client.connect();
   try {
     for (let attempt = 0; attempt < 50; attempt += 1) {
       const { rows } = await client.query<{ url: string }>(
         `select payload->'data'->>'url' as url from outbox_events
-         where type = 'email.requested' and payload->>'to' = $1 and payload->>'template' = 'verify-email'
+         where type = 'email.requested' and payload->>'to' = $1 and payload->>'template' = $2
          order by created_at desc limit 1`,
-        [email],
+        [email, template],
       );
       if (rows[0]?.url) return rows[0].url;
       await new Promise((r) => setTimeout(r, 100));
     }
-    throw new Error(`no verification email for ${email}`);
+    throw new Error(`no ${template} email for ${email}`);
   } finally {
     await client.end();
   }
 }
+
+export const verificationLink = (email: string) => emailLink(email, "verify-email");
 
 /* Signs up through the UI and opens the verification link; ends signed in on /onboarding. */
 export async function signUpAndVerify(page: Page, email: string, name = "Sara Ahmed") {

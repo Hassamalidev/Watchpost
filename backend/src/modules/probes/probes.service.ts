@@ -256,6 +256,10 @@ export function createProbesService(deps: {
       if (!PROBE_MONITOR_TYPES.includes(monitor.config.type)) {
         throw new ValidationError(`"${monitor.config.type}" monitors aren't run by probes.`);
       }
+      if (monitor.paused) {
+        /* Probes drop paused monitors, so the test would wait forever. */
+        throw new ValidationError("This monitor is paused; resume it to run a test.");
+      }
       const regions = monitor.regions.length ? monitor.regions : [...LAUNCH_REGIONS];
       const ids = await deps.db.transaction((tx) =>
         service.createTasks(tx, {

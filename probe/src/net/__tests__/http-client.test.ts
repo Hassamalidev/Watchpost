@@ -55,6 +55,9 @@ function handler(req: http.IncomingMessage, res: http.ServerResponse) {
     case "/method":
       res.end(req.method);
       return;
+    case "/secrets":
+      res.end(`${req.headers.authorization ?? "-"} ${req.headers["x-api-key"] ?? "-"}`);
+      return;
     case "/many-headers": {
       for (let i = 0; i < 150; i += 1) res.setHeader(`x-h-${i}`, String(i));
       res.end("ok");
@@ -136,6 +139,23 @@ describe("pinned connections", () => {
     expect(
       await codeOf(request({ url: `http://target.test:${port}/ok`, resolver: dns.resolver })),
     ).toBe("ssrf_blocked");
+  });
+
+  it("sends the user's headers only to the configured origin, never to a redirect elsewhere", async () => {
+    const headers = [
+      { name: "Authorization", value: "Bearer s3cret" },
+      { name: "X-Api-Key", value: "k3y" },
+    ];
+    const same = await request({
+      url: `http://target.test:${port}/redirect?to=/secrets`,
+      headers,
+    });
+    expect(same.body.toString()).toBe("Bearer s3cret k3y");
+    const elsewhere = await request({
+      url: `http://target.test:${port}/redirect?to=http://other.test:${port}/secrets`,
+      headers,
+    });
+    expect(elsewhere.body.toString()).toBe("- -");
   });
 
   it("re-validates every redirect hop, so a rebinding second answer is blocked", async () => {

@@ -14,10 +14,14 @@ export interface Workspace {
 
 export const getSession = () => api<Session | null>("/api/auth/get-session");
 
-export const signUp = (input: { name: string; email: string; password: string }) =>
+/* `next` brings the confirmation link back to where sign-up started (an invitation). */
+export const signUp = (
+  input: { name: string; email: string; password: string },
+  next: string = "/onboarding",
+) =>
   api<unknown>("/api/auth/sign-up/email", {
     method: "POST",
-    body: { ...input, callbackURL: `${window.location.origin}/onboarding` },
+    body: { ...input, callbackURL: `${window.location.origin}${next}` },
   });
 
 export const signIn = (input: { email: string; password: string }) =>
@@ -38,6 +42,31 @@ export const createWorkspace = (name: string) =>
         .replace(/^-|-$/g, "")
         .slice(0, 40)}-${Math.random().toString(36).slice(2, 8)}`,
     },
+  });
+
+export interface InvitationView {
+  id: string;
+  email: string;
+  role: string;
+  status: "pending" | "accepted" | "rejected" | "canceled";
+  organizationId: string;
+  organizationName: string;
+  inviterEmail: string;
+}
+
+export const getInvitation = (id: string) =>
+  api<InvitationView>(`/api/auth/organization/get-invitation?id=${encodeURIComponent(id)}`);
+
+export const acceptInvitation = (invitationId: string) =>
+  api<unknown>("/api/auth/organization/accept-invitation", {
+    method: "POST",
+    body: { invitationId },
+  });
+
+export const rejectInvitation = (invitationId: string) =>
+  api<unknown>("/api/auth/organization/reject-invitation", {
+    method: "POST",
+    body: { invitationId },
   });
 
 export const inviteMember = (

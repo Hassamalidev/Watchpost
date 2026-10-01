@@ -222,6 +222,15 @@ describe("tasks", () => {
     });
   });
 
+  it("refuses to test a paused monitor (probes would never run it)", async () => {
+    const path = `/api/w/${ws}/monitors/${monitorIds.added}`;
+    expect((await post(`${path}/pause`, {})).status).toBe(200);
+    const test = await post(`${path}/test`, {});
+    expect(test.status).toBe(400);
+    expect(test.text).toContain("paused");
+    expect((await post(`${path}/resume`, {})).status).toBe(200);
+  });
+
   it("returns an empty list when nothing arrives before the wait ends", async () => {
     const started = Date.now();
     const res = await client.call("GET", "/tasks?wait=1");

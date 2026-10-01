@@ -3,6 +3,7 @@
  * cross-workspace denial, the change sequence on every write, secrets, roles, groups and tags.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { randomUUID } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import request from "supertest";
 import type TestAgent from "supertest/lib/agent.js";
@@ -23,6 +24,7 @@ import {
   type CapturedEmail,
 } from "../../../__tests__/helpers/workspace-app.js";
 import { MASKED } from "../index.js";
+import { createMonitorsRepository } from "../monitors.repository.js";
 import { monitors as monitorsTable } from "../schema/monitors.js";
 
 let pool: DbPool;
@@ -257,6 +259,49 @@ describe("secrets", () => {
       auth: { kind: "basic", username: "ops", password: "hunter2-pass" },
       headers: [{ name: "X-Api-Key", value: "key-abc-123" }],
     });
+
+    /* Masked secrets don't follow the monitor to another host. */
+    const retarget = await patch(owner, `/api/w/${ws}/monitors/${id}`, {
+      config: { ...created.body.config, url: "https://attacker.example.net/collect" },
+    });
+    expect(retarget.status).toBe(400);
+    expect(retarget.text).toContain("target changed");
+    const fresh = await patch(owner, `/api/w/${ws}/monitors/${id}`, {
+      config: {
+        ...created.body.config,
+        url: "https://status.example.net/health",
+        auth: { kind: "basic", username: "ops", password: "new-pass-456" },
+        headers: [{ name: "X-Api-Key", value: "key-new-456" }],
+      },
+    });
+    expect(fresh.status, fresh.text).toBe(200);
+  });
+});
+
+describe("change feed", () => {
+  it("hands out seqs in commit order, so a probe cursor never skips a slow transaction", async () => {
+    const repo = createMonitorsRepository(ctx.db);
+    const change = { monitorId: randomUUID(), workspaceId: ws, op: "upsert" as const };
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    let firstSeq = 0;
+    const first = ctx.db.transaction(async (tx) => {
+      firstSeq = await repo.appendChange(tx, change);
+      await held;
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    let secondDone = false;
+    const second = ctx.db
+      .transaction((tx) => repo.appendChange(tx, change))
+      .then((seq) => {
+        secondDone = true;
+        return seq;
+      });
+    await new Promise((r) => setTimeout(r, 200));
+    expect(secondDone).toBe(false);
+    release();
+    await first;
+    expect(await second).toBeGreaterThan(firstSeq);
   });
 });
 

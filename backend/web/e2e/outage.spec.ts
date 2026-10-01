@@ -26,9 +26,13 @@ async function switchTarget(page: Page, state: "ok" | "fail") {
   expect(res.ok()).toBe(true);
 }
 
+/* This workspace's hooks only: monitors left by earlier local runs may alert to the same receiver. */
 async function hooksOfType(page: Page, type: string): Promise<Hook[]> {
   const hooks = (await (await page.request.get(`${RECEIVER}/hooks`)).json()) as Hook[];
-  return hooks.filter((h) => (JSON.parse(h.body) as { type: string }).type === type);
+  return hooks.filter((h) => {
+    const body = JSON.parse(h.body) as { type: string; workspace?: { id: string } };
+    return body.type === type && body.workspace?.id === workspace();
+  });
 }
 
 async function addChannel(page: Page, type: "webhook" | "email", name: string, value?: string) {

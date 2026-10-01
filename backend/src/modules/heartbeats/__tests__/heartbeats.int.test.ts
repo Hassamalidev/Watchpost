@@ -281,6 +281,14 @@ describe("schedules and alerts", () => {
     await service.sweep();
     expect((await state(monitorId))?.status).toBe("up");
     expect(await incidents(monitorId)).toEqual([]);
+
+    /* Resuming gives the job a full period from the last sweep, not an instant missed alert. */
+    clock.set(at(t0, 505));
+    await post(`/api/w/${ws}/monitors/${monitorId}/resume`);
+    clock.set(at(t0, 520));
+    await service.sweep();
+    expect(await incidents(monitorId)).toEqual([]);
+    expect((await state(monitorId))?.next_expected_at).toEqual(at(t0, 560));
   });
 });
 

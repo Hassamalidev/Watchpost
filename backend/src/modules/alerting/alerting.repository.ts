@@ -178,13 +178,14 @@ export function createAlertingRepository() {
     },
 
     /*
-     * Deliveries whose job may be lost: waiting (pending/retrying) or stuck mid-send for longer than
-     * `olderThan`. Stuck sends are moved back to retrying.
+     * Deliveries whose job may be lost: waiting (pending/retrying) past their backoff for longer than
+     * `olderThan`, or stuck mid-send. Stuck sends are moved back to retrying.
      */
     async unfinished(tx: DbOrTx, olderThan: Date, limit: number): Promise<DeliveryRow[]> {
       await tx
         .update(notificationDeliveries)
-        .set({ status: "retrying", updatedAt: sql`now()` })
+        /* updated_at stays, so the select below picks these up in the same pass. */
+        .set({ status: "retrying" })
         .where(
           and(
             eq(notificationDeliveries.status, "sending"),
@@ -200,7 +201,8 @@ export function createAlertingRepository() {
               eq(notificationDeliveries.status, "pending"),
               eq(notificationDeliveries.status, "retrying"),
             ),
-            lt(notificationDeliveries.updatedAt, olderThan),
+            /* A retry waits out its backoff first (it doubles each attempt), so add that wait. */
+            sql`${notificationDeliveries.updatedAt} + make_interval(secs => ${notificationDeliveries.backoffMs} * power(2, greatest(${notificationDeliveries.attempts} - 1, 0)) / 1000.0) < ${olderThan.toISOString()}::timestamptz`,
           ),
         )
         .orderBy(asc(notificationDeliveries.updatedAt))

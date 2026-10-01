@@ -376,6 +376,33 @@ describe("delivery", () => {
     const requeued = notifyJobs.slice(before).find((j) => j.deliveryId === delivery?.id);
     expect(requeued?.options.jobId).toMatch(new RegExp(`^notify\\.${delivery?.id}\\.r\\d+$`));
   });
+
+  it("leaves retries waiting out their backoff alone, and picks up stuck sends at once", async () => {
+    const hook = await channel("Backoff hook");
+    await useChannels([hook]);
+    const incident = await openIncident(await createMonitor("Backoff"));
+    await service.planIncidentEvent({
+      kind: "triggered",
+      incidentId: incident.id,
+      eventKey: "evt-backoff",
+    });
+    const [delivery] = await service.deliveriesFor(incident.id);
+    const requeued = async () => {
+      const before = notifyJobs.length;
+      await service.recoverDeliveries();
+      return notifyJobs.slice(before).some((j) => j.deliveryId === delivery?.id);
+    };
+    /* Attempt 5 with a 60 s base waits 16 minutes; 6 minutes in, the job is still legitimately delayed. */
+    await db().execute(
+      sql`update notification_deliveries set status = 'retrying', attempts = 5, backoff_ms = 60000, updated_at = now() - interval '6 minutes' where id = ${delivery?.id}`,
+    );
+    expect(await requeued()).toBe(false);
+
+    await db().execute(
+      sql`update notification_deliveries set status = 'sending', attempts = 1, backoff_ms = 8000, updated_at = now() - interval '10 minutes' where id = ${delivery?.id}`,
+    );
+    expect(await requeued()).toBe(true);
+  });
 });
 
 describe("reminders", () => {

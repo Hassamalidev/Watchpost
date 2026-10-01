@@ -105,7 +105,13 @@ test("no axe violations with the command palette open", async ({ page }) => {
   expect(results.violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
 });
 
-for (const pagePath of ["/", "/login", "/signup", "/a/not-a-valid-link-token"]) {
+for (const pagePath of [
+  "/",
+  "/login",
+  "/signup",
+  "/a/not-a-valid-link-token",
+  "/invite/not-a-real-invitation",
+]) {
   test(`no axe violations on ${pagePath}`, async ({ browser }) => {
     const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
     const page = await context.newPage();

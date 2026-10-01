@@ -115,4 +115,13 @@ describe("outbound HTTP", () => {
     const big = await local().request({ method: "GET", url: `http://127.0.0.1:${port}/big` });
     expect(big.body.length).toBe(64 * 1024);
   });
+
+  it("returns a whole body up to the caller's limit, and fails rather than cut it", async () => {
+    const url = `http://127.0.0.1:${port}/big`;
+    const whole = await local().request({ method: "GET", url, maxBodyBytes: 1024 * 1024 });
+    expect(whole.body.length).toBe(200_000);
+    expect(await code(local().request({ method: "GET", url, maxBodyBytes: 100_000 }))).toBe(
+      "too_large",
+    );
+  });
 });

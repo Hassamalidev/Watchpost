@@ -8,7 +8,6 @@
  */
 import {
   alertPolicyRulesSchema,
-  explainFailure,
   type AlertEventKind,
   type AlertPolicyInput,
   type AlertPolicyRules,
@@ -27,7 +26,7 @@ import {
   type ChannelSummary,
   type ChannelsService,
 } from "../channels/index.js";
-import type { AlertContext, IncidentsService } from "../incidents/index.js";
+import { explainIncident, type AlertContext, type IncidentsService } from "../incidents/index.js";
 import type { WorkspacesService } from "../workspaces/index.js";
 import type { AlertingRepository } from "./alerting.repository.js";
 import type { AlertPolicyRow, DeliveryRow } from "./schema/alerting.js";
@@ -216,16 +215,12 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
   /* Failure alerts carry the explainer's cause and first checks (§4 pillar 2). */
   function explanationFor(kind: AlertEventKind, ctx: AlertContext): AlertEvent["explanation"] {
     const { incident } = ctx;
-    if (kind === "resolved" || kind === "acknowledged" || incident.causeCode === null) return null;
-    const evidence = incident.evidence ?? {};
-    const e = explainFailure({
-      errorCode: incident.causeCode,
-      httpStatus: typeof evidence.httpStatus === "number" ? evidence.httpStatus : null,
-      failingRegions: incident.failingRegions,
-      totalRegions: ctx.monitor?.regionCount,
-      target: ctx.monitor?.target,
-    });
-    if (e.category === "unknown") return null;
+    if (kind === "resolved" || kind === "acknowledged") return null;
+    const e = explainIncident(
+      incident,
+      ctx.monitor ? { target: ctx.monitor.target, regionCount: ctx.monitor.regionCount } : null,
+    );
+    if (e === null) return null;
     return { headline: e.headline, detail: e.detail, nextSteps: e.nextSteps.slice(0, 3) };
   }
 

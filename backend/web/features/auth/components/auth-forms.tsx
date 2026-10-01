@@ -17,7 +17,7 @@ import { listWorkspaces, signIn, signUp } from "@/lib/auth";
 
 /* Where a signed-in user goes: back to `next`, their first workspace, or onboarding. */
 export async function landingPath(next: string | null): Promise<string> {
-  if (next?.startsWith("/w/")) return next;
+  if (next?.startsWith("/w/") || next?.startsWith("/invite/")) return next;
   const workspaces = await listWorkspaces();
   return workspaces[0] ? `/w/${workspaces[0].id}/overview` : "/onboarding";
 }
@@ -69,7 +69,10 @@ export function LoginForm() {
       </Button>
       <p className="text-center text-sm text-muted-foreground">
         {t("noAccount")}{" "}
-        <Link href="/signup" className="text-foreground underline">
+        <Link
+          href={next ? `/signup?next=${encodeURIComponent(next)}` : "/signup"}
+          className="text-foreground underline"
+        >
           {t("createOne")}
         </Link>
       </p>
@@ -80,6 +83,7 @@ export function LoginForm() {
 export function SignupForm() {
   const t = useTranslations("auth");
   const router = useRouter();
+  const next = useSearchParams().get("next");
   const [error, setError] = React.useState<string | null>(null);
   const schema = z.object({
     name: z.string().trim().min(1, t("nameRequired")),
@@ -94,7 +98,7 @@ export function SignupForm() {
   const onSubmit = form.handleSubmit(async (values) => {
     setError(null);
     try {
-      await signUp(values);
+      await signUp(values, next?.startsWith("/invite/") ? next : undefined);
       router.push(`/verify?email=${encodeURIComponent(values.email)}`);
     } catch (err) {
       setError(errorMessage(err));

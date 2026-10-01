@@ -65,5 +65,16 @@ export function createAlertingModule(deps: AlertingModuleDeps): AlertingModule {
       { name: "notify-deliveries", run: () => service.recoverDeliveries() },
       { name: "reminders", run: () => service.recoverReminders() },
     ],
+    /* A job can also go missing while the worker runs (Redis eviction, a crash mid-send). */
+    sweeps: [
+      {
+        kind: "notify-deliveries",
+        everyMs: 60_000,
+        async run(logger) {
+          const requeued = await service.recoverDeliveries();
+          if (requeued > 0) logger.warn({ requeued }, "re-queued lost notify jobs");
+        },
+      },
+    ],
   };
 }
