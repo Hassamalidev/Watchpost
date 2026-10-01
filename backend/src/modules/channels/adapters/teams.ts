@@ -5,9 +5,9 @@
  * which marks the channel failing so admins hear about it.
  */
 import { teamsChannelConfigSchema, type TeamsChannelConfig } from "@app/shared";
-import { ValidationError } from "../../../core/errors.js";
 import type { OutboundHttp } from "../../../infra/http/outbound.js";
 import type { AlertEvent, ChannelAdapter, RenderedMessage } from "../types/adapter.js";
+import { formConfig } from "./config.js";
 import { call, expectOk } from "./http.js";
 import { renderPlain } from "./render.js";
 
@@ -80,12 +80,7 @@ export function createTeamsAdapter(deps: {
 }): ChannelAdapter<TeamsChannelConfig> {
   return {
     type: "teams",
-    parseConfig(input) {
-      const parsed = teamsChannelConfigSchema.safeParse(input);
-      if (!parsed.success)
-        throw new ValidationError(`Invalid Teams workflow: ${parsed.error.message}`);
-      return parsed.data;
-    },
+    ...formConfig("teams", teamsChannelConfigSchema, "Teams"),
     render(event) {
       const plain = renderPlain(event);
       return { ...plain, body: adaptiveCard(event, plain) };

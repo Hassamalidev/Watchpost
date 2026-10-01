@@ -120,6 +120,13 @@
       "when": 1790825893468,
       "tag": "0016_deploys",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790835433871,
+      "tag": "0017_channel_rules",
+      "breakpoints": true
     }
   ]
 }

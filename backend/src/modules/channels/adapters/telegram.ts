@@ -4,9 +4,9 @@
  * arrive in P4.
  */
 import { telegramChannelConfigSchema, type TelegramChannelConfig } from "@app/shared";
-import { ValidationError } from "../../../core/errors.js";
 import type { OutboundHttp } from "../../../infra/http/outbound.js";
 import { ChannelDeliveryError, type ChannelAdapter } from "../types/adapter.js";
+import { parseConfigWith } from "./config.js";
 import { call, parseJson } from "./http.js";
 import { renderPlain } from "./render.js";
 
@@ -43,12 +43,8 @@ export function createTelegramApi(deps: { http: OutboundHttp; botToken: string }
 export function createTelegramAdapter(deps: {
   api: TelegramApi;
 }): ChannelAdapter<TelegramChannelConfig> {
-  const parse = (input: unknown) => {
-    const parsed = telegramChannelConfigSchema.safeParse(input ?? {});
-    if (!parsed.success)
-      throw new ValidationError(`Invalid Telegram channel: ${parsed.error.message}`);
-    return parsed.data;
-  };
+  const parse = (input: unknown) =>
+    parseConfigWith(telegramChannelConfigSchema, input ?? {}, "Telegram");
 
   return {
     type: "telegram",

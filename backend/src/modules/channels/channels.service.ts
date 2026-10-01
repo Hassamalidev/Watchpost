@@ -5,7 +5,13 @@
  * alerting gives up on a delivery, and "healthy" again on the next success; both emit
  * `channel.health_changed`.
  */
-import type { CreateChannelInput } from "@app/shared";
+import {
+  CHANNEL_TYPES,
+  channelRulesSchema,
+  type ChannelRules,
+  type ChannelType,
+  type CreateChannelInput,
+} from "@app/shared";
 import type { Clock } from "../../core/clock.js";
 import { NotFoundError, ValidationError } from "../../core/errors.js";
 import type { WorkspaceScope } from "../../core/workspace-scope.js";
@@ -22,6 +28,8 @@ export interface ChannelView {
   type: ChannelRow["type"];
   name: string;
   status: ChannelRow["status"];
+  /* Which events and severities the channel accepts. */
+  rules: ChannelRules;
   lastSuccessAt: string | null;
   lastFailureAt: string | null;
   lastError: string | null;
@@ -38,17 +46,24 @@ export interface ChannelSummary {
   type: ChannelRow["type"];
   name: string;
   status: ChannelRow["status"];
+  rules: ChannelRules;
   lastError: string | null;
 }
 
 export interface ChannelsService {
+  /* Every channel type, and whether this server can deliver to it (the Slack app needs its keys). */
+  types(): Array<{ type: ChannelType; available: boolean }>;
   list(scope: WorkspaceScope): Promise<ChannelView[]>;
   get(scope: WorkspaceScope, id: string): Promise<ChannelDetail>;
   create(scope: WorkspaceScope, input: CreateChannelInput): Promise<ChannelDetail>;
   update(
     scope: WorkspaceScope,
     id: string,
-    input: { name?: string | undefined; config?: Record<string, unknown> | undefined },
+    input: {
+      name?: string | undefined;
+      config?: Record<string, unknown> | undefined;
+      rules?: ChannelRules | undefined;
+    },
   ): Promise<ChannelDetail>;
   delete(scope: WorkspaceScope, id: string): Promise<void>;
   /* System: which of these channels exist in the workspace. */
@@ -69,6 +84,9 @@ export interface ChannelsService {
 export const channelAad = (id: string) => `channel:${id}`;
 const aad = channelAad;
 const iso = (d: Date | null) => (d === null ? null : d.toISOString());
+/* Stored rules may be partial (`{}` for channels from before rules existed); defaults fill the rest. */
+const rulesOf = (row: Pick<ChannelRow, "rules">): ChannelRules =>
+  channelRulesSchema.parse(row.rules);
 
 export function createChannelsService(deps: {
   db: Db;
@@ -96,6 +114,7 @@ export function createChannelsService(deps: {
     type: row.type,
     name: row.name,
     status: row.status,
+    rules: rulesOf(row),
     lastSuccessAt: iso(row.lastSuccessAt),
     lastFailureAt: iso(row.lastFailureAt),
     lastError: row.lastError,
@@ -115,7 +134,7 @@ export function createChannelsService(deps: {
   };
 
   const toSummary = (
-    row: Pick<ChannelRow, "id" | "type" | "name" | "status"> & {
+    row: Pick<ChannelRow, "id" | "type" | "name" | "status" | "rules"> & {
       workspaceId: string;
       lastError?: string | null;
     },
@@ -125,6 +144,7 @@ export function createChannelsService(deps: {
     type: row.type,
     name: row.name,
     status: row.status,
+    rules: rulesOf(row),
     lastError: row.lastError ?? null,
   });
 
@@ -154,6 +174,8 @@ export function createChannelsService(deps: {
   }
 
   return {
+    types: () => CHANNEL_TYPES.map((type) => ({ type, available: adapters.has(type) })),
+
     async list(scope) {
       return (await repo.list(deps.db, scope)).map(toView);
     },
@@ -171,14 +193,16 @@ export function createChannelsService(deps: {
         type: input.type,
         name: input.name,
         configEnc: deps.cipher.encrypt(JSON.stringify(config), aad(id)),
+        ...(input.rules === undefined ? {} : { rules: input.rules }),
       });
       return toDetail(row);
     },
 
     async update(scope, id, input) {
       const row = await mustFind(scope, id);
-      const patch: Partial<Pick<ChannelRow, "name" | "configEnc">> = {};
+      const patch: Partial<Pick<ChannelRow, "name" | "configEnc" | "rules">> = {};
       if (input.name !== undefined) patch.name = input.name;
+      if (input.rules !== undefined) patch.rules = input.rules;
       if (input.config !== undefined) {
         const config = await prepare(
           adapterFor(row.type),

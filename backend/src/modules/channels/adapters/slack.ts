@@ -13,6 +13,7 @@ import {
   type ChannelAdapter,
   type RenderedMessage,
 } from "../types/adapter.js";
+import { parseConfigWith } from "./config.js";
 import { call, parseJson } from "./http.js";
 import { renderPlain } from "./render.js";
 
@@ -107,12 +108,7 @@ export function createSlackAdapter(deps: {
   /* True if the installation belongs to the workspace. */
   ownsInstallation: (installationId: string, workspaceId: string) => Promise<boolean>;
 }): ChannelAdapter<SlackChannelConfig> {
-  const parse = (input: unknown) => {
-    const parsed = slackChannelConfigSchema.safeParse(input);
-    if (!parsed.success)
-      throw new ValidationError(`Invalid Slack channel: ${parsed.error.message}`);
-    return parsed.data;
-  };
+  const parse = (input: unknown) => parseConfigWith(slackChannelConfigSchema, input, "Slack");
 
   async function api(installationId: string, method: string, payload: object) {
     const token = await deps.tokenFor(installationId);

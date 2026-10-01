@@ -4,10 +4,23 @@ import type { AppModule, Infra } from "../../composition/types.js";
 import { newId } from "../../infra/ids.js";
 import { createDiscordAdapter } from "./adapters/discord.js";
 import { createEmailAdapter } from "./adapters/email.js";
+import { createGoogleChatAdapter } from "./adapters/google-chat.js";
+import { createGotifyAdapter } from "./adapters/gotify.js";
+import { createMatrixAdapter } from "./adapters/matrix.js";
+import { createMattermostAdapter } from "./adapters/mattermost.js";
+import { createNtfyAdapter } from "./adapters/ntfy.js";
+import { createOpsgenieAdapter } from "./adapters/opsgenie.js";
+import { createPagerDutyAdapter } from "./adapters/pagerduty.js";
+import { createPushbulletAdapter } from "./adapters/pushbullet.js";
+import { createPushoverAdapter } from "./adapters/pushover.js";
+import { createRocketChatAdapter } from "./adapters/rocketchat.js";
 import { createSlackAdapter } from "./adapters/slack.js";
+import { createSlackWebhookAdapter } from "./adapters/slack-webhook.js";
+import { createSplunkOnCallAdapter } from "./adapters/splunk-oncall.js";
 import { createTeamsAdapter } from "./adapters/teams.js";
 import { createTelegramAdapter, createTelegramApi } from "./adapters/telegram.js";
 import { createWebhookAdapter } from "./adapters/webhook.js";
+import { createZulipAdapter } from "./adapters/zulip.js";
 import { createChannelsController } from "./channels.controller.js";
 import { createChannelsRepository } from "./channels.repository.js";
 import { createChannelsRouter } from "./channels.routes.js";
@@ -83,12 +96,29 @@ export function createChannelsModule(deps: ChannelsModuleDeps): ChannelsModule {
     telegram: telegramApi,
   });
 
-  /* Slack and Telegram exist only when the server has their credentials. */
+  /*
+   * The Slack app and Telegram exist only when the server has their credentials; every other channel
+   * needs nothing but what the workspace admin enters.
+   */
+  const http = { http: infra.http };
   const adapters: AnyChannelAdapter[] = deps.adapters ?? [
     createEmailAdapter({ requestEmail: infra.requestEmail, actionLinks: infra.actionLinks }),
     createWebhookAdapter({ http: infra.http, clock: infra.clock }),
-    createDiscordAdapter({ http: infra.http }),
-    createTeamsAdapter({ http: infra.http }),
+    createDiscordAdapter(http),
+    createTeamsAdapter(http),
+    createSlackWebhookAdapter(http),
+    createGoogleChatAdapter(http),
+    createMattermostAdapter(http),
+    createRocketChatAdapter(http),
+    createZulipAdapter(http),
+    createMatrixAdapter(http),
+    createPagerDutyAdapter(http),
+    createOpsgenieAdapter(http),
+    createSplunkOnCallAdapter(http),
+    createPushoverAdapter(http),
+    createPushbulletAdapter(http),
+    createNtfyAdapter(http),
+    createGotifyAdapter(http),
     ...(config.slack
       ? [
           createSlackAdapter({

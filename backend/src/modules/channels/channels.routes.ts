@@ -20,6 +20,8 @@ export function createChannelsRouter(
   router.use("/channels", guards.session, guards.workspace);
 
   router.get("/channels", read, controller.list);
+  /* Before `/:channelId`, which would read "types" as an ID. */
+  router.get("/channels/types", read, controller.types);
   router.post("/channels", admin, validate({ body: createChannelBody }), controller.create);
   router.get("/channels/:channelId", admin, id, controller.get);
   router.patch(

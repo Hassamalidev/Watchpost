@@ -1,0 +1,1 @@
+ALTER TABLE "channels" ADD COLUMN "rules" jsonb DEFAULT '{}'::jsonb NOT NULL;

@@ -7,7 +7,9 @@
  * workspace admins, at most once an hour. Reminders repeat every N minutes while an incident is open.
  */
 import {
+  CHANNEL_LABELS,
   alertPolicyRulesSchema,
+  channelAccepts,
   type AlertEventKind,
   type AlertPolicyInput,
   type AlertPolicyRules,
@@ -274,7 +276,7 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
             data: {
               workspaceName,
               channelName: channel.name,
-              channelType: channel.type,
+              channelType: CHANNEL_LABELS[channel.type],
               error,
               url: `${deps.webOrigin}/w/${channel.workspaceId}/integrations`,
               ...(incidentTitle === undefined ? {} : { incidentTitle }),
@@ -342,10 +344,10 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
       if (ctx === undefined) return 0;
       const policy = await policyFor(ctx);
       if (policy === undefined || !policy.rules.events[kind]) return 0;
-      const channels = await deps.channels.existing(
-        system(ctx.workspaceId),
-        policy.rules.channelIds,
-      );
+      /* The policy says which channels to ask; each channel's own rules say what it accepts. */
+      const channels = (
+        await deps.channels.existing(system(ctx.workspaceId), policy.rules.channelIds)
+      ).filter((c) => channelAccepts(c.rules, kind, ctx.incident.severity));
       if (channels.length === 0) return 0;
 
       const actorId = actorUserId ?? (kind === "resolved" ? ctx.incident.resolvedBy : null) ?? null;

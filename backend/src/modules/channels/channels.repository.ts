@@ -50,7 +50,7 @@ export function createChannelsRepository() {
       tx: DbOrTx,
       scope: WorkspaceScope,
       id: string,
-      patch: Partial<Pick<ChannelRow, "name" | "configEnc">>,
+      patch: Partial<Pick<ChannelRow, "name" | "configEnc" | "rules">>,
     ): Promise<ChannelRow | undefined> {
       const [row] = await tx
         .update(channels)
@@ -80,7 +80,7 @@ export function createChannelsRepository() {
       tx: DbOrTx,
       scope: WorkspaceScope,
       ids: string[],
-    ): Promise<Array<Pick<ChannelRow, "id" | "type" | "name" | "status">>> {
+    ): Promise<Array<Pick<ChannelRow, "id" | "type" | "name" | "status" | "rules">>> {
       assertWorkspaceScope(scope);
       if (ids.length === 0) return [];
       return tx
@@ -89,6 +89,7 @@ export function createChannelsRepository() {
           type: channels.type,
           name: channels.name,
           status: channels.status,
+          rules: channels.rules,
         })
         .from(channels)
         .where(and(eq(channels.workspaceId, scope.workspaceId), inArray(channels.id, ids)));

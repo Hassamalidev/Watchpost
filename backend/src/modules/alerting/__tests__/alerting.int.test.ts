@@ -11,6 +11,7 @@ import { sql } from "drizzle-orm";
 import request from "supertest";
 import type TestAgent from "supertest/lib/agent.js";
 import { z } from "zod";
+import { channelRulesSchema } from "@app/shared";
 import { createFakeClock } from "../../../core/clock.js";
 import { createWorkspaceScope, type WorkspaceScope } from "../../../core/workspace-scope.js";
 import type { EnqueueOptions } from "../../../infra/queues/index.js";
@@ -88,13 +89,13 @@ async function createMonitor(name: string, settings: object = {}) {
   return res.body.id as string;
 }
 
-async function openIncident(monitorId: string) {
+async function openIncident(monitorId: string, severity: "critical" | "high" | "low" = "critical") {
   const { incident } = await db().transaction((tx) =>
     incidents.service.openForMonitor(tx, {
       workspaceId: ws,
       monitorId,
       title: "Checkout is down",
-      severity: "critical",
+      severity,
       causeCode: "connect_refused",
       failingRegions: ["eu-central"],
     }),
@@ -204,6 +205,41 @@ describe("planning", () => {
       }),
     ).toBe(0);
     await useChannels([hook], { acknowledged: true });
+  });
+
+  it("asks only channels whose own rules accept the event and the severity", async () => {
+    const chat = await channel("Everything hook");
+    const pager = await channels.service.create(scope, {
+      type: "webhook",
+      name: "Pager hook",
+      config: { url: "https://hooks.example.com/pager" },
+      rules: channelRulesSchema.parse({ minSeverity: "high", events: { reminder: false } }),
+    });
+    expect(pager.rules).toMatchObject({ minSeverity: "high", events: { reminder: false } });
+    await useChannels([chat, pager.id]);
+    const plan = (kind: "triggered" | "reminder" | "resolved", incidentId: string) =>
+      service.planIncidentEvent({ kind, incidentId, eventKey: `evt-rules-${kind}-${incidentId}` });
+
+    /* An expiring certificate (low) reaches chat but doesn't page. */
+    const low = await openIncident(await createMonitor("Rules low"), "low");
+    expect(await plan("triggered", low.id)).toBe(1);
+    expect((await service.deliveriesFor(low.id)).map((d) => d.channelId)).toEqual([chat]);
+
+    const critical = await openIncident(await createMonitor("Rules critical"));
+    expect(await plan("triggered", critical.id)).toBe(2);
+    expect(await plan("reminder", critical.id)).toBe(1);
+    expect(await plan("resolved", critical.id)).toBe(2);
+
+    /* "Send test" is the admin asking; the rules don't apply. */
+    expect(await service.sendTest(scope, pager.id)).toEqual({ ok: true });
+
+    /* Rules can change without touching the config, and `{}` resets them to everything. */
+    const opened = await channels.service.update(scope, pager.id, {
+      rules: channelRulesSchema.parse({}),
+    });
+    expect(opened.rules.minSeverity).toBe("low");
+    const other = await openIncident(await createMonitor("Rules reopened"), "low");
+    expect(await plan("triggered", other.id)).toBe(2);
   });
 
   it("routes a monitor with its own policy to that policy's channels", async () => {
