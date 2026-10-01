@@ -60,6 +60,9 @@ export function PlanSummary({
     );
   } else if (sub?.status === "paused") {
     lines.push(t("paused"));
+  } else if (sub?.status === "past_due") {
+    /* The grace period is over: say why the workspace is on Free and what fixes it. */
+    lines.push(t("overdueLapsed"));
   } else {
     lines.push(t("sourceFree"));
   }

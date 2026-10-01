@@ -55,7 +55,12 @@ export type FakePaddleCall =
   | { method: "updateItems"; id: string; items: PaddleItem[]; mode: ProrationMode }
   | { method: "chargeNow"; id: string; items: PaddleItem[] }
   | {
-      method: "cancelAtPeriodEnd" | "pauseAtPeriodEnd" | "resumeNow" | "clearScheduledChange";
+      method:
+        | "cancelAtPeriodEnd"
+        | "cancelNow"
+        | "pauseAtPeriodEnd"
+        | "resumeNow"
+        | "clearScheduledChange";
       id: string;
     }
   | { method: "portalUrl"; id: string; subscriptionIds: string[] };
@@ -97,6 +102,11 @@ export function fakePaddleApi(clock: Clock) {
       return touch(sub, {
         scheduledChange: { action: "cancel", effectiveAt: periodEnd(sub), resumeAt: null },
       });
+    },
+    async cancelNow(id) {
+      const sub = must(id);
+      calls.push({ method: "cancelNow", id });
+      return touch(sub, { status: "canceled", canceledAt: clock.now(), scheduledChange: null });
     },
     async pauseAtPeriodEnd(id) {
       const sub = must(id);

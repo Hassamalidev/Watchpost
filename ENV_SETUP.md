@@ -36,8 +36,10 @@ With the keys in place, run these with Paddle's sandbox test cards and note anyt
 
 - Subscribe to each plan, monthly and yearly. Confirm the first `transaction.completed` carries `billing_period`.
 - Upgrade (charged at once, prorated) and move down (nothing charged; the old plan stays until the period ends).
-- Switch monthly to yearly. Confirm the new yearly period is treated as paid (credits keep arriving each month).
-- Buy a credit pack. Cancel, keep, pause, resume. Open the customer portal.
+- Move down, then back up inside the same period: nothing must be charged. Move down, then above the old plan: only the difference from the old plan must be charged.
+- Switch monthly to yearly. Confirm Paddle bills it as a `subscription_update` transaction that carries the new yearly `billing_period` (the code counts that as a paid year; credits keep arriving each month).
+- Buy a credit pack. Cancel, keep, pause, resume. Cancel while paused (the code asks Paddle to cancel immediately). Open the customer portal.
+- Add an add-on to a monthly subscription in the dashboard and check the monitor limit rises; check whether Paddle accepts a monthly add-on on a yearly subscription (the code refuses that switch).
 - Use the renewal-decline card: the workspace must keep its plan for 7 days, then move to Free.
 
 ### 3. Going live

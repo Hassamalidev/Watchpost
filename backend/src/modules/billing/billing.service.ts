@@ -110,7 +110,7 @@ export interface BillingService {
 const UNLIMITED_MEMBERS = 100_000;
 const CLOCK_BATCH = 200;
 const BACKFILL_PAGE = 500;
-const CHARGE_LOCK_MS = 20_000;
+const CHARGE_COOLDOWN_MS = 30_000;
 
 /* Add-ons a plan may carry (§5); others are dropped when the plan changes. */
 const ADDON_PLANS: Record<AddonKey, readonly PlanKey[]> = {
@@ -129,7 +129,7 @@ export function createBillingService(deps: {
   workspaces: Pick<WorkspacesService, "countMembers" | "workspaceIds">;
   clock: Clock;
   logger: Logger;
-  locks: Pick<Locks, "withLock">;
+  locks: Pick<Locks, "acquire">;
   catalog: PriceCatalog;
   paddle: PaddleRuntime | undefined;
 }): BillingService {
@@ -309,6 +309,15 @@ export function createBillingService(deps: {
           "An annual subscription can move to monthly billing at renewal. Open the customer portal or contact support.",
         );
       }
+      const now = clock.now();
+      /* After a downgrade the previous plan is still in force, and paid for, until the period ends. */
+      const paidPlan = planSync.subscriptionPlan(live, now) ?? live.planKey;
+      const holding = paidPlan !== live.planKey;
+      if (holding && input.interval !== live.billingInterval) {
+        throw new ConflictError(
+          "A plan change is waiting for the end of this period. Change the billing interval after that.",
+        );
+      }
       const higher = planRank(input.plan) > planRank(live.planKey);
       const sameLonger = input.plan === live.planKey && input.interval === "year";
       const upgrade = higher || sameLonger;
@@ -318,20 +327,41 @@ export function createBillingService(deps: {
       const priceId = catalog.planPrice(input.plan, input.interval);
       if (priceId === undefined) throw unavailable("This plan can't be bought on this server yet.");
 
+      const paidItems = planSync.effectiveItems(live, now);
       const items: PaddleItem[] = [{ priceId, quantity: 1 }];
-      for (const item of live.items) {
+      for (const item of paidItems) {
         const ref = catalog.lookup(item.priceId);
         if (ref?.kind === "addon" && ADDON_PLANS[ref.addon].includes(input.plan)) items.push(item);
       }
-      /*
-       * Upgrades bill the difference now. Downgrades change the items without billing; the next
-       * renewal charges the smaller price and the old plan is held until then (paddle-sync).
-       */
-      const data = await paddle.api.updateItems(
-        live.paddleSubscriptionId,
-        items,
-        upgrade ? "prorated_immediately" : "do_not_bill",
-      );
+      if (input.interval === "year" && items.length > 1) {
+        throw new ConflictError(
+          "Add-ons are billed monthly. Remove them in the customer portal before switching to yearly billing.",
+        );
+      }
+
+      const id = live.paddleSubscriptionId;
+      let data;
+      if (holding && planRank(input.plan) <= planRank(paidPlan)) {
+        /* Back to a plan this period already paid for (or under it): there is nothing to charge. */
+        data = await paddle.api.updateItems(id, items, "do_not_bill");
+      } else if (holding && live.heldItems !== null) {
+        /*
+         * Above the plan that was paid for: put that plan back first, so Paddle prorates from what
+         * the customer paid, not from the smaller plan they moved to without a refund.
+         */
+        await paddle.api.updateItems(id, live.heldItems, "do_not_bill");
+        data = await paddle.api.updateItems(id, items, "prorated_immediately");
+      } else {
+        /*
+         * Upgrades bill the difference now. Downgrades change the items without billing; the next
+         * renewal charges the smaller price and the old plan is held until then (paddle-sync).
+         */
+        data = await paddle.api.updateItems(
+          id,
+          items,
+          upgrade ? "prorated_immediately" : "do_not_bill",
+        );
+      }
       await paddleSync.applyFromApi(data);
       return service.state(scope);
     },
@@ -344,14 +374,25 @@ export function createBillingService(deps: {
       if (live === undefined || live.status !== "active") {
         throw new ConflictError("Credit packs need an active Starter, Pro or Business plan.");
       }
-      /* One purchase at a time per workspace, so a double click can't charge twice. */
-      const result = await deps.locks.withLock(
+      /*
+       * One purchase per workspace per cooldown. The lock is kept after a successful charge and
+       * expires on its own, so a double click, a client retry after a timeout or two managers at
+       * once can't charge the card twice. A failed charge frees it so the customer can try again.
+       */
+      const lock = await deps.locks.acquire(
         `billing-charge:${scope.workspaceId}`,
-        CHARGE_LOCK_MS,
-        () => paddle.api.chargeNow(live.paddleSubscriptionId, [{ priceId, quantity: 1 }]),
+        CHARGE_COOLDOWN_MS,
       );
-      if (!result.acquired) {
-        throw new ConflictError("A purchase is already in progress. Try again in a moment.");
+      if (lock === null) {
+        throw new ConflictError(
+          "A credit pack was just bought for this workspace. Wait half a minute before buying another.",
+        );
+      }
+      try {
+        await paddle.api.chargeNow(live.paddleSubscriptionId, [{ priceId, quantity: 1 }]);
+      } catch (err) {
+        await lock.release().catch(() => false);
+        throw err;
       }
     },
 
@@ -364,7 +405,11 @@ export function createBillingService(deps: {
       if (live.scheduledChange !== null) {
         await paddle.api.clearScheduledChange(live.paddleSubscriptionId);
       }
-      const data = await paddle.api.cancelAtPeriodEnd(live.paddleSubscriptionId);
+      /* A paused subscription isn't being billed, so there is no period to wait for. */
+      const data =
+        live.status === "paused"
+          ? await paddle.api.cancelNow(live.paddleSubscriptionId)
+          : await paddle.api.cancelAtPeriodEnd(live.paddleSubscriptionId);
       await paddleSync.applyFromApi(data);
       await repo.updateSubscription(deps.db, live.id, {
         cancelReason: input.reason,

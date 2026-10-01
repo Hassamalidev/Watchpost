@@ -60,6 +60,8 @@ export const subscriptions = pgTable(
     /* After a downgrade the previous (higher) plan stays until the period the customer paid for ends. */
     heldPlanKey: text("held_plan_key").$type<PlanKey>(),
     heldUntil: timestamp("held_until", { withTimezone: true }),
+    /* The items in force before the downgrade: paid add-ons count until the hold ends too. */
+    heldItems: jsonb("held_items").$type<SubscriptionItem[]>(),
     /* Paddle discount on the subscription (the founding-customer discount is recognized by ID). */
     discountId: text("discount_id"),
     cancelReason: text("cancel_reason"),

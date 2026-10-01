@@ -37,7 +37,7 @@ import {
 import type { WorkspacesService } from "../workspaces/index.js";
 import type { BillingRepository } from "./billing.repository.js";
 import type { PlanSync } from "./plan-sync.js";
-import type { SubscriptionRow } from "./schema/billing.js";
+import type { SubscriptionItem, SubscriptionRow } from "./schema/billing.js";
 
 export type IngestOutcome =
   "accepted" | "duplicate" | "bad_signature" | "invalid" | "not_configured";
@@ -90,6 +90,9 @@ const STALE_EVENT_MS = 60_000;
 const RECOVERY_BATCH = 200;
 /* An event that failed this often needs a person; the sweep stops re-queueing it. */
 const MAX_EVENT_ATTEMPTS = 50;
+const RETRY_BUCKET_MS = 10 * 60_000;
+/* Who may attach a purchase to a workspace (the same roles the billing routes accept). */
+const BILLING_MANAGER_ROLES: readonly string[] = ["owner", "admin", "billing"];
 
 const checkoutData = z.object({
   workspaceId: z.uuid(),
@@ -104,7 +107,10 @@ export function createPaddleSync(deps: {
   db: Db;
   repository: BillingRepository;
   planSync: PlanSync;
-  workspaces: Pick<WorkspacesService, "exists" | "billingContacts" | "workspaceName">;
+  workspaces: Pick<
+    WorkspacesService,
+    "exists" | "billingContacts" | "workspaceName" | "resolveRole"
+  >;
   outbox: Outbox;
   clock: Clock;
   logger: Logger;
@@ -122,14 +128,23 @@ export function createPaddleSync(deps: {
       .update(`paddle-checkout:${workspaceId.toLowerCase()}:${userId}`)
       .digest("base64url");
 
-  /* The workspace a checkout was opened for, only if the custom data carries our signature. */
-  function verifiedWorkspace(customData: Record<string, unknown> | null): string | undefined {
+  /*
+   * The workspace a checkout was opened for. The custom data must carry our signature, the workspace
+   * must exist, and the person who opened the checkout must still be allowed to manage its billing:
+   * the signature doesn't expire, so someone removed from the workspace can't attach a purchase later.
+   */
+  async function linkedWorkspace(
+    customData: Record<string, unknown> | null,
+  ): Promise<string | undefined> {
     const parsed = checkoutData.safeParse(customData);
     if (!parsed.success) return undefined;
     const expected = Buffer.from(signCheckout(parsed.data.workspaceId, parsed.data.userId));
     const given = Buffer.from(parsed.data.sig);
     if (given.length !== expected.length || !timingSafeEqual(given, expected)) return undefined;
-    return parsed.data.workspaceId.toLowerCase();
+    const workspaceId = parsed.data.workspaceId.toLowerCase();
+    if (!(await deps.workspaces.exists(workspaceId))) return undefined;
+    const role = await deps.workspaces.resolveRole(parsed.data.userId, workspaceId);
+    return role !== undefined && BILLING_MANAGER_ROLES.includes(role) ? workspaceId : undefined;
   }
 
   const billingUrl = (workspaceId: string) => `${deps.webOrigin}/w/${workspaceId}/billing`;
@@ -229,16 +244,17 @@ export function createPaddleSync(deps: {
     const now = clock.now();
     let workspaceId = existing?.workspaceId;
     if (workspaceId === undefined) {
-      workspaceId = verifiedWorkspace(data.customData);
-      if (workspaceId === undefined || !(await deps.workspaces.exists(workspaceId))) {
+      workspaceId = await linkedWorkspace(data.customData);
+      if (workspaceId === undefined) {
         logger.error(
           { paddleSubscriptionId: data.id },
-          "Paddle subscription can't be tied to a workspace (custom data missing or not signed by us)",
+          "Paddle subscription can't be tied to a workspace (custom data missing, not signed by us, or opened by someone who no longer manages billing there)",
         );
         return "unlinked";
       }
+      /* Whatever its status: a second subscription never touches the workspace's billing record. */
       const live = await repo.liveSubscription(tx, createWorkspaceScope({ workspaceId }));
-      if (live !== undefined && data.status !== "canceled") {
+      if (live !== undefined) {
         logger.error(
           {
             workspaceId,
@@ -254,10 +270,12 @@ export function createPaddleSync(deps: {
     /* A lower plan keeps the previous one until the period the customer paid for ends (§11). */
     let heldPlanKey: PlanKey | null = existing?.heldPlanKey ?? null;
     let heldUntil: Date | null = existing?.heldUntil ?? null;
+    let heldItems: SubscriptionItem[] | null = existing?.heldItems ?? null;
     const before = existing === undefined ? null : planSync.subscriptionPlan(existing, now);
     if (data.status === "canceled") {
       heldPlanKey = null;
       heldUntil = null;
+      heldItems = null;
     } else if (
       existing !== undefined &&
       before !== null &&
@@ -265,11 +283,14 @@ export function createPaddleSync(deps: {
       existing.periodEnd !== null &&
       existing.periodEnd.getTime() > now.getTime()
     ) {
+      /* Read before the plan key changes: these are the items the paid period was bought with. */
+      heldItems = planSync.effectiveItems(existing, now);
       heldPlanKey = before;
       heldUntil = existing.periodEnd;
     } else if (heldPlanKey !== null && planRank(sold.plan) >= planRank(heldPlanKey)) {
       heldPlanKey = null;
       heldUntil = null;
+      heldItems = null;
     }
 
     const items = data.items.map((i) => ({ priceId: i.priceId, quantity: i.quantity }));
@@ -292,6 +313,7 @@ export function createPaddleSync(deps: {
       pastDueSince: data.status === "past_due" ? (existing?.pastDueSince ?? eventAt) : null,
       heldPlanKey,
       heldUntil,
+      heldItems,
       discountId: data.discountId,
       canceledAt: data.status === "canceled" ? (data.canceledAt ?? eventAt) : null,
       lastEventAt: eventAt,
@@ -307,10 +329,9 @@ export function createPaddleSync(deps: {
         : await repo.updateSubscription(tx, existing.id, values);
     const row = data.status === "active" ? await announcePaidPeriod(tx, saved) : saved;
 
-    const addonsChanged =
-      existing !== undefined &&
-      JSON.stringify(planSync.addonsOf(existing.items)) !==
-        JSON.stringify(planSync.addonsOf(items));
+    const addonsNow = (r: SubscriptionRow) =>
+      JSON.stringify(planSync.addonsOf(planSync.effectiveItems(r, now)));
+    const addonsChanged = existing !== undefined && addonsNow(existing) !== addonsNow(saved);
     await planSync.syncTx(tx, workspaceId, { force: addonsChanged });
     await repo.updateAccount(tx, workspaceId, { paddleCustomerId: data.customerId });
     if (
@@ -399,8 +420,8 @@ export function createPaddleSync(deps: {
       if (ref?.kind === "credits") credits += ref.credits * Math.max(0, item.quantity);
     }
     if (credits > 0) {
-      const workspaceId = row?.workspaceId ?? verifiedWorkspace(t.customData);
-      if (workspaceId === undefined || !(await deps.workspaces.exists(workspaceId))) {
+      const workspaceId = row?.workspaceId ?? (await linkedWorkspace(t.customData));
+      if (workspaceId === undefined) {
         logger.error(
           { transactionId: t.id, credits },
           "paid credit pack can't be tied to a workspace; refund it in Paddle or grant it by hand",
@@ -420,7 +441,11 @@ export function createPaddleSync(deps: {
 
   async function apply(tx: Tx, event: PaddleWebhookEvent): Promise<EventOutcome> {
     if (event.kind === "subscription") {
-      return applySubscription(tx, event.subscription, event.occurredAt, event.eventId);
+      /*
+       * Ordered by the subscription's own `updated_at`, the same clock API answers carry, so a webhook
+       * and an API result for nearby changes can't be misjudged against each other.
+       */
+      return applySubscription(tx, event.subscription, event.subscription.updatedAt, event.eventId);
     }
     if (event.kind === "transaction") return applyTransaction(tx, event);
     return "ignored";
@@ -488,8 +513,14 @@ export function createPaddleSync(deps: {
         MAX_EVENT_ATTEMPTS,
         RECOVERY_BATCH,
       );
-      /* A fresh job ID per failed attempt count: a queued job isn't duplicated, a failed one retries. */
-      for (const event of stale) await deps.enqueue(event.eventId, `r${event.attempts}`);
+      /*
+       * A fresh job ID per failed attempt and per time bucket: a queued job isn't duplicated, a failed
+       * one retries, and a failure that was never recorded (Postgres down) can't pin the same ID forever.
+       */
+      const bucket = Math.floor(clock.now().getTime() / RETRY_BUCKET_MS);
+      for (const event of stale) {
+        await deps.enqueue(event.eventId, `r${event.attempts}t${bucket}`);
+      }
       return stale.length;
     },
 

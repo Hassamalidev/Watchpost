@@ -29,6 +29,8 @@ export interface PlanChange {
 
 export interface PlanSync {
   addonsOf(items: SubscriptionItem[]): AddonQuantities;
+  /* The items that count now: the ones from before a downgrade while its hold lasts. */
+  effectiveItems(row: SubscriptionRow, now: Date): SubscriptionItem[];
   /* The plan the subscription itself grants right now (downgrade hold included); null if not live. */
   subscriptionPlan(row: SubscriptionRow, now: Date): PlanKey | null;
   resolve(
@@ -57,7 +59,16 @@ export function createPlanSync(deps: {
     return addons;
   }
 
-  function snapshotOf(row: SubscriptionRow | undefined): SubscriptionSnapshot | null {
+  const holdActive = (row: SubscriptionRow, now: Date) =>
+    row.heldPlanKey !== null &&
+    row.heldUntil !== null &&
+    now.getTime() < row.heldUntil.getTime() &&
+    planRank(row.heldPlanKey) > planRank(row.planKey);
+
+  const effectiveItems = (row: SubscriptionRow, now: Date) =>
+    holdActive(row, now) && row.heldItems !== null ? row.heldItems : row.items;
+
+  function snapshotOf(row: SubscriptionRow | undefined, now: Date): SubscriptionSnapshot | null {
     if (row === undefined) return null;
     return {
       status: row.status,
@@ -65,7 +76,7 @@ export function createPlanSync(deps: {
       heldPlanKey: row.heldPlanKey,
       heldUntil: row.heldUntil,
       pastDueSince: row.pastDueSince,
-      addons: addonsOf(row.items),
+      addons: addonsOf(effectiveItems(row, now)),
     };
   }
 
@@ -76,18 +87,11 @@ export function createPlanSync(deps: {
 
   return {
     addonsOf,
+    effectiveItems,
 
     subscriptionPlan(row, now) {
       if (row.status !== "active" && row.status !== "trialing") return null;
-      if (
-        row.heldPlanKey !== null &&
-        row.heldUntil !== null &&
-        now.getTime() < row.heldUntil.getTime() &&
-        planRank(row.heldPlanKey) > planRank(row.planKey)
-      ) {
-        return row.heldPlanKey;
-      }
-      return row.planKey;
+      return holdActive(row, now) && row.heldPlanKey !== null ? row.heldPlanKey : row.planKey;
     },
 
     async resolve(db, scope) {
@@ -95,11 +99,12 @@ export function createPlanSync(deps: {
         trialEnd(scope),
         repo.liveSubscription(db, scope),
       ]);
+      const now = clock.now();
       return {
         resolution: resolvePlan({
-          now: clock.now(),
+          now,
           trialEndsAt,
-          subscription: snapshotOf(subscription),
+          subscription: snapshotOf(subscription, now),
         }),
         subscription,
       };
@@ -118,10 +123,11 @@ export function createPlanSync(deps: {
       });
       const account = await repo.account(tx, workspaceId, true);
       if (account === undefined) throw new Error("billing account vanished inside a transaction");
+      const now = clock.now();
       const resolution = resolvePlan({
-        now: clock.now(),
+        now,
         trialEndsAt,
-        subscription: snapshotOf(await repo.liveSubscription(tx, scope)),
+        subscription: snapshotOf(await repo.liveSubscription(tx, scope), now),
       });
       await repo.updateAccount(tx, workspaceId, {
         effectivePlan: resolution.plan,

@@ -374,6 +374,72 @@ describe("plan changes and months", () => {
   });
 });
 
+describe("review regressions", () => {
+  it("refunds a charge once even when the month turned between two false-alarm marks", async () => {
+    const o = await signUpWithWorkspace(ctx, "cr-refund-twice");
+    const scope = scopeOf(o);
+    await subscribeWorkspace(ctx, paddle, clock, o, {
+      priceId: PRICES.proYear,
+      plan: "pro",
+      interval: "year",
+      days: 365,
+    });
+    await credits.grantDue(o.workspaceId);
+    const incidentId = newId();
+    await credits.charge(scope, { credits: 5, refId: "sms-jan", incidentId });
+    /* Marked a false alarm: the credits go back to the month they came from. */
+    expect(await credits.refundIncident(scope, incidentId)).toBe(5);
+
+    /* The flag is cleared, a new month is granted, and the incident is marked again. */
+    clock.advance(32 * DAY);
+    await credits.grantSweep();
+    expect(await credits.refundIncident(scope, incidentId)).toBe(0);
+    expect(await credits.state(scope)).toMatchObject({ included: 150, purchased: 0 });
+    await expectReconciled(o);
+  });
+
+  it("gives the charge back as lasting credits when its month is over at the first refund", async () => {
+    const o = await signUpWithWorkspace(ctx, "cr-refund-late");
+    const scope = scopeOf(o);
+    await subscribeWorkspace(ctx, paddle, clock, o, {
+      priceId: PRICES.proYear,
+      plan: "pro",
+      interval: "year",
+      days: 365,
+    });
+    await credits.grantDue(o.workspaceId);
+    const incidentId = newId();
+    await credits.charge(scope, { credits: 5, refId: "sms-late", incidentId });
+    clock.advance(32 * DAY);
+    await credits.grantSweep();
+    expect(await credits.refundIncident(scope, incidentId)).toBe(5);
+    expect(await credits.refundIncident(scope, incidentId)).toBe(0);
+    expect(await credits.state(scope)).toMatchObject({ included: 150, purchased: 5 });
+    await expectReconciled(o);
+  });
+
+  it("tops up only for the part of the month that is left after a late upgrade", async () => {
+    const o = await signUpWithWorkspace(ctx, "cr-late-upgrade");
+    const scope = scopeOf(o);
+    await subscribeWorkspace(ctx, paddle, clock, o, {
+      priceId: PRICES.starterMonth,
+      plan: "starter",
+    });
+    expect(await credits.grantDue(o.workspaceId)).toBe(25);
+
+    /* One day of thirty is left: Starter (25) to Business (500) adds a thirtieth of the difference. */
+    clock.advance(29 * DAY);
+    const upgraded = await post(o.agent, `/api/w/${o.workspaceId}/billing/plan`, {
+      plan: "business",
+    });
+    expect(upgraded.status, upgraded.text).toBe(200);
+    expect(await credits.grantDue(o.workspaceId)).toBe(16);
+    expect(await credits.grantDue(o.workspaceId)).toBe(0);
+    expect(await credits.state(scope)).toMatchObject({ included: 41, monthlyAllowance: 500 });
+    await expectReconciled(o);
+  });
+});
+
 describe("AI budget and usage metering", () => {
   it("caps an unpaid workspace at the Free allowance, even on the Pro trial", async () => {
     const o = await signUpWithWorkspace(ctx, "cr-ai-free");

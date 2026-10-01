@@ -84,6 +84,8 @@ export interface PaddleApi {
   ): Promise<PaddleSubscriptionData>;
   /* Cancels at the end of the period the customer already paid for. */
   cancelAtPeriodEnd(id: string): Promise<PaddleSubscriptionData>;
+  /* Cancels right away (a paused subscription has no paid period left to run out). */
+  cancelNow(id: string): Promise<PaddleSubscriptionData>;
   pauseAtPeriodEnd(id: string): Promise<PaddleSubscriptionData>;
   resumeNow(id: string): Promise<PaddleSubscriptionData>;
   /* Removes a scheduled cancel or pause. */
@@ -290,6 +292,10 @@ export function createPaddle(options: {
       cancelAtPeriodEnd: (id) =>
         call("cancel the subscription", async () =>
           fromSdkSubscription(await subs.cancel(id, { effectiveFrom: "next_billing_period" })),
+        ),
+      cancelNow: (id) =>
+        call("cancel the subscription", async () =>
+          fromSdkSubscription(await subs.cancel(id, { effectiveFrom: "immediately" })),
         ),
       pauseAtPeriodEnd: (id) =>
         call("pause the subscription", async () =>

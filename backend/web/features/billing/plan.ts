@@ -17,8 +17,14 @@ export type PlanAction =
   | "free"
   /* The price isn't configured on this server. */
   | "unavailable"
-  /* Not active, or a cancel/pause is scheduled. */
+  /* After a downgrade: back to a plan this period already paid for, at no charge. */
+  | "restore"
+  /* Paused, or a cancel/pause is scheduled. */
   | "blocked_status"
+  /* A payment is overdue: the payment method comes first. */
+  | "blocked_past_due"
+  /* A downgrade is waiting for the period to end: the interval can't change until then. */
+  | "blocked_pending"
   | "blocked_yearly"
   | "blocked_interval";
 
@@ -35,9 +41,18 @@ export function planAction(
   }
   if (sub === null) return plan.purchasable[interval] ? "subscribe" : "unavailable";
   if (sub.plan === plan.key && sub.interval === interval) return "current";
+  if (sub.status === "past_due") return "blocked_past_due";
   if (sub.status !== "active" || sub.scheduledChange !== null) return "blocked_status";
+  if (sub.downgrade !== null && interval !== sub.interval) return "blocked_pending";
   if (sub.interval === "year" && interval === "month") return "blocked_yearly";
   if (!plan.purchasable[interval]) return "unavailable";
+  if (
+    sub.downgrade !== null &&
+    rank(plan.key) > rank(sub.plan) &&
+    rank(plan.key) <= rank(sub.downgrade.from)
+  ) {
+    return "restore";
+  }
   if (plan.key === sub.plan) return "switch_yearly";
   if (rank(plan.key) > rank(sub.plan)) return "upgrade";
   return interval === sub.interval ? "downgrade" : "blocked_interval";
@@ -61,6 +76,14 @@ export function formatUsd(amount: number): string {
 /* "3 min", "30 s". */
 export function formatCheckInterval(seconds: number): string {
   return seconds % 60 === 0 ? `${seconds / 60} min` : `${seconds} s`;
+}
+
+/*
+ * How often the billing page refetches. Right after a checkout it polls quickly for the webhook; if
+ * the plan hasn't appeared after a minute it goes back to the normal pace instead of polling forever.
+ */
+export function billingPollMs(activating: "no" | "yes" | "slow"): number {
+  return activating === "yes" ? 2_000 : 60_000;
 }
 
 /* Whole days until `iso`, never negative. */

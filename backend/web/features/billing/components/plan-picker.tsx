@@ -21,12 +21,18 @@ import { billingApi, billingKeys, type BillingState } from "../api";
 import { openCheckout } from "../paddle";
 import { formatCheckInterval, formatUsd, planAction, type PlanAction } from "../plan";
 
-const BLOCKED: Partial<Record<PlanAction, "blockedStatus" | "blockedYearly" | "blockedInterval">> =
-  {
-    blocked_status: "blockedStatus",
-    blocked_yearly: "blockedYearly",
-    blocked_interval: "blockedInterval",
-  };
+const BLOCKED: Partial<
+  Record<
+    PlanAction,
+    "blockedStatus" | "blockedPastDue" | "blockedPending" | "blockedYearly" | "blockedInterval"
+  >
+> = {
+  blocked_status: "blockedStatus",
+  blocked_past_due: "blockedPastDue",
+  blocked_pending: "blockedPending",
+  blocked_yearly: "blockedYearly",
+  blocked_interval: "blockedInterval",
+};
 
 function PlanLimits({ plan }: { plan: CatalogPlan }) {
   const t = useTranslations("billing");
@@ -137,6 +143,7 @@ export function PlanPicker({
       );
     }
     const downgrade = kind === "downgrade";
+    const restore = kind === "restore";
     return (
       <Button
         variant={downgrade ? "outline" : "default"}
@@ -144,7 +151,9 @@ export function PlanPicker({
         onClick={() => {
           const question = downgrade
             ? t("confirmDowngrade", { plan: plan.name })
-            : t("confirmUpgrade", { plan: plan.name });
+            : restore
+              ? t("confirmRestore", { plan: plan.name })
+              : t("confirmUpgrade", { plan: plan.name });
           if (window.confirm(question)) change.mutate(key);
         }}
       >
@@ -152,7 +161,9 @@ export function PlanPicker({
           ? t("switchYearly")
           : downgrade
             ? t("downgrade", { plan: plan.name })
-            : t("upgrade", { plan: plan.name })}
+            : restore
+              ? t("restore", { plan: plan.name })
+              : t("upgrade", { plan: plan.name })}
       </Button>
     );
   }

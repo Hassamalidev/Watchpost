@@ -80,8 +80,10 @@ export function CancelCard({ ws, state }: { ws: string; state: BillingState }) {
 
   const sub = state.subscription;
   /* Nothing to cancel, or a cancel or pause is already scheduled (the summary offers to undo it). */
-  if (sub === null || sub.scheduledChange !== null || sub.status === "paused") return null;
+  if (sub === null || sub.scheduledChange !== null) return null;
   const busy = cancel.isPending || pause.isPending;
+  /* A paused subscription isn't being billed, so canceling it takes effect at once. */
+  const paused = sub.status === "paused";
 
   return (
     <Card aria-labelledby="billing-manage-heading">
@@ -89,7 +91,9 @@ export function CancelCard({ ws, state }: { ws: string; state: BillingState }) {
         <CardTitle id="billing-manage-heading">
           {open ? t("cancelHeading") : t("manageTitle")}
         </CardTitle>
-        {open && <CardDescription>{t("cancelIntro")}</CardDescription>}
+        {open && (
+          <CardDescription>{paused ? t("cancelIntroPaused") : t("cancelIntro")}</CardDescription>
+        )}
       </CardHeader>
       <CardContent className="grid gap-3 text-sm">
         {cancel.isError && <Alert tone="error">{errorMessage(cancel.error)}</Alert>}
@@ -133,22 +137,24 @@ export function CancelCard({ ws, state }: { ws: string; state: BillingState }) {
                 onChange={(event) => setComment(event.target.value)}
               />
             </Field>
-            <div className="grid gap-2 rounded-md border p-3">
-              <p className="text-muted-foreground">{t("pauseHint")}</p>
-              <div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={busy || sub.status !== "active"}
-                  onClick={() => pause.mutate()}
-                >
-                  {t("pauseStart")}
-                </Button>
+            {sub.status === "active" && (
+              <div className="grid gap-2 rounded-md border p-3">
+                <p className="text-muted-foreground">{t("pauseHint")}</p>
+                <div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => pause.mutate()}
+                  >
+                    {t("pauseStart")}
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
             <div className="flex flex-wrap gap-2">
               <Button type="submit" variant="outline" disabled={busy || reason === ""}>
-                {t("cancelConfirm")}
+                {paused ? t("cancelConfirmNow") : t("cancelConfirm")}
               </Button>
               <Button type="button" disabled={busy} onClick={() => setOpen(false)}>
                 {t("cancelBack")}

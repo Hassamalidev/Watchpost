@@ -260,6 +260,11 @@ export function createCreditsService(deps: {
         let row = await settle(tx, scope, await repo.lockBalance(tx, scope), now);
         let refunded = 0;
         for (const charge of await repo.chargesForIncident(tx, scope, incidentId)) {
+          /*
+           * One refund per charge, whichever bucket it went back to: an incident can be marked,
+           * cleared and marked again after the month has turned.
+           */
+          if ((await repo.ledgerByRef(tx, scope, "refund", charge.id)).length > 0) continue;
           const amount = -charge.delta;
           /*
            * Included credits go back to the month they came from. If that month is over, the customer
@@ -383,15 +388,22 @@ export function createCreditsService(deps: {
             lowNotifiedAt: null,
           });
         } else if (allowance > row.granted) {
-          /* An upgrade inside the month tops the allowance up to the new plan's. */
-          const difference = allowance - row.granted;
-          const granted = await append(tx, scope, {
-            bucket: "included",
-            delta: difference,
-            reason: "grant_upgrade",
-            refId: `${ref}:${allowance}`,
-            balanceAfter: row.included + difference,
-          });
+          /*
+           * An upgrade inside the month tops the allowance up for the part of the month that is
+           * left, like the prorated price the customer paid for it.
+           */
+          const length = window.end.getTime() - window.start.getTime();
+          const left = Math.max(0, window.end.getTime() - now.getTime());
+          const difference = Math.round(((allowance - row.granted) * left) / length);
+          const granted =
+            difference > 0 &&
+            (await append(tx, scope, {
+              bucket: "included",
+              delta: difference,
+              reason: "grant_upgrade",
+              refId: `${ref}:${allowance}`,
+              balanceAfter: row.included + difference,
+            }));
           added = granted ? difference : 0;
           await repo.updateBalance(tx, scope, {
             included: row.included + added,

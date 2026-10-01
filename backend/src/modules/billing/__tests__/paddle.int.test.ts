@@ -209,6 +209,54 @@ describe("linking a subscription to a workspace", () => {
       ),
     ).toBe("conflict");
     expect((await state(o)).subscription).toMatchObject({ plan: "pro" });
+
+    /* When the duplicate is later canceled or refunded, it still must not touch the workspace. */
+    const canceled = { ...second, status: "canceled" as const, updatedAt: later(60_000) };
+    expect(
+      await deliverAndProcess(
+        ctx,
+        paddleEvent("subscription.canceled", subscriptionPayload(canceled), later(60_000)),
+      ),
+    ).toBe("conflict");
+    expect((await state(o)).subscription).toMatchObject({ plan: "pro", status: "active" });
+    const portal = await post(o.agent, `/api/w/${o.workspaceId}/billing/portal`);
+    expect(portal.status, portal.text).toBe(200);
+    expect(paddle.calls.at(-1)).toMatchObject({ method: "portalUrl", id: first.customerId });
+  });
+
+  it("refuses a purchase opened by someone who no longer manages the workspace's billing", async () => {
+    const o = await signUpWithWorkspace(ctx, "pdl-removed");
+    const admin = await signUpWithWorkspace(ctx, "pdl-removed-admin");
+    const invite = await post(o.agent, "/api/auth/organization/invite-member", {
+      email: admin.email,
+      role: "admin",
+      organizationId: o.workspaceId,
+    });
+    expect(invite.status, invite.text).toBe(200);
+    const { url } = await emailFromOutbox(ctx.container, admin.email, "invite");
+    await post(admin.agent, "/api/auth/organization/accept-invitation", {
+      invitationId: String(url).split("/").at(-1),
+    });
+    /* The admin opens a checkout while still a member; the signature never expires. */
+    const customData = await checkoutData({ agent: admin.agent, workspaceId: o.workspaceId });
+    const removed = await post(o.agent, "/api/auth/organization/remove-member", {
+      memberIdOrEmail: admin.email,
+      organizationId: o.workspaceId,
+    });
+    expect(removed.status, removed.text).toBe(200);
+
+    const now = clock.now();
+    const data = subscriptionFixture(
+      { priceId: PRICES.proMonth, periodStart: now, periodEnd: later(30 * DAY), customData },
+      now,
+    );
+    expect(
+      await deliverAndProcess(
+        ctx,
+        paddleEvent("subscription.created", subscriptionPayload(data), now),
+      ),
+    ).toBe("unlinked");
+    expect((await state(o)).subscription).toBeNull();
   });
 
   it("flags a subscription whose prices this server doesn't know", async () => {
@@ -596,11 +644,29 @@ describe("billing actions", () => {
       paddleEvent("subscription.updated", subscriptionPayload(echoed), later(1_000)),
     );
     expect((await state(o)).entitlements.plan).toBe("pro");
-    /* Later (a webhook is never from the future), the customer switches to annual billing. */
+    /* The billing interval can't change while the downgrade waits for the period to end. */
+    const blocked = await post(o.agent, path("/plan"), { plan: "starter", interval: "year" });
+    expect(blocked.status).toBe(409);
+    expect(blocked.body.detail).toContain("waiting for the end of this period");
+  });
+
+  it("moves back to the plan already paid for without charging again", async () => {
     clock.advance(60_000);
-    const annual = await post(o.agent, path("/plan"), { plan: "starter", interval: "year" });
+    const res = await post(o.agent, path("/plan"), { plan: "pro", interval: "month" });
+    expect(res.status, res.text).toBe(200);
+    expect(paddle.calls.at(-1)).toEqual({
+      method: "updateItems",
+      id: sub.id,
+      items: [{ priceId: PRICES.proMonth, quantity: 1 }],
+      mode: "do_not_bill",
+    });
+    expect(res.body.subscription).toMatchObject({ plan: "pro", downgrade: null });
+
+    /* With no change pending, the switch to yearly billing goes through. */
+    const annual = await post(o.agent, path("/plan"), { plan: "pro", interval: "year" });
     expect(annual.status, annual.text).toBe(200);
-    expect(annual.body.subscription).toMatchObject({ plan: "starter", interval: "year" });
+    expect(paddle.calls.at(-1)).toMatchObject({ mode: "prorated_immediately" });
+    expect(annual.body.subscription).toMatchObject({ plan: "pro", interval: "year" });
   });
 
   it("refuses annual to monthly and mixed downgrades with a clear message", async () => {
@@ -620,14 +686,30 @@ describe("billing actions", () => {
     });
     expect(paddle.calls.length).toBe(before + 1);
     expect((await post(o.agent, path("/credits"), { credits: 250 })).status).toBe(400);
+
+    /* A second request right after the first (double click, client retry) charges nothing. */
+    const again = await post(o.agent, path("/credits"), { credits: 100 });
+    expect(again.status).toBe(409);
+    expect(again.body.detail).toContain("just bought");
+    expect(paddle.calls.length).toBe(before + 1);
+  });
+
+  it("frees the purchase lock when Paddle refuses the charge", async () => {
+    const other = await signUpWithWorkspace(ctx, "pdl-pack-fail");
+    clock.advance(15 * DAY);
+    await subscribe(other, PRICES.starterMonth);
+    const credits = `/api/w/${other.workspaceId}/billing/credits`;
+    paddle.failNextCall(new ProviderError("paddle", "Paddle could not charge the payment method."));
+    expect((await post(other.agent, credits, { credits: 500 })).status).toBe(502);
+    expect((await post(other.agent, credits, { credits: 500 })).status).toBe(202);
   });
 
   it("reports Paddle's refusal instead of pretending the change happened", async () => {
     paddle.failNextCall(new ProviderError("paddle", "Paddle could not change the plan."));
-    const res = await post(o.agent, path("/plan"), { plan: "pro", interval: "year" });
+    const res = await post(o.agent, path("/plan"), { plan: "starter", interval: "year" });
     expect(res.status).toBe(502);
     expect(res.body.code).toBe("provider_error");
-    expect((await state(o)).subscription.plan).toBe("starter");
+    expect((await state(o)).subscription.plan).toBe("pro");
   });
 
   it("cancels at the period end with a reason, and can be kept", async () => {
@@ -709,6 +791,99 @@ describe("billing actions", () => {
     expect(result.checked).toBeGreaterThanOrEqual(1);
     expect((await state(o)).subscription).toBeNull();
     expect((await state(o)).entitlements.plan).toBe("free");
+  });
+});
+
+describe("plan changes while a downgrade is pending", () => {
+  it("prorates from the plan that was paid for when going above it", async () => {
+    const o = await signUpWithWorkspace(ctx, "pdl-hold-up");
+    clock.advance(15 * DAY);
+    const sub = await subscribe(o, PRICES.proMonth);
+    const plan = `/api/w/${o.workspaceId}/billing/plan`;
+    expect((await post(o.agent, plan, { plan: "starter" })).status).toBe(200);
+    const before = paddle.calls.length;
+
+    const res = await post(o.agent, plan, { plan: "business" });
+    expect(res.status, res.text).toBe(200);
+    /* First back to Pro without billing, then Pro to Business with proration. */
+    expect(paddle.calls.slice(before)).toEqual([
+      {
+        method: "updateItems",
+        id: sub.id,
+        items: [{ priceId: PRICES.proMonth, quantity: 1 }],
+        mode: "do_not_bill",
+      },
+      {
+        method: "updateItems",
+        id: sub.id,
+        items: [{ priceId: PRICES.businessMonth, quantity: 1 }],
+        mode: "prorated_immediately",
+      },
+    ]);
+    expect(res.body.subscription).toMatchObject({ plan: "business", downgrade: null });
+    expect(res.body.entitlements.plan).toBe("business");
+  });
+
+  it("keeps paid add-ons until the paid period ends", async () => {
+    const o = await signUpWithWorkspace(ctx, "pdl-hold-addon");
+    clock.advance(15 * DAY);
+    const now = clock.now();
+    const data = subscriptionFixture(
+      {
+        priceId: PRICES.proMonth,
+        extraItems: [{ priceId: PRICES.extraMonitors, quantity: 1 }],
+        periodStart: now,
+        periodEnd: later(30 * DAY),
+        customData: await checkoutData(o, "pro"),
+      },
+      now,
+    );
+    paddle.put(data);
+    await deliverAndProcess(
+      ctx,
+      paddleEvent("subscription.created", subscriptionPayload(data), now),
+    );
+    expect((await state(o)).entitlements.limits.monitors).toBe(250);
+
+    const res = await post(o.agent, `/api/w/${o.workspaceId}/billing/plan`, { plan: "starter" });
+    expect(res.status, res.text).toBe(200);
+    /* Starter can't carry the add-on, so the new items drop it; the paid period still has it. */
+    expect(paddle.calls.at(-1)).toMatchObject({
+      items: [{ priceId: PRICES.starterMonth, quantity: 1 }],
+      mode: "do_not_bill",
+    });
+    expect(res.body.entitlements).toMatchObject({ plan: "pro", limits: { monitors: 250 } });
+    const changes = await eventsOf(ctx, o.workspaceId, "billing.plan_changed");
+
+    clock.advance(31 * DAY);
+    expect((await state(o)).entitlements).toMatchObject({
+      plan: "starter",
+      limits: { monitors: 50 },
+    });
+    /* The downgrade itself announced nothing: limits changed only when the period ended. */
+    expect(await eventsOf(ctx, o.workspaceId, "billing.plan_changed")).toEqual(changes);
+  });
+
+  it("cancels a paused subscription right away", async () => {
+    const o = await signUpWithWorkspace(ctx, "pdl-paused-cancel");
+    clock.advance(15 * DAY);
+    const sub = await subscribe(o, PRICES.starterMonth);
+    const paused = { ...sub, status: "paused" as const, updatedAt: later(5_000) };
+    paddle.put(paused);
+    await deliverAndProcess(
+      ctx,
+      paddleEvent("subscription.paused", subscriptionPayload(paused), later(5_000)),
+    );
+    expect((await state(o)).subscription.status).toBe("paused");
+
+    clock.advance(60_000);
+    const res = await post(o.agent, `/api/w/${o.workspaceId}/billing/cancel`, {
+      reason: "not_needed",
+    });
+    expect(res.status, res.text).toBe(200);
+    expect(paddle.calls.at(-1)).toEqual({ method: "cancelNow", id: sub.id });
+    expect(res.body.subscription).toBeNull();
+    expect(res.body.entitlements.plan).toBe("free");
   });
 });
 

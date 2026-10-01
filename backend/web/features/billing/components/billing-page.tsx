@@ -13,6 +13,7 @@ import { Alert } from "@/components/ui/alert";
 import { Loading } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/api";
 import { billingKeys, useBilling } from "../api";
+import { billingPollMs } from "../plan";
 import { CreditsCard } from "./credits-card";
 import { CancelCard, InvoicesCard } from "./manage-card";
 import { PlanPicker } from "./plan-picker";
@@ -30,7 +31,7 @@ export function BillingPage() {
   const client = useQueryClient();
   /* After checkout the plan changes when Paddle's webhook is processed; poll until it shows. */
   const [activating, setActivating] = React.useState<"no" | "yes" | "slow">("no");
-  const billing = useBilling(ws, activating !== "no");
+  const billing = useBilling(ws, billingPollMs(activating));
   const subscribed = billing.data !== undefined && billing.data.subscription !== null;
 
   React.useEffect(() => {

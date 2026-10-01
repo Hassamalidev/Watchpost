@@ -12,7 +12,7 @@ import { WorkspaceContext, type WorkspaceRole } from "@/components/app/workspace
 import { renderWithProviders } from "@/test/render";
 import { BillingPage } from "../components/billing-page";
 import { PADDLE_JS_URL, openCheckout } from "../paddle";
-import { daysUntil, formatCheckInterval, formatUsd, planAction } from "../plan";
+import { billingPollMs, daysUntil, formatCheckInterval, formatUsd, planAction } from "../plan";
 
 const WS = "0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b";
 
@@ -152,7 +152,7 @@ describe("planAction", () => {
   it("blocks changes while yearly, paused, overdue or set to cancel", () => {
     expect(of(subscribed({ interval: "year" }), "starter", "month")).toBe("blocked_yearly");
     expect(of(subscribed({ interval: "year" }), "business", "year")).toBe("upgrade");
-    expect(of(subscribed({ status: "past_due" }), "business", "month")).toBe("blocked_status");
+    expect(of(subscribed({ status: "past_due" }), "business", "month")).toBe("blocked_past_due");
     expect(of(subscribed({ status: "paused" }), "business", "month")).toBe("blocked_status");
     expect(
       of(
@@ -161,6 +161,44 @@ describe("planAction", () => {
         "month",
       ),
     ).toBe("blocked_status");
+  });
+});
+
+describe("planAction after a downgrade", () => {
+  const of = (state: BillingState, key: string, interval: "month" | "year") => {
+    const target = state.catalog.plans.find((p) => p.key === key);
+    if (target === undefined) throw new Error(`no plan ${key}`);
+    return planAction(state, target, interval);
+  };
+  /* Business was paid for; the subscription now says Starter until the period ends. */
+  const pending = subscribed({
+    plan: "starter",
+    downgrade: { from: "business", effectiveAt: "2026-11-12T12:00:00.000Z" },
+  });
+
+  it("offers the plans already paid for at no charge, and nothing above them for free", () => {
+    expect(of(pending, "starter", "month")).toBe("current");
+    expect(of(pending, "pro", "month")).toBe("restore");
+    expect(of(pending, "business", "month")).toBe("restore");
+    const fromPro = subscribed({
+      plan: "starter",
+      downgrade: { from: "pro", effectiveAt: "2026-11-12T12:00:00.000Z" },
+    });
+    expect(of(fromPro, "pro", "month")).toBe("restore");
+    expect(of(fromPro, "business", "month")).toBe("upgrade");
+  });
+
+  it("keeps the billing interval until the downgrade has taken effect", () => {
+    expect(of(pending, "starter", "year")).toBe("blocked_pending");
+    expect(of(pending, "business", "year")).toBe("blocked_pending");
+  });
+});
+
+describe("billingPollMs", () => {
+  it("polls fast only while a checkout is being activated, then returns to the normal pace", () => {
+    expect(billingPollMs("no")).toBe(60_000);
+    expect(billingPollMs("yes")).toBe(2_000);
+    expect(billingPollMs("slow")).toBe(60_000);
   });
 });
 
@@ -409,6 +447,60 @@ describe("BillingPage", { timeout: 30_000 }, () => {
       timeout: 5_000,
     });
     expect(screen.getByText("Credits added.")).toBeVisible();
+  });
+
+  it("tells an overdue workspace what to fix, during and after the grace period", async () => {
+    state = {
+      ...subscribed({ status: "past_due" }),
+      entitlements: {
+        ...subscribed().entitlements,
+        source: "grace",
+        graceEndsAt: "2026-10-19T12:00:00.000Z",
+      },
+    };
+    const first = renderPage();
+    expect(await screen.findByText(/A payment failed\. Pro features stay on until/)).toBeVisible();
+    expect(
+      screen.getAllByText(/A payment is overdue\. Update the payment method in the customer portal/)
+        .length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /Upgrade to/ })).not.toBeInTheDocument();
+    first.unmount();
+
+    state = {
+      ...subscribed({ status: "past_due" }),
+      entitlements: billingState().entitlements,
+    };
+    renderPage();
+    expect(
+      await screen.findByText(/A payment is overdue and the grace period has ended/),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("The Free plan is free forever, also for commercial use."),
+    ).toBeNull();
+  });
+
+  it("lets a paused subscription be canceled, effective at once, with no pause offer", async () => {
+    state = {
+      ...subscribed({ status: "paused" }),
+      entitlements: billingState().entitlements,
+    };
+    renderPage();
+    const user = userEvent.setup();
+    expect(
+      await screen.findByText(/The subscription is paused\. Nothing is charged/),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Resume subscription" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Cancel subscription" }));
+    expect(screen.getByText(/canceling takes effect right away/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Pause instead" })).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("Why are you canceling?"), "not_needed");
+    await user.click(screen.getByRole("button", { name: "Cancel the subscription now" }));
+    await waitFor(() =>
+      expect(calls.find((c) => c.path === "/billing/cancel")?.body).toEqual({
+        reason: "not_needed",
+      }),
+    );
   });
 
   it("is read-only for members", async () => {

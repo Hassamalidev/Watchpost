@@ -48,12 +48,11 @@ export const billingKeys = {
   usage: (ws: string) => ["monitor-usage", ws] as const,
 };
 
-/* `fast` polls every 2 s while a payment is being activated (the webhook arrives after checkout). */
-export function useBilling(ws: string, fast = false) {
+export function useBilling(ws: string, refetchMs = 60_000) {
   return useQuery({
     queryKey: billingKeys.state(ws),
     queryFn: () => billingApi.state(ws),
-    refetchInterval: fast ? 2_000 : 60_000,
+    refetchInterval: refetchMs,
   });
 }
 
