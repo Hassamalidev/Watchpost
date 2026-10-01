@@ -16,8 +16,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Input, Select } from "@/components/ui/input";
+import { Loading } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/api";
 import { relativeTime } from "@/lib/format";
+import { DrillCard } from "@/features/insights/components/drill";
 import { addToDefaultPolicy, integrationsApi, type Channel } from "../api";
 
 const FORM_TYPES: ChannelType[] = ["email", "webhook", "discord", "teams", "slack", "telegram"];
@@ -175,7 +177,6 @@ function AddChannelForm({ ws, email }: { ws: string; email: string }) {
 
 export function IntegrationsPage() {
   const t = useTranslations("integrations");
-  const tApp = useTranslations("app");
   const workspace = useWorkspace();
   const ws = workspace.id;
   const client = useQueryClient();
@@ -196,7 +197,7 @@ export function IntegrationsPage() {
           {t("channels")}
         </h2>
         {channels.isPending ? (
-          <p className="text-muted-foreground">{tApp("loading")}</p>
+          <Loading rows={2} />
         ) : (channels.data ?? []).length === 0 ? (
           <EmptyState title={t("empty")} />
         ) : (
@@ -206,9 +207,14 @@ export function IntegrationsPage() {
                 <div className="min-w-0 flex-1">
                   <p className="font-medium">{channel.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {t(`types.${channel.type}`)} · {t("lastSuccess")}:{" "}
-                    {relativeTime(channel.lastSuccessAt)}
+                    {t(`types.${channel.type}`)} ·{" "}
+                    {channel.lastSuccessAt
+                      ? `${t("lastSuccess")}: ${relativeTime(channel.lastSuccessAt)}`
+                      : t("noDeliveriesYet")}
                   </p>
+                  {channel.status !== "healthy" && channel.lastError && (
+                    <p className="mt-1 break-words text-xs text-status-down">{channel.lastError}</p>
+                  )}
                 </div>
                 {channel.status === "healthy" ? (
                   <span className="inline-flex items-center gap-1 text-xs text-status-up">
@@ -231,6 +237,7 @@ export function IntegrationsPage() {
                     variant="ghost"
                     aria-label={`${t("remove")} ${channel.name}`}
                     onClick={async () => {
+                      if (!window.confirm(t("confirmRemove", { name: channel.name }))) return;
                       await integrationsApi.removeChannel(ws, channel.id);
                       await client.invalidateQueries({ queryKey: ["channels", ws] });
                     }}
@@ -254,6 +261,7 @@ export function IntegrationsPage() {
           </CardContent>
         </Card>
       )}
+      {isAdmin && (channels.data ?? []).length > 0 && <DrillCard ws={ws} />}
     </div>
   );
 }

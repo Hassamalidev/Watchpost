@@ -34,7 +34,15 @@ interface Values {
   intervalSeconds: string;
   regions: string[];
   severity: (typeof SEVERITIES)[number];
+  sloTarget: string;
 }
+
+/* Common availability targets and the downtime each allows in a 30-day month. */
+const SLO_TARGETS = ["99", "99.5", "99.9", "99.95", "99.99"] as const;
+const monthlyAllowance = (target: string) => {
+  const minutes = ((100 - Number(target)) / 100) * 30 * 24 * 60;
+  return minutes >= 60 ? `${(minutes / 60).toFixed(1)} h` : `${Math.round(minutes)} min`;
+};
 
 /* Form field for each API path, so schema and server errors show next to the right input. */
 const FIELD_OF: Record<string, keyof Values> = {
@@ -55,6 +63,7 @@ function toBody(v: Values): CreateMonitorBody {
     intervalSeconds: Number(v.intervalSeconds),
     regions: v.regions,
     severity: v.severity,
+    sloTarget: Number(v.sloTarget),
   };
   const url = v.url.trim();
   const host = v.host.trim();
@@ -98,6 +107,7 @@ export function MonitorForm({ ws }: { ws: string }) {
       intervalSeconds: "300",
       regions: ["eu-central", "us-east"],
       severity: "high",
+      sloTarget: "99.9",
     },
   });
   const type = form.watch("type");
@@ -223,6 +233,15 @@ export function MonitorForm({ ws }: { ws: string }) {
           {SEVERITIES.map((s) => (
             <option key={s} value={s}>
               {t(`severities.${s}`)}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <Field label={t("sloTarget")} htmlFor="monitor-slo" hint={t("sloHint")}>
+        <Select id="monitor-slo" {...form.register("sloTarget")}>
+          {SLO_TARGETS.map((target) => (
+            <option key={target} value={target}>
+              {t("sloOption", { target, allowance: monthlyAllowance(target) })}
             </option>
           ))}
         </Select>

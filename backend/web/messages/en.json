@@ -198,7 +198,13 @@
       "critical": "Critical",
       "high": "High",
       "low": "Low"
-    }
+    },
+    "pausedNotice": "Paused: no checks run and no alerts are sent. Resume to start checking again.",
+    "sloTarget": "Availability target",
+    "sloHint": "Sets this monitor's monthly error budget: the downtime you can afford before missing the target.",
+    "sloOption": "{target}% (about {allowance} down per month)",
+    "noChecksYet": "No checks yet. The first results arrive within one interval, or use Test now.",
+    "noChecksPaused": "No checks while paused."
   },
   "incidents": {
     "title": "Incidents",
@@ -237,7 +243,9 @@
       "acknowledged": "Acknowledged",
       "snoozed": "Snoozed",
       "resolved": "Resolved"
-    }
+    },
+    "severityLabel": "{severity} severity",
+    "regionsOf": "{count} of {total}"
   },
   "integrations": {
     "title": "Integrations",
@@ -272,7 +280,9 @@
       "discord": "Discord",
       "telegram": "Telegram",
       "webhook": "Webhook"
-    }
+    },
+    "confirmRemove": "Remove {name}? Alerts stop going to it right away.",
+    "noDeliveriesYet": "No deliveries yet"
   },
   "heartbeats": {
     "title": "Heartbeats",
@@ -350,5 +360,77 @@
     "decline": "Decline",
     "declined": "Invitation declined. You can close this page.",
     "notPending": "This invitation was already accepted, declined or withdrawn."
+  },
+  "insights": {
+    "loading": "Loading…",
+    "budgetTitle": "Error budget this month",
+    "budgetTarget": "Target: {target}% availability.",
+    "budgetOf": "Error budget of {name}",
+    "budgetUsedPercent": "{percent}% of the budget used",
+    "budgetLeft": "{left} of {total} downtime left",
+    "budgetOver": "Over budget by {over}",
+    "budgetPaceOk": "On pace to stay within the target this month.",
+    "budgetPaceRisk": "Downtime is using the budget {rate}× faster than the month passes; at this pace it runs out before the month ends.",
+    "budgetPaceGone": "The budget for this month is used up; the target is already missed.",
+    "budgetsEmpty": "Error budgets appear once you have monitors.",
+    "budgetStatus": {
+      "healthy": "Healthy",
+      "at_risk": "At risk",
+      "exhausted": "Used up"
+    },
+    "inRegions": "in {regions}",
+    "likelyCause": "Likely cause",
+    "checkFirst": "Check first",
+    "confirmedFrom": "Confirmed from {count} of {total} {total, plural, one {region} other {regions}} ({regions}).",
+    "scopeEverywhere": "Every region sees it, so it's most likely the service itself.",
+    "scopeSome": "Only some regions see it, so it may be a network path or a regional server.",
+    "noDeliveries": "No alerts were sent for this incident.",
+    "deletedChannel": "Deleted channel",
+    "attempts": "{count} attempts",
+    "deliveryKind": {
+      "triggered": "opened",
+      "acknowledged": "acknowledged",
+      "resolved": "resolved",
+      "reminder": "reminder",
+      "flapping": "flapping"
+    },
+    "deliveryStatus": {
+      "sent": "Delivered",
+      "failed": "Failed",
+      "skipped": "Skipped",
+      "pending": "Queued",
+      "sending": "Sending",
+      "retrying": "Retrying"
+    },
+    "tileMonitors": "Monitors up",
+    "tileMonitorsDown": "{count, plural, one {# monitor needs attention} other {# monitors need attention}}",
+    "tileMonitorsUp": "Everything is running.",
+    "tileMonitorsNone": "No monitors yet.",
+    "tileAccuracy": "Alert accuracy (30 days)",
+    "tileAccuracyNone": "No incidents in the last 30 days.",
+    "tileAccuracyNote": "{incidents, plural, one {# incident} other {# incidents}}, {falseAlarms, plural, =0 {no false alarms} one {# false alarm} other {# false alarms}}",
+    "tileResponse": "Acknowledge / resolve",
+    "tileResponseNote": "Average times over 30 days.",
+    "tileBudgets": "Error budgets",
+    "tileBudgetsOk": "Healthy",
+    "tileBudgetsOkNote": "Every monitor is within its monthly target.",
+    "tileBudgetsRisk": "{count, plural, one {# monitor is} other {# monitors are}} at risk of missing the target.",
+    "drillTitle": "Alert drill",
+    "drillIntro": "Opens a labelled test incident that goes through your real alert routes, so you know who gets paged before a real outage. Acknowledge it to finish.",
+    "drillConfirm": "Start an alert drill? Everyone in your alert routes will be notified.",
+    "drillStart": "Run alert drill",
+    "drillStarting": "Starting…",
+    "drillStarted": "Drill #{number} started.",
+    "drillOpen": "Open the incident",
+    "drillBanner": "This is an alert drill, not a real outage. Acknowledge it to see how fast the team responds, then resolve it.",
+    "whatChanged": "What changed before this",
+    "whatChangedEmpty": "No changes to the address, certificate, settings or response time in the 24 hours before.",
+    "recentChanges": "Recent changes",
+    "recentChangesEmpty": "No changes in the last 24 hours.",
+    "whoWasTold": "Who was notified",
+    "budgetsTitle": "Error budgets",
+    "monitorLink": "Monitor: {name}",
+    "tileBudgetsNone": "Budgets start with your first monitor.",
+    "tileMonitorsWaiting": "{count, plural, one {# monitor is} other {# monitors are}} waiting for the first check."
   }
 }

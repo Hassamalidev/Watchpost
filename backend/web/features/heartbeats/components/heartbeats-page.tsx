@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Input, Select } from "@/components/ui/input";
+import { Loading } from "@/components/ui/skeleton";
 import { api, errorMessage, wsPath } from "@/lib/api";
 import { relativeTime } from "@/lib/format";
 import { useCreateMonitor, useMonitors } from "@/features/monitors/hooks";
@@ -83,7 +84,6 @@ function PingUrl({ ws, monitorId }: { ws: string; monitorId: string }) {
 export function HeartbeatsPage() {
   const t = useTranslations("heartbeats");
   const tm = useTranslations("monitors");
-  const tApp = useTranslations("app");
   const workspace = useWorkspace();
   const ws = workspace.id;
   const monitors = useMonitors(ws);
@@ -113,7 +113,7 @@ export function HeartbeatsPage() {
         <p className="mt-1 text-muted-foreground">{t("intro")}</p>
       </div>
       {monitors.isPending ? (
-        <p className="text-muted-foreground">{tApp("loading")}</p>
+        <Loading />
       ) : heartbeats.length === 0 ? (
         <EmptyState title={t("empty")} />
       ) : (

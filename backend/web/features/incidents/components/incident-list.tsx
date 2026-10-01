@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { CircleAlert, CircleCheck, CircleDot } from "lucide-react";
 import { EmptyState } from "@/components/ui/alert";
+import { Loading } from "@/components/ui/skeleton";
 import { formatDuration, relativeTime } from "@/lib/format";
 import { workspaceHref } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
@@ -40,12 +41,11 @@ export function IncidentList({
   emptyTitle?: string;
 }) {
   const t = useTranslations("incidents");
-  const tApp = useTranslations("app");
   const incidents = useIncidents(ws, {
     ...(status ? { status } : {}),
     ...(monitorId ? { monitorId } : {}),
   });
-  if (incidents.isPending) return <p className="text-muted-foreground">{tApp("loading")}</p>;
+  if (incidents.isPending) return <Loading rows={2} />;
   const list = incidents.data ?? [];
   if (list.length === 0) return <EmptyState title={emptyTitle ?? t("empty")} />;
   return (

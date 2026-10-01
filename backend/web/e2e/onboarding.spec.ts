@@ -34,8 +34,12 @@ test("a new user gets a delivered test alert in under 3 minutes", async ({ page 
 
   await page.getByRole("button", { name: "Go to overview" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "example.com homepage" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "example.com certificate" })).toBeVisible();
+  await expect(
+    page.getByRole("table").getByRole("link", { name: "example.com homepage" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("table").getByRole("link", { name: "example.com certificate" }),
+  ).toBeVisible();
 });
 
 test("signed-out visitors are sent to sign in", async ({ page }) => {

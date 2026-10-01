@@ -1,4 +1,4 @@
-/* Overview: the status wall and open incidents (PRODUCT.md §14). */
+/* Overview: health tiles, open incidents, the status wall and error budgets (PRODUCT.md §14). */
 "use client";
 
 import Link from "next/link";
@@ -8,11 +8,14 @@ import { can, useWorkspace } from "@/components/app/workspace-context";
 import { buttonVariants } from "@/components/ui/button";
 import { workspaceHref } from "@/lib/navigation";
 import { IncidentList } from "@/features/incidents/components/incident-list";
+import { BudgetList } from "@/features/insights/components/budget";
+import { HealthSummary } from "@/features/insights/components/summary";
 import { MonitorForm } from "./monitor-form";
 import { MonitorList } from "./monitor-list";
 
 export function OverviewView() {
   const t = useTranslations("overview");
+  const tInsights = useTranslations("insights");
   const workspace = useWorkspace();
   const ws = workspace.id;
   const addFirst = can(workspace.role, "member") ? (
@@ -27,6 +30,7 @@ export function OverviewView() {
         <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
         <p className="mt-1 text-muted-foreground">{t("intro")}</p>
       </div>
+      <HealthSummary ws={ws} />
       <section className="grid gap-2" aria-labelledby="open-incidents">
         <h2 id="open-incidents" className="text-base font-semibold">
           {t("openIncidents")}
@@ -38,6 +42,12 @@ export function OverviewView() {
           {t("statusWall")}
         </h2>
         <MonitorList ws={ws} emptyAction={addFirst} />
+      </section>
+      <section className="grid gap-2" aria-labelledby="error-budgets">
+        <h2 id="error-budgets" className="text-base font-semibold">
+          {tInsights("budgetsTitle")}
+        </h2>
+        <BudgetList ws={ws} />
       </section>
     </div>
   );

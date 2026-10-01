@@ -1,32 +1,41 @@
 /*
- * Incident detail: state and large action buttons, facts, timeline and comments. Built for a phone
- * at 3 a.m. (PRODUCT.md §14): one column, big targets, polling while open.
+ * Incident detail: state and large action buttons, the likely cause and first checks, facts, what
+ * changed before it started, who was notified, timeline and comments. Built for a phone at 3 a.m.
+ * (PRODUCT.md §14): one column, big targets, polling while open.
  */
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { Siren } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/input";
 import { can, useWorkspace } from "@/components/app/workspace-context";
+import { Loading } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/api";
 import { formatDateTime, formatDuration } from "@/lib/format";
+import { workspaceHref } from "@/lib/navigation";
+import { ChangeTimeline } from "@/features/insights/components/changes";
+import { DeliveryLog } from "@/features/insights/components/deliveries";
+import { ExplanationCard } from "@/features/insights/components/explanation";
 import { incidentsApi, useIncident, useIncidentAction } from "../api";
 import { IncidentStatusLabel } from "./incident-list";
 
 export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
   const t = useTranslations("incidents");
-  const tApp = useTranslations("app");
+  const tInsights = useTranslations("insights");
+  const tMonitors = useTranslations("monitors");
   const workspace = useWorkspace();
   const ws = workspace.id;
   const incident = useIncident(ws, incidentRef);
   const action = useIncidentAction(ws, incidentRef);
   const [comment, setComment] = React.useState("");
 
-  if (incident.isPending) return <p className="text-muted-foreground">{tApp("loading")}</p>;
+  if (incident.isPending) return <Loading rows={4} className="max-w-3xl" />;
   if (incident.isError) return <Alert tone="error">{errorMessage(incident.error)}</Alert>;
   const data = incident.data;
   /* Responders act on incidents; flagging false alarms is for members (PRODUCT.md §6.11). */
@@ -36,13 +45,34 @@ export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
 
   return (
     <div className="grid max-w-3xl gap-6">
+      {data.source === "drill" && (
+        <div
+          role="status"
+          className="flex items-start gap-2 rounded-md border border-status-maintenance/40 bg-status-maintenance/10 px-3 py-2 text-sm text-status-maintenance"
+        >
+          <Siren aria-hidden className="mt-0.5 size-4 shrink-0" />
+          <p>{tInsights("drillBanner")}</p>
+        </div>
+      )}
       <div className="grid gap-2">
         <IncidentStatusLabel status={data.status} />
         <h1 className="text-2xl font-semibold tracking-tight">
           #{data.number} {data.title}
         </h1>
         <p className="text-sm text-muted-foreground">
+          {t("severityLabel", { severity: tMonitors(`severities.${data.severity}`) })} ·{" "}
           {formatDateTime(data.startedAt)} · {formatDuration(data.durationSeconds)}
+          {data.monitor && (
+            <>
+              {" · "}
+              <Link
+                href={workspaceHref(ws, `monitors/${data.monitor.id}`)}
+                className="text-foreground underline"
+              >
+                {tInsights("monitorLink", { name: data.monitor.name })}
+              </Link>
+            </>
+          )}
         </p>
       </div>
 
@@ -83,22 +113,67 @@ export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
       )}
       {action.isError && <Alert tone="error">{errorMessage(action.error)}</Alert>}
 
-      <Card>
-        <CardContent className="grid gap-2 pt-5 text-sm sm:grid-cols-3">
-          <div>
-            <p className="text-muted-foreground">{t("severity")}</p>
-            <p className="font-medium">{data.severity}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground">{t("cause")}</p>
-            <p className="font-medium">{data.causeCode ?? "—"}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground">{t("regions")}</p>
-            <p className="font-medium">{data.failingRegions.join(", ") || "—"}</p>
-          </div>
-        </CardContent>
-      </Card>
+      {data.explanation && open && (
+        <ExplanationCard
+          explanation={data.explanation}
+          failingRegions={data.failingRegions}
+          regionCount={data.monitor?.regionCount ?? null}
+        />
+      )}
+
+      {(data.causeCode !== null || data.failingRegions.length > 0) && (
+        <Card>
+          <CardContent className="grid gap-3 pt-5 text-sm sm:grid-cols-2">
+            <div>
+              <p className="text-muted-foreground">{t("cause")}</p>
+              <p className="font-mono text-xs font-medium">{data.causeCode ?? "—"}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">{t("regions")}</p>
+              <p className="font-medium">
+                {data.failingRegions.join(", ") || "—"}
+                {data.monitor && data.failingRegions.length > 0 && (
+                  <span className="font-normal text-muted-foreground">
+                    {" "}
+                    (
+                    {t("regionsOf", {
+                      count: data.failingRegions.length,
+                      total: data.monitor.regionCount,
+                    })}
+                    )
+                  </span>
+                )}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {data.monitor && (
+          <Card>
+            <CardHeader>
+              <CardTitle>{tInsights("whatChanged")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ChangeTimeline
+                ws={ws}
+                monitorId={data.monitor.id}
+                before={data.startedAt}
+                empty={tInsights("whatChangedEmpty")}
+              />
+            </CardContent>
+          </Card>
+        )}
+        <Card className={data.monitor ? undefined : "md:col-span-2"}>
+          <CardHeader>
+            <CardTitle>{tInsights("whoWasTold")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DeliveryLog ws={ws} incidentId={data.id} live={open} />
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
         <CardHeader>

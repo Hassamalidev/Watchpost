@@ -71,6 +71,7 @@ export interface CreateMonitorBody {
     intervalSeconds?: number;
     regions?: string[];
     severity?: "critical" | "high" | "low";
+    sloTarget?: number;
   };
   config: MonitorConfigInput;
 }

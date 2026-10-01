@@ -7,7 +7,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 const WEB_PORT = 3100;
 const API_PORT = 4000;
-const WEB_ORIGIN = `http://127.0.0.1:${WEB_PORT}`;
+export const WEB_ORIGIN = `http://127.0.0.1:${WEB_PORT}`;
 const channel = process.env.PLAYWRIGHT_CHANNEL ?? "chrome";
 export const STORAGE_STATE = "e2e/.auth/user.json";
 

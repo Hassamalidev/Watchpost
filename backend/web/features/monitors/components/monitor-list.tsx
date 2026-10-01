@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { StatusBadge } from "@/components/app/status-badge";
 import { EmptyState } from "@/components/ui/alert";
+import { Loading } from "@/components/ui/skeleton";
 import { relativeTime } from "@/lib/format";
 import { workspaceHref } from "@/lib/navigation";
 import { targetOf } from "../api";
@@ -13,10 +14,9 @@ import { useMonitorStates, useMonitors } from "../hooks";
 
 export function MonitorList({ ws, emptyAction }: { ws: string; emptyAction?: React.ReactNode }) {
   const t = useTranslations("monitors");
-  const tApp = useTranslations("app");
   const monitors = useMonitors(ws);
   const states = useMonitorStates(ws);
-  if (monitors.isPending) return <p className="text-muted-foreground">{tApp("loading")}</p>;
+  if (monitors.isPending) return <Loading />;
   const list = (monitors.data ?? []).filter((m) => m.type !== "heartbeat");
   if (list.length === 0) return <EmptyState title={t("empty")}>{emptyAction}</EmptyState>;
 

@@ -1,22 +1,28 @@
 /*
- * Monitor detail: status, actions (Test now, pause, delete), 30-day uptime and 90 day bars, the
- * 24 h latency chart, SSL/domain expiry when it applies, recent checks and incidents.
+ * Monitor detail: status, the likely cause while it fails, actions (Test now, pause, delete), 30-day
+ * uptime and 90 day bars, the error budget and recent changes, the 24 h latency chart, SSL/domain
+ * expiry when it applies, recent checks and incidents.
  */
 "use client";
 
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
+import { explainFailure } from "@app/shared";
 import { Pause, Play, Trash2 } from "lucide-react";
 import { StatusBadge } from "@/components/app/status-badge";
 import { can, useWorkspace } from "@/components/app/workspace-context";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Loading } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/api";
 import { formatDateTime, formatPercent } from "@/lib/format";
 import { workspaceHref } from "@/lib/navigation";
 import { IncidentList } from "@/features/incidents/components/incident-list";
+import { MonitorBudgetCard } from "@/features/insights/components/budget";
+import { ChangeTimeline } from "@/features/insights/components/changes";
+import { ExplanationCard } from "@/features/insights/components/explanation";
 import { monitorsApi, targetOf } from "../api";
 import { monitorKeys, useMonitor, useMonitorStates } from "../hooks";
 import { LatencyChart, UptimeBars } from "./charts";
@@ -24,7 +30,7 @@ import { TestNow } from "./test-now";
 
 export function MonitorDetail({ monitorId }: { monitorId: string }) {
   const t = useTranslations("monitors");
-  const tApp = useTranslations("app");
+  const tInsights = useTranslations("insights");
   const workspace = useWorkspace();
   const ws = workspace.id;
   const router = useRouter();
@@ -61,12 +67,28 @@ export function MonitorDetail({ monitorId }: { monitorId: string }) {
     enabled: hasExpiry,
   });
 
-  if (monitor.isPending) return <p className="text-muted-foreground">{tApp("loading")}</p>;
+  if (monitor.isPending) return <Loading rows={4} className="max-w-5xl" />;
   if (monitor.isError) return <Alert tone="error">{errorMessage(monitor.error)}</Alert>;
   const data = monitor.data;
   const state = states.data?.get(data.id);
   const status = data.paused ? "paused" : (state?.status ?? "pending");
   const canEdit = can(workspace.role, "member");
+  /* While failing, explain the newest failed check the way alerts do. */
+  const failing = status === "down" || status === "degraded" || status === "verifying";
+  const lastFailure = failing ? (checks.data ?? []).find((c) => !c.ok) : undefined;
+  const failingRegions = [
+    ...new Set((checks.data ?? []).filter((c) => !c.ok).map((c) => c.region)),
+  ];
+  const explanation =
+    lastFailure === undefined
+      ? null
+      : explainFailure({
+          errorCode: lastFailure.errorCode,
+          httpStatus: lastFailure.httpStatus,
+          failingRegions,
+          totalRegions: data.regions.length,
+          target: targetOf(data),
+        });
 
   async function setPaused(paused: boolean) {
     await monitorsApi.setPaused(ws, data.id, paused);
@@ -86,6 +108,15 @@ export function MonitorDetail({ monitorId }: { monitorId: string }) {
         </div>
         <StatusBadge status={status} />
       </div>
+
+      {data.paused && <Alert tone="info">{t("pausedNotice")}</Alert>}
+      {explanation && explanation.category !== "unknown" && (
+        <ExplanationCard
+          explanation={explanation}
+          failingRegions={failingRegions}
+          regionCount={data.regions.length}
+        />
+      )}
 
       {canEdit && (
         <div className="flex flex-wrap gap-2">
@@ -118,7 +149,7 @@ export function MonitorDetail({ monitorId }: { monitorId: string }) {
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-semibold tabular-nums">
-              {formatPercent(uptime.data?.uptimePercent)}
+              {(checks.data ?? []).length === 0 ? "—" : formatPercent(uptime.data?.uptimePercent)}
             </p>
           </CardContent>
         </Card>
@@ -127,6 +158,18 @@ export function MonitorDetail({ monitorId }: { monitorId: string }) {
             <CardTitle>{t("uptimeBars")}</CardTitle>
           </CardHeader>
           <CardContent>{days.data && <UptimeBars days={days.data} />}</CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {data.type !== "heartbeat" && <MonitorBudgetCard ws={ws} monitorId={data.id} />}
+        <Card>
+          <CardHeader>
+            <CardTitle>{tInsights("recentChanges")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ChangeTimeline ws={ws} monitorId={data.id} empty={tInsights("recentChangesEmpty")} />
+          </CardContent>
         </Card>
       </div>
 
@@ -170,36 +213,42 @@ export function MonitorDetail({ monitorId }: { monitorId: string }) {
           <CardTitle>{t("recentChecks")}</CardTitle>
         </CardHeader>
         <CardContent className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted-foreground">
-              <tr>
-                <th scope="col" className="py-1 pr-3 font-medium">
-                  {t("checkedAt")}
-                </th>
-                <th scope="col" className="py-1 pr-3 font-medium">
-                  {t("region")}
-                </th>
-                <th scope="col" className="py-1 pr-3 font-medium">
-                  {t("result")}
-                </th>
-                <th scope="col" className="py-1 font-medium">
-                  {t("latencyMs")}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {(checks.data ?? []).map((check) => (
-                <tr key={check.id} className="border-t">
-                  <td className="py-1 pr-3">{formatDateTime(check.checkedAt)}</td>
-                  <td className="py-1 pr-3">{check.region}</td>
-                  <td className="py-1 pr-3">
-                    {check.ok ? t("testOk") : `${t("testFailed")} (${check.errorCode ?? "?"})`}
-                  </td>
-                  <td className="py-1 tabular-nums">{Math.round(check.latencyMs)} ms</td>
+          {checks.isSuccess && checks.data.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {data.paused ? t("noChecksPaused") : t("noChecksYet")}
+            </p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-muted-foreground">
+                <tr>
+                  <th scope="col" className="py-1 pr-3 font-medium">
+                    {t("checkedAt")}
+                  </th>
+                  <th scope="col" className="py-1 pr-3 font-medium">
+                    {t("region")}
+                  </th>
+                  <th scope="col" className="py-1 pr-3 font-medium">
+                    {t("result")}
+                  </th>
+                  <th scope="col" className="py-1 font-medium">
+                    {t("latencyMs")}
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {(checks.data ?? []).map((check) => (
+                  <tr key={check.id} className="border-t">
+                    <td className="py-1 pr-3">{formatDateTime(check.checkedAt)}</td>
+                    <td className="py-1 pr-3">{check.region}</td>
+                    <td className="py-1 pr-3">
+                      {check.ok ? t("testOk") : `${t("testFailed")} (${check.errorCode ?? "?"})`}
+                    </td>
+                    <td className="py-1 tabular-nums">{Math.round(check.latencyMs)} ms</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </CardContent>
       </Card>
 

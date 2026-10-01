@@ -2,6 +2,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { Explanation } from "@app/shared";
 import { api, wsPath } from "@/lib/api";
 
 export type IncidentStatus = "triggered" | "acknowledged" | "snoozed" | "resolved";
@@ -34,6 +35,8 @@ export interface TimelineEntry {
 export interface IncidentDetail extends Incident {
   timeline: TimelineEntry[];
   comments: Array<{ id: string; authorId: string; body: string; createdAt: string }>;
+  monitor: { id: string; name: string; target: string | null; regionCount: number } | null;
+  explanation: Explanation | null;
 }
 
 export const incidentsApi = {

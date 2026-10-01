@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Input, Select } from "@/components/ui/input";
+import { Loading } from "@/components/ui/skeleton";
 import { api, errorMessage, wsPath } from "@/lib/api";
 import { inviteMember } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
@@ -24,7 +25,6 @@ interface Member {
 
 export function TeamPage() {
   const t = useTranslations("team");
-  const tApp = useTranslations("app");
   const workspace = useWorkspace();
   const ws = workspace.id;
   const members = useQuery({
@@ -45,7 +45,7 @@ export function TeamPage() {
           {t("members")}
         </h2>
         {!can(workspace.role, "admin") ? null : members.isPending ? (
-          <p className="text-muted-foreground">{tApp("loading")}</p>
+          <Loading rows={2} />
         ) : (
           <ul className="divide-y rounded-lg border">
             {(members.data ?? []).map((m) => (
