@@ -7,7 +7,10 @@
  * workspace admins, at most once an hour. Reminders repeat every N minutes while an incident is open.
  */
 import {
+  CHANNEL_CAPABILITIES,
+  CHANNEL_LABELS,
   alertPolicyRulesSchema,
+  channelAccepts,
   type AlertEventKind,
   type AlertPolicyInput,
   type AlertPolicyRules,
@@ -83,6 +86,11 @@ export interface AlertingService {
     input: Partial<AlertPolicyInput>,
   ): Promise<AlertPolicyView>;
   deletePolicy(scope: WorkspaceScope, id: string): Promise<void>;
+  /*
+   * Makes the default policy send to a channel (what "connect an integration" does). Atomic and
+   * idempotent: two admins adding channels at once both end up routed.
+   */
+  routeToDefault(scope: WorkspaceScope, channelId: string): Promise<AlertPolicyView>;
   /* Creates the workspace's default policy once (workspace.created). */
   ensureDefaultPolicy(workspaceId: string): Promise<boolean>;
 
@@ -132,6 +140,8 @@ export interface AlertingServiceDeps {
 }
 
 const DEFAULT_RULES: AlertPolicyRules = alertPolicyRulesSchema.parse({});
+/* The same cap as `alertPolicyRulesSchema.channelIds`. */
+const MAX_POLICY_CHANNELS = 50;
 const HOUR_MS = 3_600_000;
 
 export function createAlertingService(deps: AlertingServiceDeps): AlertingService {
@@ -156,12 +166,22 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
     sentAt: row.sentAt === null ? null : row.sentAt.toISOString(),
   });
 
-  async function checkChannels(scope: WorkspaceScope, rules: AlertPolicyRules): Promise<void> {
-    const found = await deps.channels.existing(scope, rules.channelIds);
-    const missing = rules.channelIds.filter((id) => !found.some((c) => c.id === id));
+  /*
+   * Rules whose channels all exist. An unknown ID is refused, unless the policy already listed it:
+   * that is a channel deleted since (`stale`), which is dropped instead, so a policy that outlived one
+   * of its channels can still be edited.
+   */
+  async function checkChannels(
+    scope: WorkspaceScope,
+    rules: AlertPolicyRules,
+    stale: readonly string[] = [],
+  ): Promise<AlertPolicyRules> {
+    const found = new Set((await deps.channels.existing(scope, rules.channelIds)).map((c) => c.id));
+    const missing = rules.channelIds.filter((id) => !found.has(id) && !stale.includes(id));
     if (missing.length > 0) {
       throw new ValidationError(`Unknown channels: ${missing.join(", ")}.`);
     }
+    return { ...rules, channelIds: rules.channelIds.filter((id) => found.has(id)) };
   }
 
   async function policyFor(ctx: AlertContext): Promise<AlertPolicyRow | undefined> {
@@ -274,7 +294,7 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
             data: {
               workspaceName,
               channelName: channel.name,
-              channelType: channel.type,
+              channelType: CHANNEL_LABELS[channel.type],
               error,
               url: `${deps.webOrigin}/w/${channel.workspaceId}/integrations`,
               ...(incidentTitle === undefined ? {} : { incidentTitle }),
@@ -296,8 +316,7 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
     },
 
     async createPolicy(scope, input) {
-      const rules = alertPolicyRulesSchema.parse(input.rules);
-      await checkChannels(scope, rules);
+      const rules = await checkChannels(scope, alertPolicyRulesSchema.parse(input.rules));
       const created = await repo.insertPolicy(deps.db, scope, {
         id: deps.newId(),
         name: input.name,
@@ -312,8 +331,13 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
       const patch: Partial<Pick<AlertPolicyRow, "name" | "rules">> = {};
       if (input.name !== undefined) patch.name = input.name;
       if (input.rules !== undefined) {
-        patch.rules = alertPolicyRulesSchema.parse(input.rules);
-        await checkChannels(scope, patch.rules);
+        const current = await repo.findPolicy(deps.db, scope, id);
+        if (current === undefined) throw new NotFoundError("Alert policy not found.");
+        patch.rules = await checkChannels(
+          scope,
+          alertPolicyRulesSchema.parse(input.rules),
+          current.rules.channelIds,
+        );
       }
       const row = await repo.updatePolicy(deps.db, scope, id, patch);
       if (row === undefined) throw new NotFoundError("Alert policy not found.");
@@ -325,6 +349,28 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
       if (policy === undefined) throw new NotFoundError("Alert policy not found.");
       if (policy.isDefault) throw new ConflictError("The default alert policy can't be deleted.");
       await repo.deletePolicy(deps.db, scope, id);
+    },
+
+    async routeToDefault(scope, channelId) {
+      const [channel] = await deps.channels.existing(scope, [channelId]);
+      if (channel === undefined) throw new NotFoundError("Channel not found.");
+      await service.ensureDefaultPolicy(scope.workspaceId);
+      return deps.db.transaction(async (tx) => {
+        const policy = await repo.findDefaultPolicy(tx, scope, true);
+        if (policy === undefined) throw new NotFoundError("Alert policy not found.");
+        /* Also forget channels deleted since they were added. */
+        const live = (await checkChannels(scope, policy.rules, policy.rules.channelIds)).channelIds;
+        if (live.includes(channelId)) return toPolicy(policy);
+        if (live.length >= MAX_POLICY_CHANNELS) {
+          throw new ValidationError(
+            `An alert policy can send to at most ${MAX_POLICY_CHANNELS} channels.`,
+          );
+        }
+        const row = await repo.updatePolicy(tx, scope, policy.id, {
+          rules: { ...policy.rules, channelIds: [...live, channelId] },
+        });
+        return toPolicy(row ?? policy);
+      });
     },
 
     async ensureDefaultPolicy(workspaceId) {
@@ -342,9 +388,16 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
       if (ctx === undefined) return 0;
       const policy = await policyFor(ctx);
       if (policy === undefined || !policy.rules.events[kind]) return 0;
-      const channels = await deps.channels.existing(
-        system(ctx.workspaceId),
-        policy.rules.channelIds,
+      /* The policy says which channels to ask; each channel's own rules say what it accepts. */
+      const channels = (
+        await deps.channels.existing(system(ctx.workspaceId), policy.rules.channelIds)
+      ).filter((c) =>
+        channelAccepts(
+          c.rules,
+          kind,
+          ctx.incident.severity,
+          CHANNEL_CAPABILITIES[c.type].followUps === "sync",
+        ),
       );
       if (channels.length === 0) return 0;
 

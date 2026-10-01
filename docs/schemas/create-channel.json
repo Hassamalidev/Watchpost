@@ -12,7 +12,20 @@
         "teams",
         "discord",
         "telegram",
-        "webhook"
+        "webhook",
+        "slack_webhook",
+        "google_chat",
+        "mattermost",
+        "rocketchat",
+        "zulip",
+        "matrix",
+        "pagerduty",
+        "opsgenie",
+        "splunk_oncall",
+        "pushover",
+        "pushbullet",
+        "ntfy",
+        "gotify"
       ]
     },
     "name": {
@@ -26,6 +39,54 @@
         "type": "string"
       },
       "additionalProperties": {}
+    },
+    "rules": {
+      "type": "object",
+      "properties": {
+        "events": {
+          "default": {
+            "triggered": true,
+            "acknowledged": true,
+            "resolved": true,
+            "reminder": true,
+            "flapping": true
+          },
+          "type": "object",
+          "properties": {
+            "triggered": {
+              "default": true,
+              "type": "boolean"
+            },
+            "acknowledged": {
+              "default": true,
+              "type": "boolean"
+            },
+            "resolved": {
+              "default": true,
+              "type": "boolean"
+            },
+            "reminder": {
+              "default": true,
+              "type": "boolean"
+            },
+            "flapping": {
+              "default": true,
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "minSeverity": {
+          "default": "low",
+          "type": "string",
+          "enum": [
+            "critical",
+            "high",
+            "low"
+          ]
+        }
+      },
+      "additionalProperties": false
     }
   },
   "required": [

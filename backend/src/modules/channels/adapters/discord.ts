@@ -4,9 +4,9 @@
  * message's embed is edited to the latest state.
  */
 import { discordChannelConfigSchema, type DiscordChannelConfig } from "@app/shared";
-import { ValidationError } from "../../../core/errors.js";
 import type { OutboundHttp } from "../../../infra/http/outbound.js";
 import type { AlertEvent, ChannelAdapter, RenderedMessage } from "../types/adapter.js";
+import { formConfig } from "./config.js";
 import { STATE_COLORS, call, expectOk, parseJson } from "./http.js";
 import { renderPlain } from "./render.js";
 
@@ -53,12 +53,7 @@ export function createDiscordAdapter(deps: {
 }): ChannelAdapter<DiscordChannelConfig> {
   return {
     type: "discord",
-    parseConfig(input) {
-      const parsed = discordChannelConfigSchema.safeParse(input);
-      if (!parsed.success)
-        throw new ValidationError(`Invalid Discord webhook: ${parsed.error.message}`);
-      return parsed.data;
-    },
+    ...formConfig("discord", discordChannelConfigSchema, "Discord"),
     render(event) {
       const plain = renderPlain(event);
       return { ...plain, body: { username: "Watchpost", embeds: [embed(event, plain)] } };

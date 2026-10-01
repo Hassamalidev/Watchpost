@@ -67,6 +67,8 @@
     "loginTitle": "Sign in to Watchpost",
     "signupTitle": "Create your Watchpost account",
     "signupIntro": "Free for 20 monitors. No card needed.",
+    "planSelected": "{plan} plan selected. Your account starts free with no card; you can upgrade to {plan} from Billing once your workspace is set up.",
+    "changePlan": "Change plan",
     "email": "Work email",
     "password": "Password",
     "passwordHint": "At least 8 characters.",
@@ -259,40 +261,379 @@
   },
   "integrations": {
     "title": "Integrations",
-    "intro": "Where alerts go. Every channel in the default policy receives every alert.",
-    "channels": "Channels",
-    "empty": "No channels yet.",
-    "add": "Add channel",
-    "type": "Channel type",
+    "intro": "Send alerts to the tools your team already uses. Every integration has a test button, its own rules and a health check.",
+    "connected": "Connected",
+    "empty": "Nothing is connected yet.",
+    "emptyHint": "Pick an integration below. Most take about a minute.",
+    "gallery": "Add an integration",
+    "search": "Search integrations",
+    "searchPlaceholder": "Try PagerDuty, chat or push",
+    "categoryFilter": "Category",
+    "categories": {
+      "all": "All",
+      "chat": "Chat",
+      "oncall": "On-call",
+      "push": "Push",
+      "email": "Email",
+      "automation": "Automation"
+    },
+    "resultCount": "{count, plural, one {# integration} other {# integrations}}",
+    "noResults": "No integration matches “{query}”.",
+    "noResultsHint": "A webhook reaches almost anything that accepts HTTP requests.",
+    "noResultsAction": "Set up a webhook",
+    "followUps": {
+      "thread": "Follow-ups in one thread",
+      "update": "Updates in place",
+      "sync": "Acknowledge and resolve stay in sync"
+    },
+    "unavailable": "Not set up on this server",
+    "unavailableSlack": "The Slack app isn't configured on this server yet. A Slack incoming webhook works right away.",
+    "unavailableTelegram": "The Telegram bot isn't configured on this server yet.",
+    "useSlackWebhook": "Use an incoming webhook",
+    "back": "All integrations",
+    "setupTitle": "Connect {name}",
+    "setupSteps": "How to set it up",
+    "notFound": "We don't have that integration.",
+    "adminOnly": "Only workspace admins can change integrations.",
     "name": "Name",
-    "emails": "Email addresses",
-    "emailsHint": "Comma-separated, up to 10.",
-    "url": "Webhook URL",
-    "teamsHint": "In Teams: channel → Workflows → \"Send webhook alerts to a channel\", then paste its URL.",
-    "discordHint": "In Discord: Server Settings → Integrations → Webhooks → New Webhook.",
-    "webhookHint": "We sign each request; the secret appears after saving.",
-    "slackConnect": "Add to Slack",
-    "slackChannel": "Slack channel",
-    "telegramHint": "After saving, open the link in Telegram to connect a chat.",
-    "telegramLink": "Open in Telegram",
+    "nameHint": "Shown in the list and in each incident's delivery log.",
+    "save": "Save",
+    "saveAndTest": "Save and send test",
+    "saving": "Saving…",
+    "saved": "Saved.",
+    "pagesNote": "A test opens a real alert in {name} and resolves it at once, so whoever is on call may be paged. We don't send one automatically.",
+    "confirmTestPages": "Send a test alert to {name}? It may page whoever is on call.",
+    "created": "{name} is connected.",
+    "testDelivered": "The test alert was delivered.",
+    "testFailedAfterSave": "It is saved, but the test alert failed: {error}",
+    "notTested": "Send a test to check that it works.",
+    "notRouted": "It is saved, but it isn't receiving alerts yet: {error}",
+    "secretSaved": "Saved. Leave empty to keep it.",
+    "secretUrlSaved": "Saved ({value}). Leave empty to keep it.",
+    "removeSecret": "Remove the saved value",
+    "headersSaved": "Values show as ******** and are kept unless you change them.",
+    "headersInvalid": "Write each header as Name: value, one per line.",
+    "rulesTitle": "What to send here",
+    "rulesIntro": "The alert policy decides which integrations are asked. These rules decide what this one accepts.",
+    "severityLabel": "Incidents",
+    "severity": {
+      "low": "All incidents",
+      "high": "High and critical only",
+      "critical": "Critical only"
+    },
+    "severityHint": "Certificate and domain expiry warnings are low severity.",
+    "eventsLabel": "Events",
+    "events": {
+      "triggered": "Down",
+      "acknowledged": "Acknowledged",
+      "resolved": "Resolved",
+      "reminder": "Reminders while down",
+      "flapping": "Flapping notices"
+    },
+    "syncHint": "Acknowledged and Resolved always follow Down here, so the alert in the other tool never stays open.",
+    "rulesSummary": {
+      "all": "All alerts",
+      "high": "High and critical",
+      "critical": "Critical only",
+      "without": {
+        "triggered": "no down alerts",
+        "acknowledged": "no acknowledgements",
+        "resolved": "no recoveries",
+        "reminder": "no reminders",
+        "flapping": "no flapping notices"
+      }
+    },
+    "notInPolicy": "Not receiving alerts",
+    "notInPolicyHint": "It isn't in the default alert policy.",
+    "addToPolicy": "Send alerts here",
     "sendTest": "Send test",
     "testOk": "Delivered.",
     "testFailed": "Failed: {error}",
     "healthy": "Healthy",
     "failing": "Failing",
     "lastSuccess": "Last delivery",
-    "inDefault": "Receives alerts",
+    "lastFailure": "Last failure",
+    "noDeliveriesYet": "No deliveries yet",
+    "edit": "Edit",
+    "editAria": "Edit {name}",
+    "settings": "Settings",
+    "delivery": "Delivery",
     "remove": "Remove",
-    "types": {
-      "email": "Email",
-      "slack": "Slack",
-      "teams": "Microsoft Teams",
-      "discord": "Discord",
-      "telegram": "Telegram",
-      "webhook": "Webhook"
-    },
+    "removeTitle": "Remove this integration",
+    "removeHint": "Alerts stop going to it right away. The incident history keeps its delivery log.",
     "confirmRemove": "Remove {name}? Alerts stop going to it right away.",
-    "noDeliveriesYet": "No deliveries yet"
+    "signingSecret": "Signing secret",
+    "signingSecretHint": "Use it to verify the Watchpost-Signature header of each request.",
+    "slackConnect": "Add to Slack",
+    "slackAnother": "Connect another Slack workspace",
+    "slackWorkspace": "Slack workspace",
+    "slackChannel": "Channel",
+    "slackPickChannel": "Choose a channel",
+    "slackPrivate": "private",
+    "slackInstalled": "Slack is connected. Pick a channel to finish.",
+    "slackNoInstall": "Install the Watchpost app in your Slack workspace first.",
+    "slackPostsTo": "Posts to #{channel}.",
+    "telegramTitle": "Connect a chat",
+    "telegramUnlinked": "No chat is connected yet. Open the link in Telegram and press Start.",
+    "telegramLinked": "Connected to {chat}.",
+    "telegramGetLink": "Get the link",
+    "telegramOpen": "Open in Telegram",
+    "telegramWaiting": "Waiting for you to press Start in Telegram…",
+    "telegramRelink": "Connect a different chat",
+    "telegramCreate": "Save and get the link",
+    "catalog": {
+      "slack": {
+        "summary": "Install the Watchpost app and pick a channel. Follow-ups reply in the alert's thread.",
+        "steps": "Click Add to Slack and approve the app for your Slack workspace.\nPick the channel alerts should go to.\nFor a private channel, invite the Watchpost app to it first."
+      },
+      "slack-webhook": {
+        "summary": "Post to one Slack channel through an incoming webhook, without installing our app.",
+        "steps": "At api.slack.com/apps, create an app (From scratch) and turn on Incoming Webhooks.\nClick Add New Webhook to Workspace and pick the channel.\nCopy the webhook URL and paste it below."
+      },
+      "teams": {
+        "summary": "Adaptive Cards in a Teams channel through a Workflows webhook.",
+        "steps": "In Teams, open the channel's ⋯ menu and choose Workflows.\nPick “Send webhook alerts to a channel” and finish the wizard.\nCopy the URL it shows and paste it below."
+      },
+      "discord": {
+        "summary": "Colored embeds in a Discord channel. The first message updates as the incident changes.",
+        "steps": "In Discord, open Server Settings → Integrations → Webhooks.\nClick New Webhook and pick the channel.\nCopy the webhook URL and paste it below."
+      },
+      "telegram": {
+        "summary": "Our bot posts to a chat or group. Follow-ups reply to the first message.",
+        "steps": "Give it a name and save.\nOpen the link we show in Telegram and press Start.\nFor a group, add the bot to the group and open the link there."
+      },
+      "google-chat": {
+        "summary": "Cards in a Google Chat space. An incident's updates stay in one thread.",
+        "steps": "In the space, open its menu → Apps & integrations → Webhooks.\nAdd a webhook named Watchpost.\nCopy its URL and paste it below."
+      },
+      "mattermost": {
+        "summary": "Alerts in a Mattermost channel through an incoming webhook.",
+        "steps": "In Mattermost, open Integrations → Incoming Webhooks → Add Incoming Webhook.\nPick the channel and save.\nCopy the webhook URL and paste it below. The server must be reachable from the internet over HTTPS."
+      },
+      "rocketchat": {
+        "summary": "Alerts in a Rocket.Chat channel through an incoming webhook.",
+        "steps": "In Rocket.Chat, open Administration → Workspace → Integrations → New → Incoming.\nEnable it, pick the channel and the user to post as, and save.\nCopy the Webhook URL and paste it below. The server must be reachable from the internet over HTTPS."
+      },
+      "zulip": {
+        "summary": "A bot posts to a Zulip channel, with one topic per monitor.",
+        "steps": "In Zulip, open Settings → Personal → Bots and add a bot (the Incoming webhook type is enough).\nCopy the bot's email and API key.\nSubscribe the bot to the channel, then fill in the form."
+      },
+      "matrix": {
+        "summary": "A bot account posts to a Matrix room. Follow-ups go in a thread.",
+        "steps": "Create a Matrix account for the bot, invite it to the room and accept the invite.\nCopy the bot's access token (in Element: Settings → Help & About → Advanced).\nCopy the room's internal ID (Room settings → Advanced). It starts with !."
+      },
+      "pagerduty": {
+        "summary": "Page your on-call through PagerDuty. Acknowledging or resolving here does the same there.",
+        "steps": "In PagerDuty, open the service → Integrations → Add an integration → Events API V2.\nCopy the Integration Key.\nPaste it below and pick your account's region."
+      },
+      "opsgenie": {
+        "summary": "Alerts in Opsgenie, acknowledged and closed in step with the incident.",
+        "steps": "In Opsgenie, open your team → Integrations → Add integration → API.\nTurn the integration on and copy its API key.\nPaste it below and pick your region.",
+        "note": "Opsgenie shuts down on April 5, 2027. After you move to Jira Service Management, switch the region here; the alert format stays the same."
+      },
+      "jira-service-management": {
+        "summary": "Alerts in Jira Service Management operations, where Opsgenie's alerting now lives.",
+        "steps": "In Jira Service Management, open your team's Operations → Integrations → Add integration → API.\nTurn the integration on and copy its API key.\nPaste it below."
+      },
+      "splunk-on-call": {
+        "summary": "Page through Splunk On-Call (VictorOps). Acknowledgements and recoveries follow the incident.",
+        "steps": "In Splunk On-Call, open Integrations → 3rd Party Integrations → REST – Generic and enable it.\nCopy the endpoint URL.\nReplace $routing_key at its end with a routing key from Settings → Routing Keys, and paste it below."
+      },
+      "pushover": {
+        "summary": "Push notifications to phones through your own Pushover application.",
+        "steps": "On pushover.net, create an application and copy its API token.\nCopy your user key, or a delivery group's key, from the dashboard.\nPaste both below."
+      },
+      "ntfy": {
+        "summary": "Push notifications through ntfy.sh or your own ntfy server.",
+        "steps": "Pick a topic name that is hard to guess: anyone who knows it can read your alerts.\nSubscribe to the topic in the ntfy app.\nFor a protected topic, or to use your own account's limits on ntfy.sh, add an access token."
+      },
+      "pushbullet": {
+        "summary": "Pushes to all your devices, or to the subscribers of a Pushbullet channel.",
+        "steps": "On pushbullet.com, open Settings → Account → Create Access Token.\nPaste the token below.\nTo push to a channel instead of your own devices, enter its tag."
+      },
+      "gotify": {
+        "summary": "Messages to your self-hosted Gotify server.",
+        "steps": "In Gotify, open Apps → Create Application and copy its token. It is shown once.\nEnter your server's address and the token below.\nThe server must be reachable from the internet over HTTPS."
+      },
+      "email": {
+        "summary": "Alert emails with one-click acknowledge and resolve links.",
+        "steps": "Enter up to 10 addresses, separated by commas.\nEach person gets their own email with their own action links."
+      },
+      "webhook": {
+        "summary": "Signed JSON for every incident event, to any HTTP endpoint.",
+        "steps": "Enter the URL that should receive POST requests.\nAdd headers if your endpoint needs them, for example Authorization.\nAfter saving, copy the signing secret to verify the Watchpost-Signature header."
+      },
+      "zapier": {
+        "summary": "Start a Zap from every incident event with Webhooks by Zapier.",
+        "steps": "In Zapier, create a Zap with the trigger Webhooks by Zapier → Catch Hook.\nCopy the webhook URL Zapier shows and paste it below.\nSend a test from here, then map the fields in your Zap."
+      },
+      "make": {
+        "summary": "Start a Make scenario from every incident event.",
+        "steps": "In Make, add a Webhooks → Custom webhook module to a scenario.\nCopy its address and paste it below.\nSend a test from here so Make learns the data structure."
+      },
+      "n8n": {
+        "summary": "Trigger an n8n workflow from every incident event.",
+        "steps": "In n8n, add a Webhook node with the method POST.\nCopy its production URL and paste it below.\nIf the node uses header authentication, add that header here."
+      }
+    },
+    "fields": {
+      "email": {
+        "to": {
+          "label": "Email addresses",
+          "hint": "Comma-separated, up to 10."
+        }
+      },
+      "teams": {
+        "url": {
+          "label": "Workflow webhook URL"
+        }
+      },
+      "discord": {
+        "url": {
+          "label": "Webhook URL"
+        }
+      },
+      "webhook": {
+        "url": {
+          "label": "Endpoint URL",
+          "hint": "We sign each request. The signing secret appears after saving."
+        },
+        "headers": {
+          "label": "Request headers (optional)",
+          "hint": "One per line, as Name: value. Up to 10."
+        }
+      },
+      "slack_webhook": {
+        "url": {
+          "label": "Webhook URL",
+          "hint": "Starts with https://hooks.slack.com/services/"
+        }
+      },
+      "google_chat": {
+        "url": {
+          "label": "Webhook URL"
+        }
+      },
+      "mattermost": {
+        "url": {
+          "label": "Webhook URL"
+        }
+      },
+      "rocketchat": {
+        "url": {
+          "label": "Webhook URL"
+        }
+      },
+      "zulip": {
+        "serverUrl": {
+          "label": "Zulip server"
+        },
+        "botEmail": {
+          "label": "Bot email"
+        },
+        "apiKey": {
+          "label": "Bot API key"
+        },
+        "stream": {
+          "label": "Channel",
+          "hint": "The channel (stream) name, without #."
+        },
+        "topic": {
+          "label": "Topic (optional)",
+          "hint": "Leave empty to use one topic per monitor."
+        }
+      },
+      "matrix": {
+        "homeserverUrl": {
+          "label": "Homeserver URL"
+        },
+        "accessToken": {
+          "label": "Access token"
+        },
+        "roomId": {
+          "label": "Room ID",
+          "hint": "The internal ID, starting with !. Not the #alias."
+        }
+      },
+      "pagerduty": {
+        "routingKey": {
+          "label": "Integration key",
+          "hint": "32 characters, from the service's Events API V2 integration."
+        },
+        "region": {
+          "label": "Region",
+          "options": {
+            "us": "United States",
+            "eu": "Europe"
+          }
+        }
+      },
+      "opsgenie": {
+        "apiKey": {
+          "label": "API key",
+          "hint": "From the team's API integration."
+        },
+        "region": {
+          "label": "Region",
+          "options": {
+            "us": "Opsgenie, United States",
+            "eu": "Opsgenie, Europe",
+            "jsm": "Jira Service Management"
+          }
+        }
+      },
+      "splunk_oncall": {
+        "url": {
+          "label": "REST endpoint URL",
+          "hint": "Ends with one of your routing keys."
+        }
+      },
+      "pushover": {
+        "userKey": {
+          "label": "User or group key"
+        },
+        "appToken": {
+          "label": "Application API token"
+        },
+        "critical": {
+          "label": "Critical incidents",
+          "options": {
+            "high": "High priority: bypasses quiet hours",
+            "emergency": "Emergency: repeats until acknowledged"
+          }
+        }
+      },
+      "pushbullet": {
+        "accessToken": {
+          "label": "Access token"
+        },
+        "channelTag": {
+          "label": "Channel tag (optional)",
+          "hint": "Leave empty to push to your own devices."
+        }
+      },
+      "ntfy": {
+        "serverUrl": {
+          "label": "Server",
+          "hint": "https://ntfy.sh, or the address of your own server."
+        },
+        "topic": {
+          "label": "Topic"
+        },
+        "accessToken": {
+          "label": "Access token (optional)",
+          "hint": "On ntfy.sh, a token makes alerts count against your own account's limits."
+        }
+      },
+      "gotify": {
+        "serverUrl": {
+          "label": "Server URL"
+        },
+        "appToken": {
+          "label": "Application token"
+        }
+      }
+    }
   },
   "heartbeats": {
     "title": "Heartbeats",
@@ -466,7 +807,97 @@
   "marketing": {
     "hero": "Know about real outages first. Confirmed, explained, actionable.",
     "subhead": "Watchpost checks your sites and APIs from around the world, confirms each failure before it pages anyone, and lets your team acknowledge from wherever they are.",
-    "openApp": "Open the app"
+    "navLabel": "Site",
+    "navFeatures": "Features",
+    "navPricing": "Pricing",
+    "signIn": "Sign in",
+    "signUp": "Sign up",
+    "startFreeNoCard": "Start free, no card",
+    "seePlans": "See plans",
+    "haveAccount": "Already have an account?",
+    "featuresTitle": "Alerts you can trust at 3 a.m.",
+    "featuresIntro": "Every alert is checked from more than one place and arrives with what you need to act on it.",
+    "features": {
+      "confirmed": {
+        "title": "Confirmed before it pages you",
+        "body": "A failure is rechecked from other regions first, so one flaky network path doesn't wake anyone up."
+      },
+      "evidence": {
+        "title": "Evidence in every alert",
+        "body": "Each alert says what failed, the likely cause and what to check first, with the timings from every region."
+      },
+      "channels": {
+        "title": "Alerts where your team works",
+        "body": "Email, Slack, Teams, Discord, Telegram, webhooks and more, with rules per channel and acknowledge links that work from a phone."
+      },
+      "changes": {
+        "title": "What changed before the outage",
+        "body": "Deploys from CI and GitHub, certificate and address changes and settings edits sit on the incident timeline."
+      },
+      "tuning": {
+        "title": "Less noise over time",
+        "body": "The tuning advisor finds flapping and false alarms and suggests fixes you can apply in one click."
+      },
+      "heartbeats": {
+        "title": "Cron jobs and error budgets",
+        "body": "Heartbeat monitors catch jobs that stop running, and monthly error budgets show which services are at risk."
+      }
+    },
+    "pricingTitle": "Pick a plan",
+    "pricingIntro": "Flat prices, not per seat. Start on Free and change plans whenever you like.",
+    "billingPeriod": "Billing period",
+    "billedMonthly": "Monthly",
+    "billedAnnually": "Annual (2 months free)",
+    "mostPopular": "Most popular",
+    "pricePerMonth": "per month",
+    "pricePerMonthAnnual": "per month, billed annually",
+    "priceForever": "forever",
+    "startFree": "Start free",
+    "choosePlan": "Choose {plan}",
+    "pricingNote": "Every account starts free with no card. Prices in USD; tax is added at checkout where it applies.",
+    "footer": "Watchpost: uptime monitoring that confirms outages before it alerts.",
+    "plans": {
+      "free": {
+        "name": "Free",
+        "tagline": "For side projects and small sites. Commercial use allowed.",
+        "f1": "20 monitors, 5 heartbeats",
+        "f2": "Checks every 3 minutes",
+        "f3": "2 regions per monitor",
+        "f4": "3 team members",
+        "f5": "1 status page",
+        "f6": "30 days of history"
+      },
+      "starter": {
+        "name": "Starter",
+        "tagline": "For a small team with a product in production.",
+        "f1": "50 monitors, 20 heartbeats",
+        "f2": "Checks every minute",
+        "f3": "3 regions per monitor",
+        "f4": "5 team members",
+        "f5": "25 SMS and voice credits a month",
+        "f6": "6 months of history"
+      },
+      "pro": {
+        "name": "Pro",
+        "tagline": "For teams that run on-call.",
+        "f1": "150 monitors, 75 heartbeats",
+        "f2": "Checks every 30 seconds",
+        "f3": "5 regions per monitor",
+        "f4": "Unlimited team members",
+        "f5": "150 SMS and voice credits a month",
+        "f6": "13 months of history"
+      },
+      "business": {
+        "name": "Business",
+        "tagline": "For agencies and larger teams.",
+        "f1": "500 monitors, 250 heartbeats",
+        "f2": "Checks every 15 seconds",
+        "f3": "All regions",
+        "f4": "Unlimited team members, SSO and audit log",
+        "f5": "500 SMS and voice credits a month",
+        "f6": "25 months of history"
+      }
+    }
   },
   "actionLink": {
     "title": "Incident action",

@@ -14,6 +14,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ApiError, errorMessage } from "@/lib/api";
 import { listWorkspaces, signIn, signUp } from "@/lib/auth";
+import { SELECTED_PLAN_STORAGE_KEY, isMarketingPlanKey } from "@/features/marketing/plans";
 
 /* Where a signed-in user goes: back to `next`, their first workspace, or onboarding. */
 export async function landingPath(next: string | null): Promise<string> {
@@ -82,9 +83,28 @@ export function LoginForm() {
 
 export function SignupForm() {
   const t = useTranslations("auth");
+  const tPlans = useTranslations("marketing.plans");
   const router = useRouter();
-  const next = useSearchParams().get("next");
+  const params = useSearchParams();
+  const next = params.get("next");
+  const planParam = params.get("plan");
+  /* A paid plan picked on the landing page; billing reads it back after sign-up. */
+  const plan = isMarketingPlanKey(planParam) && planParam !== "free" ? planParam : null;
   const [error, setError] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    if (!plan) return;
+    try {
+      window.localStorage.setItem(
+        SELECTED_PLAN_STORAGE_KEY,
+        JSON.stringify({
+          plan,
+          billing: params.get("billing") === "annual" ? "annual" : "monthly",
+        }),
+      );
+    } catch {
+      /* Storage can be blocked; the plan can still be picked on the billing page. */
+    }
+  }, [plan, params]);
   const schema = z.object({
     name: z.string().trim().min(1, t("nameRequired")),
     email: z.email(t("invalidEmail")),
@@ -108,6 +128,14 @@ export function SignupForm() {
   return (
     <form onSubmit={onSubmit} className="grid gap-4" noValidate>
       {error && <Alert tone="error">{error}</Alert>}
+      {plan && (
+        <Alert>
+          {t("planSelected", { plan: tPlans(`${plan}.name`) })}{" "}
+          <Link href="/#pricing" className="underline">
+            {t("changePlan")}
+          </Link>
+        </Alert>
+      )}
       <Field label={t("name")} htmlFor="signup-name" error={form.formState.errors.name?.message}>
         <Input id="signup-name" autoComplete="name" {...form.register("name")} />
       </Field>

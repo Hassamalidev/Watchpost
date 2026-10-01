@@ -3,8 +3,17 @@
  * URLs, bot tokens), so they are stored encrypted with AAD `channel:<id>`. message_refs remember the
  * provider message for an incident so follow-ups thread and update it (§9.4).
  */
-import type { ChannelStatus, ChannelType } from "@app/shared";
-import { index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import type { ChannelRules, ChannelStatus, ChannelType } from "@app/shared";
+import {
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { organization } from "../../../infra/auth/schema.js";
 
 export const channels = pgTable(
@@ -17,6 +26,8 @@ export const channels = pgTable(
     type: text("type").$type<ChannelType>().notNull(),
     name: text("name").notNull(),
     configEnc: text("config_enc").notNull(),
+    /* Which events and severities this channel accepts; `{}` means everything. */
+    rules: jsonb("rules").$type<Partial<ChannelRules>>().notNull().default({}),
     status: text("status").$type<ChannelStatus>().notNull().default("healthy"),
     lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
     lastFailureAt: timestamp("last_failure_at", { withTimezone: true }),

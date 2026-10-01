@@ -25,6 +25,13 @@ export function createAlertingRouter(
 
   router.get("/alert-policies", read, controller.list);
   router.post("/alert-policies", admin, validate({ body: createPolicyBody }), controller.create);
+  /* Connecting an integration: one atomic, idempotent call instead of read-then-PATCH. */
+  router.put(
+    "/alert-policies/default/channels/:channelId",
+    admin,
+    validate({ params: channelIdParams }),
+    controller.routeToDefault,
+  );
   router.patch(
     "/alert-policies/:policyId",
     admin,

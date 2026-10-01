@@ -1,6 +1,6 @@
 {
-  "id": "98d56d84-9f94-4fa2-aef4-d1556ea2a116",
-  "prevId": "edc355f2-74f4-41b3-a366-6154ff892c9b",
+  "id": "edc355f2-74f4-41b3-a366-6154ff892c9b",
+  "prevId": "e1201bd1-6d48-4f8e-9315-1a88fb91ad03",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -782,12 +782,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "held_items": {
-          "name": "held_items",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
         "discount_id": {
           "name": "discount_id",
           "type": "text",
@@ -995,6 +989,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "rules": {
+          "name": "rules",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
         },
         "status": {
           "name": "status",

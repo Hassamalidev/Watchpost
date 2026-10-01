@@ -57,3 +57,34 @@ export const STATE_COLORS = {
   resolved: 0x30a46c,
   test: 0x3e63dd,
 } as const;
+
+/* POSTs JSON and returns the response; statuses in `permanentStatuses` stop retries. */
+export async function postJson(
+  http: OutboundHttp,
+  options: {
+    url: string;
+    body: unknown;
+    label: string;
+    headers?: Record<string, string>;
+    permanentStatuses: readonly number[];
+    method?: "POST" | "PUT";
+  },
+): Promise<OutboundResponse> {
+  const res = await call(
+    http,
+    {
+      method: options.method ?? "POST",
+      url: options.url,
+      headers: { "content-type": "application/json", ...options.headers },
+      body: JSON.stringify(options.body),
+    },
+    options.label,
+  );
+  expectOk(res, options.label, options.permanentStatuses);
+  return res;
+}
+
+/* `https://host/base/` + `/path` → `https://host/base/path`, whatever slashes the base ends with. */
+export function joinUrl(base: string, path: string): string {
+  return `${base.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+}

@@ -35,12 +35,19 @@ async function hooksOfType(page: Page, type: string): Promise<Hook[]> {
   });
 }
 
-async function addChannel(page: Page, type: "webhook" | "email", name: string, value?: string) {
-  await page.getByLabel("Channel type").selectOption(type);
+/* Connects an integration from the gallery; saving sends a test alert and opens the channel's page. */
+async function addChannel(
+  page: Page,
+  integration: "webhook" | "email",
+  name: string,
+  url?: string,
+) {
+  await page.goto(`/w/${workspace()}/integrations/new/${integration}`);
   await page.getByLabel("Name", { exact: true }).fill(name);
-  if (value !== undefined) await page.getByLabel("Webhook URL").fill(value);
-  await page.getByRole("button", { name: "Add channel" }).click();
-  await expect(page.getByText(name, { exact: true })).toBeVisible();
+  if (url !== undefined) await page.getByLabel("Endpoint URL").fill(url);
+  await page.getByRole("button", { name: "Save and send test" }).click();
+  await expect(page.getByRole("heading", { level: 1, name })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("The test alert was delivered.")).toBeVisible();
 }
 
 test("an outage opens an incident, alerts by webhook and email, and resolves on recovery", async ({
@@ -53,7 +60,6 @@ test("an outage opens an incident, alerts by webhook and email, and resolves on 
   await switchTarget(page, "ok");
 
   /* Where alerts go: a signed webhook to the local receiver, and email. */
-  await page.goto(`/w/${ws}/integrations`);
   await addChannel(page, "webhook", "E2E hook", `${RECEIVER}/hook`);
   await addChannel(page, "email", "E2E email");
 

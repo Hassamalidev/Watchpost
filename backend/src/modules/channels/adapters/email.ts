@@ -5,10 +5,10 @@
  * and a stable idempotency key, so a retried delivery never sends twice.
  */
 import { emailChannelConfigSchema, type EmailChannelConfig } from "@app/shared";
-import { ValidationError } from "../../../core/errors.js";
 import type { ActionLinks } from "../../../infra/action-links.js";
 import type { RequestEmail } from "../../../infra/email/index.js";
 import type { AlertEvent, ChannelAdapter } from "../types/adapter.js";
+import { parseConfigWith } from "./config.js";
 import { renderPlain } from "./render.js";
 
 export function createEmailAdapter(deps: {
@@ -35,12 +35,7 @@ export function createEmailAdapter(deps: {
 
   return {
     type: "email",
-    parseConfig(input) {
-      const parsed = emailChannelConfigSchema.safeParse(input);
-      if (!parsed.success)
-        throw new ValidationError(`Invalid email channel: ${parsed.error.message}`);
-      return parsed.data;
-    },
+    parseConfig: (input) => parseConfigWith(emailChannelConfigSchema, input, "Email"),
     render(event) {
       return { ...renderPlain(event), body: event };
     },

@@ -6,7 +6,7 @@ import type { ChannelsService } from "./channels.service.js";
 import type { channelIdParams, createChannelBody, updateChannelBody } from "./validators/index.js";
 
 export type ChannelsController = Record<
-  "list" | "get" | "create" | "update" | "remove",
+  "types" | "list" | "get" | "create" | "update" | "remove",
   RequestHandler
 >;
 
@@ -15,6 +15,9 @@ export function createChannelsController(service: ChannelsService): ChannelsCont
     inputOf<{ params: typeof channelIdParams }>(req, res).params.channelId;
 
   return {
+    types: (_req, res) => {
+      res.json({ data: service.types() });
+    },
     list: async (req, res) => {
       res.json({ data: await service.list(scopeOf(req, res)) });
     },

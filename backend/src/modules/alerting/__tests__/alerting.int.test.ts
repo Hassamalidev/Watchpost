@@ -11,6 +11,7 @@ import { sql } from "drizzle-orm";
 import request from "supertest";
 import type TestAgent from "supertest/lib/agent.js";
 import { z } from "zod";
+import { channelRulesSchema } from "@app/shared";
 import { createFakeClock } from "../../../core/clock.js";
 import { createWorkspaceScope, type WorkspaceScope } from "../../../core/workspace-scope.js";
 import type { EnqueueOptions } from "../../../infra/queues/index.js";
@@ -88,13 +89,13 @@ async function createMonitor(name: string, settings: object = {}) {
   return res.body.id as string;
 }
 
-async function openIncident(monitorId: string) {
+async function openIncident(monitorId: string, severity: "critical" | "high" | "low" = "critical") {
   const { incident } = await db().transaction((tx) =>
     incidents.service.openForMonitor(tx, {
       workspaceId: ws,
       monitorId,
       title: "Checkout is down",
-      severity: "critical",
+      severity,
       causeCode: "connect_refused",
       failingRegions: ["eu-central"],
     }),
@@ -206,6 +207,45 @@ describe("planning", () => {
     await useChannels([hook], { acknowledged: true });
   });
 
+  it("asks only channels whose own rules accept the event and the severity", async () => {
+    const chat = await channel("Everything hook");
+    const pager = await channels.service.create(scope, {
+      type: "webhook",
+      name: "Pager hook",
+      config: { url: "https://hooks.example.com/pager" },
+      rules: channelRulesSchema.parse({ minSeverity: "high", events: { reminder: false } }),
+    });
+    expect(pager.rules).toMatchObject({ minSeverity: "high", events: { reminder: false } });
+    await useChannels([chat, pager.id]);
+    const plan = (kind: "triggered" | "reminder" | "resolved", incidentId: string) =>
+      service.planIncidentEvent({ kind, incidentId, eventKey: `evt-rules-${kind}-${incidentId}` });
+
+    /* An expiring certificate (low) reaches chat but doesn't page. */
+    const low = await openIncident(await createMonitor("Rules low"), "low");
+    expect(await plan("triggered", low.id)).toBe(1);
+    expect((await service.deliveriesFor(low.id)).map((d) => d.channelId)).toEqual([chat]);
+
+    const critical = await openIncident(await createMonitor("Rules critical"));
+    expect(await plan("triggered", critical.id)).toBe(2);
+    expect(await plan("reminder", critical.id)).toBe(1);
+    expect(await plan("resolved", critical.id)).toBe(2);
+
+    /* Reminders stay off after a change to something else. */
+    const kept = await channels.service.update(scope, pager.id, { rules: { minSeverity: "high" } });
+    expect(kept.rules.events.reminder).toBe(false);
+
+    /* "Send test" is the admin asking; the rules don't apply. */
+    expect(await service.sendTest(scope, pager.id)).toEqual({ ok: true });
+
+    /* Rules can change without touching the config, and `{}` resets them to everything. */
+    const opened = await channels.service.update(scope, pager.id, {
+      rules: channelRulesSchema.parse({}),
+    });
+    expect(opened.rules.minSeverity).toBe("low");
+    const other = await openIncident(await createMonitor("Rules reopened"), "low");
+    expect(await plan("triggered", other.id)).toBe(2);
+  });
+
   it("routes a monitor with its own policy to that policy's channels", async () => {
     const own = await channel("Team hook");
     const policy = await service.createPolicy(scope, {
@@ -221,6 +261,66 @@ describe("planning", () => {
     });
     const planned = await service.deliveriesFor(incident.id);
     expect(planned.map((d) => d.channelId)).toEqual([own]);
+  });
+});
+
+describe("routing a channel to the default policy", () => {
+  const put = (path: string) => owner.put(path).set("Origin", WEB_ORIGIN).send({});
+  const defaultIds = async () =>
+    (await service.listPolicies(scope)).find((p) => p.isDefault)?.rules.channelIds ?? [];
+
+  it("is idempotent, and concurrent calls all end up routed", async () => {
+    await useChannels([]);
+    const ids = await Promise.all(
+      ["Route A", "Route B", "Route C", "Route D", "Route E"].map((name) => channel(name)),
+    );
+    await Promise.all(ids.map((id) => service.routeToDefault(scope, id)));
+    expect([...(await defaultIds())].sort()).toEqual([...ids].sort());
+    await service.routeToDefault(scope, ids[0] ?? "");
+    expect(await defaultIds()).toHaveLength(ids.length);
+  });
+
+  it("works through the API for admins and refuses unknown channels", async () => {
+    await useChannels([]);
+    const id = await channel("Route API");
+    const res = await put(`/api/w/${ws}/alert-policies/default/channels/${id}`);
+    expect(res.status, res.text).toBe(200);
+    expect(res.body).toMatchObject({ isDefault: true, rules: { channelIds: [id] } });
+    expect((await put(`/api/w/${ws}/alert-policies/default/channels/${newId()}`)).status).toBe(404);
+  });
+
+  it("a policy that outlived one of its channels can still be changed", async () => {
+    const [gone, kept] = [await channel("Route gone"), await channel("Route kept")];
+    await useChannels([gone, kept]);
+    await channels.service.delete(scope, gone);
+
+    /* Adding a channel drops the deleted one instead of failing on it. */
+    const added = await channel("Route added");
+    const routed = await service.routeToDefault(scope, added);
+    expect(routed.rules.channelIds).toEqual([kept, added]);
+
+    /* The same holds for an edit that sends the old list back, but a made-up ID is still refused. */
+    const [policy] = await service.listPolicies(scope);
+    const edited = await service.updatePolicy(scope, policy?.id ?? "", {
+      rules: { channelIds: [kept, added], events: policy?.rules.events },
+    });
+    expect(edited.rules.channelIds).toEqual([kept, added]);
+    await expect(
+      service.updatePolicy(scope, policy?.id ?? "", {
+        rules: { channelIds: [kept, newId()], events: policy?.rules.events },
+      }),
+    ).rejects.toThrow(/Unknown channels/);
+  });
+
+  it("an edit made before a channel was deleted still saves", async () => {
+    const [gone, kept] = [await channel("Stale gone"), await channel("Stale kept")];
+    await useChannels([gone, kept]);
+    const [policy] = await service.listPolicies(scope);
+    await channels.service.delete(scope, gone);
+    const saved = await service.updatePolicy(scope, policy?.id ?? "", {
+      rules: { channelIds: [gone, kept], events: policy?.rules.events },
+    });
+    expect(saved.rules.channelIds).toEqual([kept]);
   });
 });
 
