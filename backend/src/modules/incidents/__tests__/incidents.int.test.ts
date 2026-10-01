@@ -322,6 +322,43 @@ describe("insights", () => {
   });
 });
 
+describe("alert tuning", () => {
+  it("turns repeated false alarms on a one-region monitor into concrete advice", async () => {
+    const monitor = await post(owner, `/api/w/${ws}/monitors`, {
+      settings: { name: "Blippy", regions: ["eu-central"] },
+      config: { type: "tcp", host: "blippy.example.com", port: 443 },
+    });
+    expect(monitor.status, monitor.text).toBe(201);
+    const incidents = ctx.container.modules.find((m) => m.name === "incidents") as IncidentsModule;
+    for (let i = 0; i < 2; i += 1) {
+      const { incident } = await ctx.container.infra.db.transaction((tx) =>
+        incidents.service.openForMonitor(tx, {
+          workspaceId: ws,
+          monitorId: monitor.body.id,
+          title: "Blippy is down",
+          severity: "high",
+          causeCode: "connect_timeout",
+          failingRegions: ["eu-central"],
+        }),
+      );
+      await post(member, `${base()}/${incident.id}/false-alarm`, { falseAlarm: true });
+      await post(owner, `${base()}/${incident.id}/resolve`);
+    }
+
+    const advice = await get(viewer, `/api/w/${ws}/alert-tuning/${monitor.body.id}`);
+    expect(advice.status, advice.text).toBe(200);
+    expect(advice.body.stats).toMatchObject({ incidents: 2, falseAlarms: 2 });
+    expect(advice.body.suggestions[0]).toMatchObject({
+      id: "add-region",
+      patch: { regions: ["eu-central", "us-east"], minFailingRegions: 2 },
+    });
+
+    const noisy = await get(viewer, `/api/w/${ws}/alert-tuning`);
+    expect(noisy.body.data[0]).toMatchObject({ monitorId: monitor.body.id, name: "Blippy" });
+    expect((await get(stranger, `/api/w/${ws}/alert-tuning`)).status).toBe(404);
+  });
+});
+
 describe("permissions", () => {
   it("viewers read but can't act", async () => {
     const [latest] = (await get(viewer, base())).body.data as Array<{ id: string }>;

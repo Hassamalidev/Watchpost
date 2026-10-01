@@ -477,6 +477,13 @@
     "deployGithubSteps": "In your repository: Settings → Webhooks → Add webhook. Use the URL and secret below, content type application/json, and pick only the \"Deployment statuses\" event.",
     "deployGithubUrl": "Payload URL",
     "deployGithubSecret": "Secret",
-    "deploySuspect": "Deploy {version} went out {minutes, plural, =0 {less than a minute} one {# minute} other {# minutes}} before this started."
+    "deploySuspect": "Deploy {version} went out {minutes, plural, =0 {less than a minute} one {# minute} other {# minutes}} before this started.",
+    "tuningTitle": "Alert tuning",
+    "tuningStats": "Last 30 days: {incidents, plural, one {# incident} other {# incidents}}; {falseAlarms} marked false alarm, {flapping} flapped, {shortLived} cleared within 5 minutes.",
+    "tuningNone": "No changes suggested: this monitor's alerts have been reliable.",
+    "tuningApply": "Apply",
+    "tuningApplied": "Applied. The new settings take effect on the next check.",
+    "noisyTitle": "Noisy monitors",
+    "noisySummary": "{noisy} of {incidents} alerts were noise"
   }
 }

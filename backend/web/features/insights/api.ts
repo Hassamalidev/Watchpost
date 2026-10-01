@@ -5,10 +5,17 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import type { Explanation } from "@app/shared";
+import type { Explanation, NoiseStats, TuningSuggestion } from "@app/shared";
 import { api, wsPath } from "@/lib/api";
 
-export type { Explanation };
+export type { Explanation, NoiseStats, TuningSuggestion };
+
+export interface MonitorTuning {
+  monitorId: string;
+  name: string;
+  stats: NoiseStats;
+  suggestions: TuningSuggestion[];
+}
 
 export interface IncidentSummary {
   days: number;
@@ -74,6 +81,9 @@ export const insightsApi = {
   },
   deliveries: (ws: string, incidentId: string) =>
     api<{ data: DeliveryLogEntry[] }>(wsPath(ws, `/incidents/${incidentId}/deliveries`)),
+  tuning: (ws: string, monitorId: string) =>
+    api<MonitorTuning>(wsPath(ws, `/alert-tuning/${monitorId}`)),
+  noisiest: (ws: string) => api<{ data: MonitorTuning[] }>(wsPath(ws, "/alert-tuning")),
   drill: (ws: string) =>
     api<{ id: string; number: number }>(wsPath(ws, "/incidents/drill"), {
       method: "POST",
@@ -117,5 +127,20 @@ export function useDeliveries(ws: string, incidentId: string, live: boolean) {
     queryKey: ["deliveries", ws, incidentId],
     queryFn: async () => (await insightsApi.deliveries(ws, incidentId)).data,
     refetchInterval: live ? 5_000 : false,
+  });
+}
+
+export function useTuning(ws: string, monitorId: string) {
+  return useQuery({
+    queryKey: ["alert-tuning", ws, monitorId],
+    queryFn: () => insightsApi.tuning(ws, monitorId),
+  });
+}
+
+export function useNoisiest(ws: string) {
+  return useQuery({
+    queryKey: ["alert-tuning", ws],
+    queryFn: async () => (await insightsApi.noisiest(ws)).data,
+    refetchInterval: 5 * 60_000,
   });
 }

@@ -13,6 +13,7 @@ import { workspaceHref } from "@/lib/navigation";
 import { IncidentList } from "@/features/incidents/components/incident-list";
 import { BudgetList } from "@/features/insights/components/budget";
 import { HealthSummary } from "@/features/insights/components/summary";
+import { NoisyMonitors } from "@/features/insights/components/tuning";
 import { useMonitor } from "../hooks";
 import { MonitorForm } from "./monitor-form";
 import { MonitorList } from "./monitor-list";
@@ -47,6 +48,7 @@ export function OverviewView() {
         </h2>
         <MonitorList ws={ws} emptyAction={addFirst} />
       </section>
+      <NoisyMonitors ws={ws} />
       <section className="grid gap-2" aria-labelledby="error-budgets">
         <h2 id="error-budgets" className="text-base font-semibold">
           {tInsights("budgetsTitle")}

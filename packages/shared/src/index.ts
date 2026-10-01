@@ -126,3 +126,10 @@ export {
   type FailureCategory,
   type FailureFacts,
 } from "./explain/failure.js";
+export {
+  noiseLevel,
+  suggestTuning,
+  type NoiseStats,
+  type TuningSettings,
+  type TuningSuggestion,
+} from "./explain/tuning.js";

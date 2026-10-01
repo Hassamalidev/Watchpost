@@ -10,6 +10,7 @@ import type {
   incidentRefParams,
   listIncidentsQuery,
   summaryQuery,
+  tuningParams,
 } from "./validators/index.js";
 
 type Handlers =
@@ -21,7 +22,9 @@ type Handlers =
   | "comment"
   | "falseAlarm"
   | "summary"
-  | "drill";
+  | "drill"
+  | "noisiest"
+  | "tuning";
 
 export type IncidentsController = Record<Handlers, RequestHandler>;
 
@@ -57,6 +60,13 @@ export function createIncidentsController(service: IncidentsService): IncidentsC
     },
     drill: async (req, res) => {
       res.status(201).json(await service.startDrill(scopeOf(req, res)));
+    },
+    noisiest: async (req, res) => {
+      res.json({ data: await service.noisiest(scopeOf(req, res), 10) });
+    },
+    tuning: async (req, res) => {
+      const { params } = inputOf<{ params: typeof tuningParams }>(req, res);
+      res.json(await service.tuning(scopeOf(req, res), params.monitorId));
     },
     falseAlarm: async (req, res) => {
       const { body } = inputOf<{ body: typeof falseAlarmBody }>(req, res);

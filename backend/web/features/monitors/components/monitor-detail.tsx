@@ -24,6 +24,7 @@ import { IncidentList } from "@/features/incidents/components/incident-list";
 import { MonitorBudgetCard } from "@/features/insights/components/budget";
 import { ChangeTimeline } from "@/features/insights/components/changes";
 import { ExplanationCard } from "@/features/insights/components/explanation";
+import { TuningCard } from "@/features/insights/components/tuning";
 import { monitorsApi, targetOf } from "../api";
 import { monitorKeys, useMonitor, useMonitorStates } from "../hooks";
 import { LatencyChart, UptimeBars } from "./charts";
@@ -182,6 +183,8 @@ export function MonitorDetail({ monitorId }: { monitorId: string }) {
           </CardContent>
         </Card>
       </div>
+
+      {data.type !== "heartbeat" && <TuningCard ws={ws} monitorId={data.id} canEdit={canEdit} />}
 
       <Card>
         <CardHeader>

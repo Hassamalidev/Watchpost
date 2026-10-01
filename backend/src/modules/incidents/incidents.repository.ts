@@ -139,6 +139,33 @@ export function createIncidentsRepository() {
      * Real incidents (not expiry warnings or drills) started in [from, to): opened, resolved, false
      * alarms, and mean times to acknowledge and to resolve.
      */
+    /*
+     * Per-monitor noise since `from` (check-driven incidents only): false alarms, flapping, and
+     * incidents that resolved on their own within five minutes.
+     */
+    async noiseByMonitor(tx: DbOrTx, scope: WorkspaceScope, from: Date, monitorId?: string) {
+      return tx
+        .select({
+          monitorId: sql<string>`${incidents.monitorId}`,
+          incidents: sql<number>`count(*)::int`,
+          falseAlarms: sql<number>`(count(*) filter (where ${incidents.falseAlarm}))::int`,
+          flapping: sql<number>`(count(*) filter (where ${incidents.flapping}))::int`,
+          shortLived: sql<number>`(count(*) filter (where ${incidents.autoResolved} and ${incidents.resolvedAt} - ${incidents.startedAt} < interval '5 minutes'))::int`,
+        })
+        .from(incidents)
+        .where(
+          tenantWhere(
+            scope,
+            incidents,
+            sql`${incidents.source} in ('monitor', 'heartbeat')`,
+            sql`${incidents.monitorId} is not null`,
+            sql`${incidents.startedAt} >= ${from.toISOString()}::timestamptz`,
+            monitorId === undefined ? undefined : eq(incidents.monitorId, monitorId),
+          ),
+        )
+        .groupBy(incidents.monitorId);
+    },
+
     async stats(tx: DbOrTx, workspaceId: string, from: Date, to: Date) {
       const [row] = await tx
         .select({

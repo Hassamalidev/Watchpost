@@ -4,7 +4,15 @@
  * alarm, manual incidents). Every change writes an incident_events row — the timeline is the audit
  * trail — and emits an outbox event in the same transaction.
  */
-import { explainFailure, type Explanation } from "@app/shared";
+import {
+  explainFailure,
+  noiseLevel,
+  suggestTuning,
+  type Explanation,
+  type NoiseStats,
+  type TuningSettings,
+  type TuningSuggestion,
+} from "@app/shared";
 import type { Clock } from "../../core/clock.js";
 import { ConflictError, NotFoundError } from "../../core/errors.js";
 import { createWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
@@ -164,6 +172,16 @@ export interface IncidentSummary {
   mttrMinutes: number | null;
 }
 
+/* Monitor views carry regions as plain strings; the settings schema guarantees they are regions. */
+type MonitorTuningRegions = TuningSettings["regions"];
+
+export interface MonitorTuning {
+  monitorId: string;
+  name: string;
+  stats: NoiseStats;
+  suggestions: TuningSuggestion[];
+}
+
 export const DRILL_TITLE = "Alert drill: acknowledge this to finish the drill";
 
 export interface CreateIncidentInput {
@@ -209,6 +227,10 @@ export interface IncidentsService {
    * mean minutes to acknowledge and resolve. Drills and expiry warnings don't count.
    */
   summary(scope: WorkspaceScope, days: number): Promise<IncidentSummary>;
+  /* Alert tuning advice for one monitor from its last 30 days (P1-T28). */
+  tuning(scope: WorkspaceScope, monitorId: string): Promise<MonitorTuning>;
+  /* The noisiest monitors of the last 30 days with their advice, noisiest first. */
+  noisiest(scope: WorkspaceScope, limit: number): Promise<MonitorTuning[]>;
   /* Starts an alert drill: a real incident through every alert route, labelled as a drill. */
   startDrill(scope: WorkspaceScope): Promise<IncidentView>;
   /* System: incidents started in [from, to) — opened, resolved, mean minutes to resolve (digests). */
@@ -285,6 +307,34 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
       minutesBefore: Math.floor((row.startedAt.getTime() - Date.parse(deploy.deployedAt)) / 60_000),
     };
   }
+
+  const tuningSince = () => new Date(clock.now().getTime() - 30 * 86_400_000);
+  const tuningOf = (
+    monitor: Awaited<ReturnType<MonitorsService["get"]>>,
+    row: NoiseStats | undefined,
+  ): MonitorTuning => {
+    const stats: NoiseStats = {
+      incidents: row?.incidents ?? 0,
+      falseAlarms: row?.falseAlarms ?? 0,
+      flapping: row?.flapping ?? 0,
+      shortLived: row?.shortLived ?? 0,
+    };
+    return {
+      monitorId: monitor.id,
+      name: monitor.name,
+      stats,
+      suggestions:
+        monitor.type === "heartbeat"
+          ? []
+          : suggestTuning(stats, {
+              regions: monitor.regions as MonitorTuningRegions,
+              minFailingRegions: monitor.minFailingRegions,
+              recoverySuccesses: monitor.recoverySuccesses,
+              intervalSeconds: monitor.intervalSeconds,
+              timeoutMs: monitor.timeoutMs,
+            }),
+    };
+  };
 
   const toView = (row: IncidentRow): IncidentView => {
     const end = row.resolvedAt ?? clock.now();
@@ -494,6 +544,29 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
         mttaMinutes: s.mttaSeconds === null ? null : Math.round((s.mttaSeconds / 60) * 10) / 10,
         mttrMinutes: s.mttrSeconds === null ? null : Math.round((s.mttrSeconds / 60) * 10) / 10,
       };
+    },
+
+    async tuning(scope, monitorId) {
+      const monitor = await deps.monitors.get(scope, monitorId);
+      const [row] = await repo.noiseByMonitor(deps.db, scope, tuningSince(), monitorId);
+      return tuningOf(monitor, row);
+    },
+
+    async noisiest(scope, limit) {
+      const rows = (await repo.noiseByMonitor(deps.db, scope, tuningSince()))
+        .filter((r) => noiseLevel(r) > 0)
+        .sort((a, b) => noiseLevel(b) - noiseLevel(a))
+        .slice(0, limit);
+      const out: MonitorTuning[] = [];
+      for (const row of rows) {
+        try {
+          out.push(tuningOf(await deps.monitors.get(scope, row.monitorId), row));
+        } catch (err) {
+          /* Deleted since: its incidents stay, its advice doesn't. */
+          if (!(err instanceof NotFoundError)) throw err;
+        }
+      }
+      return out;
     },
 
     async startDrill(scope) {

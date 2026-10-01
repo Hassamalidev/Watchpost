@@ -14,6 +14,7 @@ import {
   incidentRefParams,
   listIncidentsQuery,
   summaryQuery,
+  tuningParams,
 } from "./validators/index.js";
 
 export function createIncidentsRouter(
@@ -25,7 +26,16 @@ export function createIncidentsRouter(
   const respond = requireRole("responder");
   const write = requireRole("member");
   const ref = validate({ params: incidentRefParams });
-  router.use("/incidents", guards.session, guards.workspace);
+  router.use(["/incidents", "/alert-tuning"], guards.session, guards.workspace);
+
+  /* Alert tuning advice from the last 30 days of incidents (P1-T28). */
+  router.get("/alert-tuning", read, controller.noisiest);
+  router.get(
+    "/alert-tuning/:monitorId",
+    read,
+    validate({ params: tuningParams }),
+    controller.tuning,
+  );
 
   router.get("/incidents", read, validate({ query: listIncidentsQuery }), controller.list);
   router.get("/incidents/summary", read, validate({ query: summaryQuery }), controller.summary);

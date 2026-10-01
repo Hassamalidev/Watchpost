@@ -1,7 +1,7 @@
 # Watchpost — Product Spec and Build Plan (`PRODUCT.md`)
 
 > **Working name:** Watchpost. Replace it and `<domain>` everywhere once the final name and domain are chosen (Open decision #1).
-> **Status:** In progress · **Current phase:** 1 · **Next task:** `P1-T28` · **Last updated:** 2026-10-01 (P1-T27 done; P1-T20 and P1-T21 deferred by the owner, PC-002; owner action: branch ruleset in `docs/ci.md`)
+> **Status:** In progress · **Current phase:** 1 · **Next task:** `P1-T20` · **Last updated:** 2026-10-01 (PC-002 tasks P1-T22 to P1-T28 done; P1-T20 needs owner decisions #1 and #7, P1-T21 waits for the owner; owner action: branch ruleset in `docs/ci.md`)
 > The build agent keeps this status block current.
 
 **Companion files**
@@ -1199,7 +1199,7 @@ Targets assume a start on Monday 2026-10-05 with one developer and a coding agen
   *AC:* deploy recorded from a curl one-liner and from a GitHub webhook (signature verified); the change timeline and the alert explanation mention a deploy within 30 minutes before the incident; tests for both receivers and the timeline join.
 - [x] **P1-T27 Review pass 2 (PC-002).** Independent review of everything added in P1-T22 to P1-T26 (insights, review fixes, UI, deploy markers) for security, tenancy, correctness and performance; fix what it finds.
   *AC:* each confirmed finding fixed with a regression test, or recorded in §21.2 with the reason it waits.
-- [ ] **P1-T28 Alert tuning advisor (PC-002).** Per monitor over 30 days: incidents, false alarms, flapping episodes and short self-resolving incidents, turned into concrete suggestions (confirm from more regions, require more recovery checks, raise the slow-response threshold, check less often) that apply with one click; an overview list of the noisiest monitors.
+- [x] **P1-T28 Alert tuning advisor (PC-002).** Per monitor over 30 days: incidents, false alarms, flapping episodes and short self-resolving incidents, turned into concrete suggestions (confirm from more regions, require more recovery checks, raise the slow-response threshold, check less often) that apply with one click; an overview list of the noisiest monitors.
   *AC:* suggestions are a pure, unit-tested rule table; applying one changes only that setting; Playwright covers the advisor in light and dark with axe.
 
 **Exit:** internal alpha live; merge; tag `v0.1.0`.
@@ -1416,6 +1416,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | D-050 | 2026-10-01 | UX pass 2 (P1-T25). Monitors are edited in place (`/monitors/[id]/edit`, type fixed, config the form doesn't show is kept, so masked secrets round-trip; the API asks for them again if the target changes, D-048). Incident pages take A/R shortcuts (`aria-keyshortcuts`, ignored while typing). Incident filters (status, severity, monitor) live in the URL. Later-phase sections say which phase builds them and link to what helps today. Local e2e runs use their own `watchpost_e2e` database, recreated per run by `e2e/prepare-db.mjs` (it only ever drops a database whose name ends in `_e2e`; CI's database is just migrated). | Fewer dead ends and faster incident handling; reliable local e2e | Sharing the dev database with e2e (2,950 leftover monitors slowed the e2e probe) |
 | D-051 | 2026-10-01 | Deploy markers (P1-T26). New `deploys` module with no outgoing calls; `incidents` and `detection` read it. One deploy URL per workspace (`/api/deploys/<token>`, token stored as SHA-256, shown once, admins rotate it). GitHub `deployment_status` webhooks go to `<url>/github`, signed with a secret derived as HMAC(auth secret, token): only the server can compute it, nothing extra is stored, and rotating the auth secret means re-entering the GitHub secret. Only `success` states are recorded; GitHub retries dedupe on `github:<status id>`. Deploy URLs from callers must be http(s) (they become links). A deploy in the 30 minutes before a check-driven incident (not drills or expiry notices) becomes the first "check first" step in every alert channel and on the incident page, and deploys appear in "what changed". | Most outages follow a change, and the deploy is the change teams check first | A GitHub App (more setup, more permissions); storing a separate encrypted GitHub secret per workspace |
 | D-052 | 2026-10-01 | Review pass 2 (P1-T27), eight findings fixed: settings PATCH applied schema defaults to keys the caller didn't send (Zod 4 `.partial()` keeps defaults), silently resetting regions, tags and policies, so the validator now keeps only sent keys; "what changed" counts an address or certificate only when it cleanly replaced the earlier ones (rotating pools overlap); delivery recovery uses one job ID per attempt so the minutely sweep can't pile up duplicates; the monitor edit form offers to drop saved credentials when the target changes; deploy ingest has its own per-IP (120/min) and per-token (30/min) limits; error budgets page through all monitors (cap 5,000) and query one monitor's downtime directly; deploy URL rotation is an upsert; the probe refuses to resend a request body to another origin on 307/308. | An independent review catches what the author misses | — |
+| D-053 | 2026-10-01 | Alert tuning advisor (P1-T28). `suggestTuning` in `@app/shared` is a pure rule table over 30 days of check-driven incidents per monitor (false alarms, flapping, auto-resolved within 5 minutes): two or more blips on a one-region monitor → add a launch region and require 2; otherwise → require one more failing region (never more than the monitor has); two or more flapping incidents → one more recovery check than the effective default (capped at 3); short timeouts (< 10 s) with blips → double the timeout within the interval and 30 s. Each suggestion carries the exact settings patch; the UI applies it with a partial PATCH (safe since D-052). `/alert-tuning` lists the 10 noisiest monitors; the overview shows them only when there is advice. | Competitors report noise; we fix it with one click and explain why | Auto-applying changes (silent changes to paging behaviour); an LLM for advice |
 
 ---
 
@@ -1495,6 +1496,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | 2026-10-01 | §17, §20 | D-050 (monitor edit, incident shortcuts and filters, phase placeholders, separate e2e database); new task P1-T26 (deploy markers) | P1-T25 |
 | 2026-10-01 | §7.4, §17, §20, §21.2 | `deploys` module (tables deploy_hooks, deploys; incidents and detection may call it); D-051; next task P1-T27 | P1-T26 |
 | 2026-10-01 | §17, §20 | D-052 (review pass 2 fixes); new task P1-T28 (alert tuning advisor) | P1-T27 |
+| 2026-10-01 | §17, §20 | D-053 (alert tuning advisor); PC-002 tasks done, next task back to P1-T20 | P1-T28 |
 
 ### Phase 0 retro (2026-09-30, `v0.0.1`)
 
