@@ -67,6 +67,8 @@
     "loginTitle": "Sign in to Watchpost",
     "signupTitle": "Create your Watchpost account",
     "signupIntro": "Free for 20 monitors. No card needed.",
+    "planSelected": "{plan} plan selected. Your account starts free with no card; you can upgrade to {plan} from Billing once your workspace is set up.",
+    "changePlan": "Change plan",
     "email": "Work email",
     "password": "Password",
     "passwordHint": "At least 8 characters.",
@@ -700,7 +702,97 @@
   "marketing": {
     "hero": "Know about real outages first. Confirmed, explained, actionable.",
     "subhead": "Watchpost checks your sites and APIs from around the world, confirms each failure before it pages anyone, and lets your team acknowledge from wherever they are.",
-    "openApp": "Open the app"
+    "navLabel": "Site",
+    "navFeatures": "Features",
+    "navPricing": "Pricing",
+    "signIn": "Sign in",
+    "signUp": "Sign up",
+    "startFreeNoCard": "Start free, no card",
+    "seePlans": "See plans",
+    "haveAccount": "Already have an account?",
+    "featuresTitle": "Alerts you can trust at 3 a.m.",
+    "featuresIntro": "Every alert is checked from more than one place and arrives with what you need to act on it.",
+    "features": {
+      "confirmed": {
+        "title": "Confirmed before it pages you",
+        "body": "A failure is rechecked from other regions first, so one flaky network path doesn't wake anyone up."
+      },
+      "evidence": {
+        "title": "Evidence in every alert",
+        "body": "Each alert says what failed, the likely cause and what to check first, with the timings from every region."
+      },
+      "channels": {
+        "title": "Alerts where your team works",
+        "body": "Email, Slack, Teams, Discord, Telegram, webhooks and more, with rules per channel and acknowledge links that work from a phone."
+      },
+      "changes": {
+        "title": "What changed before the outage",
+        "body": "Deploys from CI and GitHub, certificate and address changes and settings edits sit on the incident timeline."
+      },
+      "tuning": {
+        "title": "Less noise over time",
+        "body": "The tuning advisor finds flapping and false alarms and suggests fixes you can apply in one click."
+      },
+      "heartbeats": {
+        "title": "Cron jobs and error budgets",
+        "body": "Heartbeat monitors catch jobs that stop running, and monthly error budgets show which services are at risk."
+      }
+    },
+    "pricingTitle": "Pick a plan",
+    "pricingIntro": "Flat prices, not per seat. Start on Free and change plans whenever you like.",
+    "billingPeriod": "Billing period",
+    "billedMonthly": "Monthly",
+    "billedAnnually": "Annual (2 months free)",
+    "mostPopular": "Most popular",
+    "pricePerMonth": "per month",
+    "pricePerMonthAnnual": "per month, billed annually",
+    "priceForever": "forever",
+    "startFree": "Start free",
+    "choosePlan": "Choose {plan}",
+    "pricingNote": "Every account starts free with no card. Prices in USD; tax is added at checkout where it applies.",
+    "footer": "Watchpost: uptime monitoring that confirms outages before it alerts.",
+    "plans": {
+      "free": {
+        "name": "Free",
+        "tagline": "For side projects and small sites. Commercial use allowed.",
+        "f1": "20 monitors, 5 heartbeats",
+        "f2": "Checks every 3 minutes",
+        "f3": "2 regions per monitor",
+        "f4": "3 team members",
+        "f5": "1 status page",
+        "f6": "30 days of history"
+      },
+      "starter": {
+        "name": "Starter",
+        "tagline": "For a small team with a product in production.",
+        "f1": "50 monitors, 20 heartbeats",
+        "f2": "Checks every minute",
+        "f3": "3 regions per monitor",
+        "f4": "5 team members",
+        "f5": "25 SMS and voice credits a month",
+        "f6": "6 months of history"
+      },
+      "pro": {
+        "name": "Pro",
+        "tagline": "For teams that run on-call.",
+        "f1": "150 monitors, 75 heartbeats",
+        "f2": "Checks every 30 seconds",
+        "f3": "5 regions per monitor",
+        "f4": "Unlimited team members",
+        "f5": "150 SMS and voice credits a month",
+        "f6": "13 months of history"
+      },
+      "business": {
+        "name": "Business",
+        "tagline": "For agencies and larger teams.",
+        "f1": "500 monitors, 250 heartbeats",
+        "f2": "Checks every 15 seconds",
+        "f3": "All regions",
+        "f4": "Unlimited team members, SSO and audit log",
+        "f5": "500 SMS and voice credits a month",
+        "f6": "25 months of history"
+      }
+    }
   },
   "actionLink": {
     "title": "Incident action",
