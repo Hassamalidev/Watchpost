@@ -1,13 +1,15 @@
 /* Queries on channels and message_refs, owned by the channels module. */
-import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, sql } from "drizzle-orm";
 import { assertWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
 import { tenantWhere, withWorkspace, type DbOrTx } from "../../infra/db/index.js";
 import {
   channels,
   messageRefs,
+  phoneNumbers,
   slackInstallations,
   telegramChats,
   type ChannelRow,
+  type PhoneNumberRow,
   type SlackInstallationRow,
 } from "./schema/channels.js";
 
@@ -216,6 +218,118 @@ export function createChannelsRepository() {
         .where(and(eq(telegramChats.linkToken, token), gt(telegramChats.tokenExpiresAt, now)))
         .returning({ channelId: telegramChats.channelId, workspaceId: telegramChats.workspaceId });
       return row;
+    },
+
+    /* Phone numbers (SMS and voice). */
+
+    async findPhone(
+      tx: DbOrTx,
+      scope: WorkspaceScope,
+      phone: string,
+    ): Promise<PhoneNumberRow | undefined> {
+      const rows = await tx
+        .select()
+        .from(phoneNumbers)
+        .where(tenantWhere(scope, phoneNumbers, eq(phoneNumbers.phone, phone)))
+        .limit(1);
+      return rows[0];
+    },
+
+    /* Stores a new code for the number; a number that is already verified stays verified. */
+    async savePhoneCode(
+      tx: DbOrTx,
+      scope: WorkspaceScope,
+      row: Pick<
+        typeof phoneNumbers.$inferInsert,
+        | "id"
+        | "phone"
+        | "codeHash"
+        | "codeExpiresAt"
+        | "sendCount"
+        | "sendWindowStart"
+        | "createdBy"
+      >,
+    ): Promise<void> {
+      const code = {
+        codeHash: row.codeHash,
+        codeExpiresAt: row.codeExpiresAt,
+        sendCount: row.sendCount,
+        sendWindowStart: row.sendWindowStart,
+        attempts: 0,
+      };
+      await tx
+        .insert(phoneNumbers)
+        .values(withWorkspace(scope, { ...row, attempts: 0 }))
+        .onConflictDoUpdate({
+          target: [phoneNumbers.workspaceId, phoneNumbers.phone],
+          set: code,
+        });
+    },
+
+    async countPhoneAttempt(tx: DbOrTx, scope: WorkspaceScope, phone: string): Promise<void> {
+      await tx
+        .update(phoneNumbers)
+        .set({ attempts: sql`${phoneNumbers.attempts} + 1` })
+        .where(tenantWhere(scope, phoneNumbers, eq(phoneNumbers.phone, phone)));
+    },
+
+    async markPhoneVerified(
+      tx: DbOrTx,
+      scope: WorkspaceScope,
+      phone: string,
+      at: Date,
+    ): Promise<void> {
+      await tx
+        .update(phoneNumbers)
+        .set({ verifiedAt: at, codeHash: null, codeExpiresAt: null, attempts: 0 })
+        .where(tenantWhere(scope, phoneNumbers, eq(phoneNumbers.phone, phone)));
+    },
+
+    /* System (inbound replies): every workspace that verified this number. */
+    async workspacesWithPhone(tx: DbOrTx, phone: string): Promise<string[]> {
+      const rows = await tx
+        .select({ workspaceId: phoneNumbers.workspaceId })
+        .from(phoneNumbers)
+        .where(and(eq(phoneNumbers.phone, phone), isNotNull(phoneNumbers.verifiedAt)));
+      return rows.map((r) => r.workspaceId);
+    },
+
+    async phoneChannels(tx: DbOrTx, workspaceIds: string[]): Promise<ChannelRow[]> {
+      if (workspaceIds.length === 0) return [];
+      return tx
+        .select()
+        .from(channels)
+        .where(
+          and(
+            inArray(channels.workspaceId, workspaceIds),
+            inArray(channels.type, ["sms", "voice"]),
+          ),
+        );
+    },
+
+    /* The newest alert sent through any of these channels, optionally for one incident. */
+    async latestRef(
+      tx: DbOrTx,
+      channelIds: string[],
+      incidentId?: string,
+    ): Promise<{ workspaceId: string; incidentId: string; channelId: string } | undefined> {
+      if (channelIds.length === 0) return undefined;
+      const rows = await tx
+        .select({
+          workspaceId: messageRefs.workspaceId,
+          incidentId: messageRefs.incidentId,
+          channelId: messageRefs.channelId,
+        })
+        .from(messageRefs)
+        .where(
+          and(
+            inArray(messageRefs.channelId, channelIds),
+            incidentId === undefined ? undefined : eq(messageRefs.incidentId, incidentId),
+          ),
+        )
+        .orderBy(desc(messageRefs.createdAt), desc(messageRefs.id))
+        .limit(1);
+      return rows[0];
     },
 
     async saveThreadRef(tx: DbOrTx, row: typeof messageRefs.$inferInsert): Promise<void> {

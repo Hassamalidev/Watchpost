@@ -274,6 +274,7 @@
       "chat": "Chat",
       "oncall": "On-call",
       "push": "Push",
+      "phone": "Phone",
       "email": "Email",
       "automation": "Automation"
     },
@@ -474,6 +475,14 @@
       "n8n": {
         "summary": "Trigger an n8n workflow from every incident event.",
         "steps": "In n8n, add a Webhook node with the method POST.\nCopy its production URL and paste it below.\nIf the node uses header authentication, add that header here."
+      },
+      "sms": {
+        "summary": "Text messages to a phone. Reply 1 to acknowledge or 2 to resolve. Uses alert credits.",
+        "steps": "Enter the number in international format, like +14155550123.\nCheck what a message to that country costs in credits, then send a code to the number.\nEnter the code to verify the number, then save."
+      },
+      "voice": {
+        "summary": "A phone call that reads the alert aloud. Press 1 to acknowledge. Uses alert credits.",
+        "steps": "Enter the number in international format, like +14155550123.\nCheck what a call to that country costs in credits, then send a code to the number by SMS.\nEnter the code to verify the number, then save. Calls are placed for new and ongoing incidents only."
       }
     },
     "fields": {
@@ -632,8 +641,27 @@
         "appToken": {
           "label": "Application token"
         }
+      },
+      "sms": {
+        "phone": {
+          "label": "Phone number",
+          "hint": "International format, starting with + and the country code."
+        }
+      },
+      "voice": {
+        "phone": {
+          "label": "Phone number",
+          "hint": "International format, starting with + and the country code."
+        }
       }
-    }
+    },
+    "phoneIntro": "This number must be verified before alerts go to it.",
+    "phoneCheckCost": "Check cost",
+    "phoneCost": "{country}: each SMS costs {sms, plural, one {# credit} other {# credits}}, each call {voice, plural, one {# credit} other {# credits}}.",
+    "phoneSendCode": "Send code by SMS ({credits, plural, one {# credit} other {# credits}})",
+    "phoneCode": "6-digit code",
+    "phoneConfirm": "Verify number",
+    "phoneVerified": "Number verified. You can save now."
   },
   "heartbeats": {
     "title": "Heartbeats",

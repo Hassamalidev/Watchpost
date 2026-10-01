@@ -1,5 +1,5 @@
 /* Typed calls for alert channels, the default alert policy, "Send test" and chat app setup. */
-import type { ChannelRules, ChannelType, IntegrationId } from "@app/shared";
+import type { ChannelRules, ChannelType, IntegrationId, PhoneCost } from "@app/shared";
 import { api, wsPath } from "@/lib/api";
 
 export interface Channel {
@@ -54,6 +54,19 @@ export const integrationsApi = {
   channelTypes: (ws: string) =>
     api<{ data: Array<{ type: ChannelType; available: boolean }> }>(wsPath(ws, "/channels/types")),
   channel: (ws: string, id: string) => api<ChannelDetail>(wsPath(ws, `/channels/${id}`)),
+  /* SMS and voice: what a number costs in credits, and its verification by one-time code. */
+  phoneCost: (ws: string, phone: string) =>
+    api<PhoneCost>(wsPath(ws, `/phone-numbers/cost?phone=${encodeURIComponent(phone)}`)),
+  sendPhoneCode: (ws: string, phone: string) =>
+    api<PhoneCost & { expiresAt: string }>(wsPath(ws, "/phone-numbers/codes"), {
+      method: "POST",
+      body: { phone },
+    }),
+  confirmPhone: (ws: string, phone: string, code: string) =>
+    api<{ verified: true }>(wsPath(ws, "/phone-numbers/confirm"), {
+      method: "POST",
+      body: { phone, code },
+    }),
   createChannel: (
     ws: string,
     body: {

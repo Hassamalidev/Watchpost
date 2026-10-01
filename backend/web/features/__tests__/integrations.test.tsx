@@ -370,3 +370,56 @@ describe("ChannelForm", () => {
     });
   });
 });
+
+describe("SMS setup", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("shows the cost, sends a code, verifies the number and then saves the channel", async () => {
+    const user = userEvent.setup();
+    const cost = { phone: "+14155550123", country: "US", smsCredits: 1, voiceCredits: 2 };
+    const fetchMock = vi.fn(async (path: string, init?: RequestInit) => {
+      const body = (status: number, value: unknown) =>
+        new Response(JSON.stringify(value), {
+          status,
+          headers: { "content-type": "application/json" },
+        });
+      if (path.includes("/phone-numbers/cost")) return body(200, cost);
+      if (path.endsWith("/phone-numbers/codes")) return body(201, { ...cost, expiresAt: "x" });
+      if (path.endsWith("/phone-numbers/confirm")) return body(200, { verified: true });
+      return body(201, { id: "c1", type: "sms", ...(JSON.parse(String(init?.body)) as object) });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const onSaved = vi.fn();
+    renderWithProviders(
+      <ChannelForm ws="ws1" integration={must("sms")} submitLabel="Save" onSaved={onSaved} />,
+    );
+
+    await user.type(screen.getByLabelText("Phone number"), "+14155550123");
+    await user.click(screen.getByRole("button", { name: "Check cost" }));
+    expect(
+      await screen.findByText("US: each SMS costs 1 credit, each call 2 credits."),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Send code by SMS (1 credit)" }));
+    await user.type(await screen.findByLabelText("6-digit code"), "123456");
+    await user.click(screen.getByRole("button", { name: "Verify number" }));
+    expect(await screen.findByText("Number verified. You can save now.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    const paths = fetchMock.mock.calls.map(([path]) => path);
+    expect(paths).toEqual([
+      "/api/w/ws1/phone-numbers/cost?phone=%2B14155550123",
+      "/api/w/ws1/phone-numbers/codes",
+      "/api/w/ws1/phone-numbers/confirm",
+      "/api/w/ws1/channels",
+    ]);
+    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({
+      phone: "+14155550123",
+      code: "123456",
+    });
+    expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toMatchObject({
+      type: "sms",
+      config: { phone: "+14155550123" },
+    });
+  });
+});

@@ -167,6 +167,20 @@ const baseEnvSchema = z.object({
     .regex(/^AC[0-9a-fA-F]{32}$/, "must look like AC followed by 32 hex characters")
     .optional(),
   TWILIO_AUTH_TOKEN: z.string().min(16).optional(),
+  /* The SMS sender: a Messaging Service (preferred) or one number. Without either, no SMS. */
+  TWILIO_MESSAGING_SERVICE_SID: z
+    .string()
+    .regex(/^MG[0-9a-fA-F]{32}$/, "must look like MG followed by 32 hex characters")
+    .optional(),
+  TWILIO_SMS_FROM: z
+    .string()
+    .regex(/^\+[1-9]\d{7,14}$/, "must be an E.164 number")
+    .optional(),
+  /* The caller number for voice alerts. Without it, no calls. */
+  TWILIO_VOICE_FROM: z
+    .string()
+    .regex(/^\+[1-9]\d{7,14}$/, "must be an E.164 number")
+    .optional(),
   ...(Object.fromEntries(PADDLE_PRICE_ENV.map((key) => [key, paddlePriceId])) as Record<
     (typeof PADDLE_PRICE_ENV)[number],
     typeof paddlePriceId

@@ -28,7 +28,7 @@ export interface AlertingModuleDeps {
   channels: ChannelsService;
   workspaces: WorkspacesService;
   /* False-alarm refunds (§5); optional so tests can build alerting without credits. */
-  credits?: Pick<CreditsService, "refundIncident">;
+  credits?: Pick<CreditsService, "refundIncident" | "refundCharge">;
   guards: { session: RequestHandler; workspace: RequestHandler };
 }
 
@@ -44,6 +44,7 @@ export function createAlertingModule(deps: AlertingModuleDeps): AlertingModule {
     incidents: deps.incidents,
     channels: deps.channels,
     workspaces: deps.workspaces,
+    credits: deps.credits,
     outbox: infra.outbox,
     clock: infra.clock,
     logger: infra.logger.child({ module: "alerting" }),

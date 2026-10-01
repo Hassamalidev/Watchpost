@@ -29,6 +29,7 @@ import {
   type ChannelSummary,
   type ChannelsService,
 } from "../channels/index.js";
+import type { CreditsService } from "../credits/index.js";
 import { explainIncident, type AlertContext, type IncidentsService } from "../incidents/index.js";
 import type { WorkspacesService } from "../workspaces/index.js";
 import type { AlertingRepository } from "./alerting.repository.js";
@@ -130,6 +131,8 @@ export interface AlertingServiceDeps {
     "existing" | "deliver" | "markFailing" | "summary" | "retryPolicy"
   >;
   workspaces: Pick<WorkspacesService, "listMembers" | "workspaceName">;
+  /* Returns the credits of a paid message that failed for good; optional for tests. */
+  credits?: Pick<CreditsService, "refundCharge"> | undefined;
   outbox: Outbox;
   clock: Clock;
   logger: Logger;
@@ -440,11 +443,15 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
       const event = eventFor(delivery.kind, ctx, workspaceName, delivery.actorName);
 
       try {
-        const { providerRef } = await deps.channels.deliver({
+        const { providerRef, skipped } = await deps.channels.deliver({
           channelId: delivery.channelId,
           event,
           idempotencyKey: `delivery.${delivery.id}`,
         });
+        if (skipped !== undefined) {
+          await finish({ status: "skipped", error: skipped });
+          return "skipped";
+        }
         await finish({ status: "sent", providerRef, error: null, sentAt: clock.now() });
         return "sent";
       } catch (err) {
@@ -456,6 +463,12 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
         }
 
         await finish({ status: "failed", error: message });
+        /* A paid message that never went out gives its credits back. */
+        await deps.credits
+          ?.refundCharge(system(ctx.workspaceId), `delivery.${delivery.id}`)
+          .catch((refundErr: unknown) =>
+            deps.logger.error({ deliveryId, err: refundErr }, "refunding an unsent message failed"),
+          );
         deps.logger.warn(
           { deliveryId, channelId: delivery.channelId, attempts: delivery.attempts, err: message },
           "delivery failed permanently",

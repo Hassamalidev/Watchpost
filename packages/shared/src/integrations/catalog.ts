@@ -12,10 +12,18 @@ import {
   SERVICE_REGIONS,
 } from "../schemas/channel-configs.js";
 
-export const INTEGRATION_CATEGORIES = ["chat", "oncall", "push", "email", "automation"] as const;
+export const INTEGRATION_CATEGORIES = ["chat", "oncall", "push", "phone", "email", "automation"] as const;
 export type IntegrationCategory = (typeof INTEGRATION_CATEGORIES)[number];
 
-export type ChannelFieldKind = "url" | "secret" | "text" | "emails" | "select" | "headers";
+export type ChannelFieldKind =
+  | "url"
+  | "secret"
+  | "text"
+  | "emails"
+  | "select"
+  | "headers"
+  /* A phone number the workspace has verified with a one-time code. */
+  | "phone";
 
 export interface ChannelField {
   /* The key in the channel's config. */
@@ -128,6 +136,8 @@ export const CHANNEL_FIELDS: Record<ChannelType, readonly ChannelField[]> = {
     secret("accessToken", false),
   ],
   gotify: [url("serverUrl", "https://gotify.example.com", false), secret("appToken")],
+  sms: [{ key: "phone", kind: "phone", required: true, placeholder: "+14155550123" }],
+  voice: [{ key: "phone", kind: "phone", required: true, placeholder: "+14155550123" }],
 };
 
 const caps = (
@@ -155,6 +165,8 @@ export const CHANNEL_CAPABILITIES: Record<ChannelType, ChannelCapabilities> = {
   pushbullet: caps("separate"),
   ntfy: caps("update"),
   gotify: caps("separate"),
+  sms: caps("separate"),
+  voice: caps("separate"),
 };
 
 /* Product names as their makers write them; used in emails, logs and the app. */
@@ -178,6 +190,8 @@ export const CHANNEL_LABELS: Record<ChannelType, string> = {
   pushbullet: "Pushbullet",
   ntfy: "ntfy",
   gotify: "Gotify",
+  sms: "SMS",
+  voice: "Voice call",
 };
 
 /* Stable IDs: the gallery URL (`/integrations/new/<id>`), the docs file and the copy's key. */
@@ -200,6 +214,8 @@ export const INTEGRATION_IDS = [
   "ntfy",
   "pushbullet",
   "gotify",
+  "sms",
+  "voice",
   "email",
   "webhook",
   "zapier",
@@ -258,6 +274,8 @@ export const INTEGRATIONS: readonly IntegrationDefinition[] = [
   entry("ntfy", "ntfy", "push", ["phone", "mobile", "notification", "self-hosted"]),
   entry("pushbullet", "pushbullet", "push", ["phone", "mobile", "notification"]),
   entry("gotify", "gotify", "push", ["phone", "android", "self-hosted", "notification"]),
+  entry("sms", "sms", "phone", ["text", "mobile", "phone", "message"]),
+  entry("voice", "voice", "phone", ["call", "phone", "mobile", "ring"]),
   entry("email", "email", "email", ["mail", "inbox", "smtp"]),
   entry("webhook", "webhook", "automation", ["http", "api", "json", "custom", "signed"]),
   entry("zapier", "webhook", "automation", ["zap", "automation", "no-code"], { name: "Zapier" }),

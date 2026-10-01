@@ -18,12 +18,13 @@ import {
 } from "@app/shared";
 import type { Clock } from "../../core/clock.js";
 import { NotFoundError, ValidationError } from "../../core/errors.js";
-import type { WorkspaceScope } from "../../core/workspace-scope.js";
+import { createWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
 import type { TokenCipher } from "../../infra/crypto.js";
 import type { Db } from "../../infra/db/index.js";
 import type { Logger } from "../../infra/logger.js";
 import type { Outbox } from "../../infra/outbox/index.js";
 import type { ChannelsRepository } from "./channels.repository.js";
+import type { PaidSends } from "./phones.service.js";
 import type { ChannelRow } from "./schema/channels.js";
 import { ChannelDeliveryError, type AlertEvent, type AnyChannelAdapter } from "./types/adapter.js";
 
@@ -80,7 +81,7 @@ export interface ChannelsService {
     channelId: string;
     event: AlertEvent;
     idempotencyKey: string;
-  }): Promise<{ providerRef: string | null }>;
+  }): Promise<{ providerRef: string | null; skipped?: string }>;
   /* System: alerting gave up on a delivery through this channel. */
   markFailing(channelId: string): Promise<void>;
   /* How often and how patiently deliveries to this channel type are retried. */
@@ -103,6 +104,8 @@ export function createChannelsService(deps: {
   clock: Clock;
   logger: Logger;
   newId: () => string;
+  /* Charges and meters paid channels; without it they can't send. */
+  credits?: PaidSends | undefined;
 }): ChannelsService {
   const { repository: repo, clock } = deps;
   const adapters = new Map(deps.adapters.map((a) => [a.type, a]));
@@ -272,6 +275,30 @@ export function createChannelsService(deps: {
         throw new ChannelDeliveryError("The stored configuration is unreadable.", true);
       }
 
+      if (adapter.skip?.(event) === true) {
+        return { providerRef: null, skipped: "This channel isn't used for this kind of update." };
+      }
+
+      /* Paid channels: take the credits first; a refusal means nothing is sent (§11). */
+      const price = adapter.cost?.(config);
+      const scope = createWorkspaceScope({ workspaceId: row.workspaceId });
+      if (price !== undefined) {
+        if (deps.credits === undefined) {
+          throw new ChannelDeliveryError("Paid messages aren't set up on this server.", true);
+        }
+        const charged = await deps.credits.charge(scope, {
+          credits: price.credits,
+          refId: idempotencyKey,
+          incidentId: event.kind === "test" ? undefined : event.incident.id,
+        });
+        if (!charged.ok) {
+          throw new ChannelDeliveryError(
+            `Not sent: this message costs ${price.credits} alert credit${price.credits === 1 ? "" : "s"} and the workspace has ${charged.balance}. Add credits under Billing.`,
+            true,
+          );
+        }
+      }
+
       const message = adapter.render(event);
       const threadRef =
         event.kind === "test" ? null : await repo.threadRef(deps.db, event.incident.id, channelId);
@@ -285,9 +312,23 @@ export function createChannelsService(deps: {
             ? err
             : new ChannelDeliveryError(err instanceof Error ? err.message : String(err));
         await repo.recordFailure(deps.db, channelId, clock.now(), failure.message);
+        /* A test isn't retried, so its credits go straight back; alerting returns the others. */
+        if (price !== undefined && event.kind === "test") {
+          await deps.credits?.refundCharge(scope, idempotencyKey);
+        }
         throw failure;
       }
+      if (price !== undefined) {
+        await deps.credits?.recordUsage(scope, {
+          provider: "twilio",
+          kind: price.kind,
+          units: 1,
+          costMicros: price.costMicros,
+          ref: idempotencyKey,
+        });
+      }
 
+      /* Phone channels keep the newest alert per incident too: replies are matched to it. */
       if (event.kind === "triggered" && providerRef !== null) {
         await repo.saveThreadRef(deps.db, {
           id: deps.newId(),

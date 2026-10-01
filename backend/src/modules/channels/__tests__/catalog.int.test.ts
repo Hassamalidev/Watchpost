@@ -65,7 +65,7 @@ afterAll(async () => {
 });
 
 describe("channel types", () => {
-  it("lists every type; the Slack app and Telegram need server credentials", async () => {
+  it("lists every type; the Slack app, Telegram, SMS and voice need server credentials", async () => {
     const res = await get(viewer, `/api/w/${ws}/channels/types`);
     expect(res.status, res.text).toBe(200);
     const available = new Map(
@@ -77,7 +77,11 @@ describe("channel types", () => {
     expect([...available.keys()]).toEqual([...CHANNEL_TYPES]);
     expect(available.get("slack")).toBe(false);
     expect(available.get("telegram")).toBe(false);
-    for (const type of CHANNEL_TYPES.filter((t) => t !== "slack" && t !== "telegram")) {
+    /* SMS and voice need a messaging provider on the server. */
+    const needServer = ["slack", "telegram", "sms", "voice"];
+    expect(available.get("sms")).toBe(false);
+    expect(available.get("voice")).toBe(false);
+    for (const type of CHANNEL_TYPES.filter((t) => !needServer.includes(t))) {
       expect(available.get(type), type).toBe(true);
     }
   });

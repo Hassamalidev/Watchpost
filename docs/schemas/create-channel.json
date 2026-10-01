@@ -25,7 +25,9 @@
         "pushover",
         "pushbullet",
         "ntfy",
-        "gotify"
+        "gotify",
+        "sms",
+        "voice"
       ]
     },
     "name": {

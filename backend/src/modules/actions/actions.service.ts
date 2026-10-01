@@ -14,6 +14,7 @@ import {
   type LinkAction,
 } from "../../infra/action-links.js";
 import type { Db } from "../../infra/db/index.js";
+import type { PhonesService } from "../channels/index.js";
 import type { IncidentsService, IncidentStatus } from "../incidents/index.js";
 import type { WorkspacesService } from "../workspaces/index.js";
 import type { ActionsRepository } from "./actions.repository.js";
@@ -36,6 +37,18 @@ export interface ActionOutcome {
 export interface ActionsService {
   preview(token: string): Promise<ActionPreview>;
   perform(token: string): Promise<ActionOutcome>;
+  /*
+   * A reply to an SMS alert ("1" acknowledges, "2" resolves) or the key pressed during a voice alert
+   * ("1" acknowledges). The caller has verified that the provider sent it, so the number is the
+   * credential: it acts on the last incident that number was alerted about. Returns what to answer,
+   * or null to stay silent.
+   */
+  phoneReply(input: {
+    phone: string;
+    text: string;
+    via: "sms" | "voice";
+    incidentId?: string | undefined;
+  }): Promise<string | null>;
 }
 
 export function createActionsService(deps: {
@@ -44,6 +57,7 @@ export function createActionsService(deps: {
   links: ActionLinks;
   incidents: Pick<IncidentsService, "get" | "acknowledge" | "resolve">;
   workspaces: Pick<WorkspacesService, "listMembers">;
+  phones?: Pick<PhonesService, "replyTarget"> | undefined;
   clock: Clock;
 }): ActionsService {
   function claimsOf(token: string): ActionClaims {
@@ -116,6 +130,32 @@ export function createActionsService(deps: {
           ? await deps.incidents.acknowledge(scope, claims.incidentId, { via: "email" })
           : await deps.incidents.resolve(scope, claims.incidentId, { via: "email" });
       return { action: claims.action, result: "done", incident: summary(after) };
+    },
+
+    async phoneReply({ phone, text, via, incidentId }) {
+      const digit = text.trim().charAt(0);
+      const wanted =
+        digit === "1" ? "acknowledge" : digit === "2" && via === "sms" ? "resolve" : null;
+      if (wanted === null) {
+        /* Anything else (STOP and HELP are handled by the provider) gets one line of help. */
+        return via === "sms" && text.trim() !== ""
+          ? "Watchpost: reply 1 to acknowledge or 2 to resolve the latest alert."
+          : null;
+      }
+      const target = await deps.phones?.replyTarget(phone, incidentId);
+      if (target === undefined) return "Watchpost: there is no alert for this number to act on.";
+
+      const scope = createWorkspaceScope({ workspaceId: target.workspaceId, role: "responder" });
+      const before = await deps.incidents.get(scope, target.incidentId);
+      const label = `#${before.number}`;
+      if (before.status === "resolved") return `Watchpost: ${label} is already resolved.`;
+      if (wanted === "acknowledge") {
+        if (before.status === "acknowledged") return `Watchpost: ${label} is already acknowledged.`;
+        await deps.incidents.acknowledge(scope, target.incidentId, { via });
+        return `Watchpost: ${label} acknowledged.`;
+      }
+      await deps.incidents.resolve(scope, target.incidentId, { via });
+      return `Watchpost: ${label} resolved.`;
     },
   };
 }

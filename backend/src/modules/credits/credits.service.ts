@@ -78,6 +78,11 @@ export interface CreditsService {
   ): Promise<ChargeResult>;
   /* Gives back every credit charged for an incident (false alarm, §5). Returns credits refunded. */
   refundIncident(scope: WorkspaceScope, incidentId: string): Promise<number>;
+  /*
+   * Gives back one charge whose message was never sent (the delivery failed for good). Returns the
+   * credits refunded. The charge stays used up: the same `refId` can't be sent for free later.
+   */
+  refundCharge(scope: WorkspaceScope, refId: string): Promise<number>;
   /* Meters one provider call. False when it was already metered. */
   recordUsage(scope: WorkspaceScope, input: UsageInput): Promise<boolean>;
   /* Whether the workspace may make an AI call now, and how much budget is left. */
@@ -179,6 +184,54 @@ export function createCreditsService(deps: {
     createdAt: row.createdAt.toISOString(),
   });
 
+  /* Gives back the listed charges, once each. Returns the credits refunded. */
+  function refundCharges(
+    scope: WorkspaceScope,
+    find: (tx: Tx) => Promise<CreditLedgerRow[]>,
+  ): Promise<number> {
+    return deps.db.transaction(async (tx) => {
+      const now = clock.now();
+      let row = await settle(tx, scope, await repo.lockBalance(tx, scope), now);
+      let refunded = 0;
+      for (const charge of await find(tx)) {
+        /*
+         * One refund per charge, whichever bucket it went back to: an incident can be marked,
+         * cleared and marked again after the month has turned.
+         */
+        if ((await repo.ledgerByRef(tx, scope, "refund", charge.id)).length > 0) continue;
+        const amount = -charge.delta;
+        /*
+         * Included credits go back to the month they came from. If that month is over, the customer
+         * keeps them as purchased credits instead of losing the refund.
+         */
+        const sameGrant =
+          charge.bucket === "included" &&
+          row.includedGrantedAt !== null &&
+          charge.createdAt.getTime() >= row.includedGrantedAt.getTime() &&
+          row.includedExpiresAt !== null &&
+          row.includedExpiresAt.getTime() > now.getTime();
+        const bucket: CreditBucket = sameGrant ? "included" : "purchased";
+        const balanceAfter = (bucket === "included" ? row.included : row.purchased) + amount;
+        const added = await append(tx, scope, {
+          bucket,
+          delta: amount,
+          reason: "refund",
+          /* The charged entry: one refund per charge, however often the incident is re-marked. */
+          refId: charge.id,
+          incidentId: charge.incidentId,
+          balanceAfter,
+        });
+        if (!added) continue;
+        row = { ...row, [bucket]: balanceAfter };
+        refunded += amount;
+      }
+      if (refunded > 0) {
+        await repo.updateBalance(tx, scope, { included: row.included, purchased: row.purchased });
+      }
+      return refunded;
+    });
+  }
+
   const service: CreditsService = {
     async state(scope) {
       const now = clock.now();
@@ -212,7 +265,14 @@ export function createCreditsService(deps: {
         const now = clock.now();
         const row = await settle(tx, scope, await repo.lockBalance(tx, scope), now);
         const total = row.included + row.purchased;
-        if ((await repo.ledgerByRef(tx, scope, "charge", refId)).length > 0) {
+        const earlier = await repo.ledgerByRef(tx, scope, "charge", refId);
+        if (earlier.length > 0) {
+          /* A charge that was given back paid for nothing: the message may not go out on it. */
+          for (const entry of earlier) {
+            if ((await repo.ledgerByRef(tx, scope, "refund", entry.id)).length > 0) {
+              return { ok: false, balance: total };
+            }
+          }
           return { ok: true, alreadyCharged: true, remaining: total };
         }
         if (total < credits) return { ok: false, balance: total };
@@ -254,49 +314,11 @@ export function createCreditsService(deps: {
       });
     },
 
-    async refundIncident(scope, incidentId) {
-      return deps.db.transaction(async (tx) => {
-        const now = clock.now();
-        let row = await settle(tx, scope, await repo.lockBalance(tx, scope), now);
-        let refunded = 0;
-        for (const charge of await repo.chargesForIncident(tx, scope, incidentId)) {
-          /*
-           * One refund per charge, whichever bucket it went back to: an incident can be marked,
-           * cleared and marked again after the month has turned.
-           */
-          if ((await repo.ledgerByRef(tx, scope, "refund", charge.id)).length > 0) continue;
-          const amount = -charge.delta;
-          /*
-           * Included credits go back to the month they came from. If that month is over, the customer
-           * keeps them as purchased credits instead of losing the refund.
-           */
-          const sameGrant =
-            charge.bucket === "included" &&
-            row.includedGrantedAt !== null &&
-            charge.createdAt.getTime() >= row.includedGrantedAt.getTime() &&
-            row.includedExpiresAt !== null &&
-            row.includedExpiresAt.getTime() > now.getTime();
-          const bucket: CreditBucket = sameGrant ? "included" : "purchased";
-          const balanceAfter = (bucket === "included" ? row.included : row.purchased) + amount;
-          const added = await append(tx, scope, {
-            bucket,
-            delta: amount,
-            reason: "refund",
-            /* The charged entry: one refund per charge, however often the incident is re-marked. */
-            refId: charge.id,
-            incidentId,
-            balanceAfter,
-          });
-          if (!added) continue;
-          row = { ...row, [bucket]: balanceAfter };
-          refunded += amount;
-        }
-        if (refunded > 0) {
-          await repo.updateBalance(tx, scope, { included: row.included, purchased: row.purchased });
-        }
-        return refunded;
-      });
-    },
+    refundIncident: (scope, incidentId) =>
+      refundCharges(scope, (tx) => repo.chargesForIncident(tx, scope, incidentId)),
+
+    refundCharge: (scope, refId) =>
+      refundCharges(scope, (tx) => repo.ledgerByRef(tx, scope, "charge", refId)),
 
     async recordUsage(scope, input) {
       const funded = (await deps.billing.paidSubscription(scope)) !== null;

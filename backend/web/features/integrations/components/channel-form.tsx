@@ -29,6 +29,7 @@ import {
   toConfig,
   type FormValues,
 } from "../catalog";
+import { PhoneVerify } from "./phone-verify";
 import { RulesFields } from "./rules-fields";
 
 /* Typed message keys can't be built from catalog data; a unit test checks every one exists. */
@@ -102,8 +103,24 @@ function FieldInput({
       ) : (
         <Input
           {...common}
-          type={field.kind === "secret" ? "password" : field.kind === "url" ? "url" : "text"}
-          inputMode={field.kind === "url" ? "url" : field.kind === "emails" ? "email" : undefined}
+          type={
+            field.kind === "secret"
+              ? "password"
+              : field.kind === "url"
+                ? "url"
+                : field.kind === "phone"
+                  ? "tel"
+                  : "text"
+          }
+          inputMode={
+            field.kind === "url"
+              ? "url"
+              : field.kind === "emails"
+                ? "email"
+                : field.kind === "phone"
+                  ? "tel"
+                  : undefined
+          }
           autoComplete="off"
           spellCheck={false}
           placeholder={saved === undefined ? field.placeholder : undefined}
@@ -237,6 +254,9 @@ export function ChannelForm({
               disabled={removed.has(field.key)}
               onChange={(value) => setValues((current) => ({ ...current, [field.key]: value }))}
             />
+            {field.kind === "phone" && values[field.key] !== channel?.config[field.key] && (
+              <PhoneVerify ws={ws} phone={values[field.key] ?? ""} />
+            )}
             {saved !== undefined && !field.required && (
               <label className="flex items-center gap-2 text-xs">
                 <input

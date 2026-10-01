@@ -43,7 +43,15 @@ export interface AppConfig {
   prices: PriceIds;
   /* Upstream funding: the AI kill switch and the monthly cap on platform-paid AI, in micro-USD. */
   funding: { aiEnabled: boolean; unfundedAiCapMicros: number; opsEmail: string | undefined };
-  twilio: { accountSid: string; authToken: string } | undefined;
+  twilio:
+    | {
+        accountSid: string;
+        authToken: string;
+        messagingServiceSid: string | undefined;
+        smsFrom: string | undefined;
+        voiceFrom: string | undefined;
+      }
+    | undefined;
 }
 
 function priceIds(env: Env): PriceIds {
@@ -131,7 +139,13 @@ export function toAppConfig(env: Env): AppConfig {
     },
     twilio:
       env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN
-        ? { accountSid: env.TWILIO_ACCOUNT_SID, authToken: env.TWILIO_AUTH_TOKEN }
+        ? {
+            accountSid: env.TWILIO_ACCOUNT_SID,
+            authToken: env.TWILIO_AUTH_TOKEN,
+            messagingServiceSid: env.TWILIO_MESSAGING_SERVICE_SID,
+            smsFrom: env.TWILIO_SMS_FROM,
+            voiceFrom: env.TWILIO_VOICE_FROM,
+          }
         : undefined,
   };
 }

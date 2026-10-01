@@ -27,6 +27,9 @@ export const CHANNEL_TYPES = [
   "pushbullet",
   "ntfy",
   "gotify",
+  /* Paid, through the messaging provider (P3-T05): each message costs alert credits. */
+  "sms",
+  "voice",
 ] as const;
 export type ChannelType = (typeof CHANNEL_TYPES)[number];
 

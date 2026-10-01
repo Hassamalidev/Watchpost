@@ -215,6 +215,32 @@ export const gotifyChannelConfigSchema = z
   .strict();
 export type GotifyChannelConfig = z.infer<typeof gotifyChannelConfigSchema>;
 
+/* A phone number in international format: + and 8 to 15 digits, no spaces. */
+export const phoneNumberSchema = z
+  .string()
+  .trim()
+  .transform((value) => value.replace(/[\s().-]/g, ""))
+  .pipe(z.string().regex(/^\+[1-9]\d{7,14}$/, "must be in international format, like +14155550123"));
+
+/* SMS and voice share one shape: the verified number alerts go to. */
+export const phoneChannelConfigSchema = z.object({ phone: phoneNumberSchema }).strict();
+export type PhoneChannelConfig = z.infer<typeof phoneChannelConfigSchema>;
+
+/* What a phone number costs to alert, shown before it is enabled (PRODUCT.md §5). */
+export interface PhoneCost {
+  phone: string;
+  /* ISO 3166-1 alpha-2. */
+  country: string;
+  /* Alert credits per SMS and per voice call. */
+  smsCredits: number;
+  voiceCredits: number;
+}
+
+export const phoneVerificationSchema = z.object({ phone: phoneNumberSchema }).strict();
+export const phoneConfirmationSchema = z
+  .object({ phone: phoneNumberSchema, code: z.string().trim().regex(/^\d{6}$/, "is 6 digits") })
+  .strict();
+
 /* Extra request headers for outbound webhooks (an Authorization header, a routing header). */
 const RESERVED_HEADERS =
   /^(host|content-length|content-type|connection|transfer-encoding|user-agent)$/i;

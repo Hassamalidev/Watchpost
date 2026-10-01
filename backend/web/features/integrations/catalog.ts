@@ -32,6 +32,8 @@ export const MONOGRAMS: Record<IntegrationId, string> = {
   "jira-service-management": "JSM",
   "splunk-on-call": "SO",
   pushover: "Po",
+  sms: "Sm",
+  voice: "Vc",
   ntfy: "nt",
   pushbullet: "Pb",
   gotify: "Go",

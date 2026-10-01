@@ -81,6 +81,13 @@ export interface ChannelAdapter<C = unknown> {
   prepare?(input: unknown, ctx: PrepareContext): Promise<C>;
   /* What the API may show; secrets masked. Defaults to the config itself. */
   redact?(config: C): Record<string, unknown>;
+  /*
+   * Paid channels (SMS, voice): what one message costs. `channels.deliver` charges the credits
+   * before sending and meters the provider cost after.
+   */
+  cost?(config: C): { kind: string; credits: number; costMicros: number };
+  /* Events this channel never sends (a call isn't placed to say an incident is over). */
+  skip?(event: AlertEvent): boolean;
   render(event: AlertEvent): RenderedMessage;
   send(config: C, message: RenderedMessage, meta: SendMeta): Promise<SendResult>;
   update?(config: C, ref: string, message: RenderedMessage): Promise<void>;

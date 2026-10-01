@@ -97,5 +97,33 @@ export const telegramChats = pgTable(
   ],
 );
 
+/*
+ * Phone numbers a workspace has confirmed with a one-time code (§10). Only a hash of the code is
+ * kept. `send_count` within `send_window_start` limits how many codes go to one number per hour.
+ */
+export const phoneNumbers = pgTable(
+  "phone_numbers",
+  {
+    id: uuid("id").primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    phone: text("phone").notNull(),
+    codeHash: text("code_hash"),
+    codeExpiresAt: timestamp("code_expires_at", { withTimezone: true }),
+    attempts: integer("attempts").notNull().default(0),
+    sendCount: integer("send_count").notNull().default(0),
+    sendWindowStart: timestamp("send_window_start", { withTimezone: true }),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    createdBy: uuid("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("phone_numbers_workspace_phone_uq").on(t.workspaceId, t.phone),
+    index("phone_numbers_phone_idx").on(t.phone),
+  ],
+);
+
 export type ChannelRow = typeof channels.$inferSelect;
+export type PhoneNumberRow = typeof phoneNumbers.$inferSelect;
 export type SlackInstallationRow = typeof slackInstallations.$inferSelect;

@@ -28,6 +28,7 @@ import {
 import {
   googleChatChannelConfigSchema,
   gotifyChannelConfigSchema,
+  phoneChannelConfigSchema,
   matrixChannelConfigSchema,
   mattermostChannelConfigSchema,
   ntfyChannelConfigSchema,
@@ -60,6 +61,8 @@ const FORM_SCHEMAS: Partial<Record<ChannelType, z.ZodObject>> = {
   pushbullet: pushbulletChannelConfigSchema,
   ntfy: ntfyChannelConfigSchema,
   gotify: gotifyChannelConfigSchema,
+  sms: phoneChannelConfigSchema,
+  voice: phoneChannelConfigSchema,
 };
 
 describe("integration catalog", () => {
