@@ -27,6 +27,8 @@ export interface MonitorPolicies {
   degradedLatencyMs?: number | undefined;
   degradedAfterChecks: number;
   upsideDown: boolean;
+  /* Older rows don't have it; readers default to 99.9. */
+  sloTarget?: number | undefined;
   reminderMinutes?: number | undefined;
 }
 

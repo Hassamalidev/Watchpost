@@ -72,6 +72,20 @@ export function slackBlocks(event: AlertEvent, message: RenderedMessage): unknow
       text: { type: "plain_text", text: `${HEADER[event.kind]} · ${subject}`.slice(0, 150) },
     },
     { type: "section", fields: fields.slice(0, 10) },
+    ...(event.explanation
+      ? [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: [
+                `*Likely cause:* ${event.explanation.headline}`,
+                ...event.explanation.nextSteps.slice(0, 2).map((step) => `• ${step}`),
+              ].join("\n"),
+            },
+          },
+        ]
+      : []),
     {
       type: "actions",
       elements: [

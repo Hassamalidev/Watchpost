@@ -66,6 +66,7 @@ export function createEmailAdapter(deps: {
               url: event.incident.url,
             },
             actor: event.actor,
+            explanation: event.explanation,
             actions: links(event, to),
           },
           { workspaceId: event.workspace.id, idempotencyKey: `${meta.idempotencyKey}:${to}` },

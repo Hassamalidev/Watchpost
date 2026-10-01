@@ -96,6 +96,8 @@ export interface MonitorForDetection {
   parentId: string | null;
   alertPolicyId: string | null;
   policies: MonitorPolicies;
+  /* Hostname the monitor checks (never credentials or paths), for explanations. */
+  target: string | null;
 }
 
 export interface MonitorsService {
@@ -139,6 +141,8 @@ export interface MonitorsService {
     types: MonitorConfig["type"][],
     options: { afterId?: string; limit: number },
   ): Promise<{ monitors: MonitorForProbe[]; nextAfterId: string | null }>;
+  /* When the monitor was created or edited in [from, to) (paused/resumed count too). */
+  changeTimes(scope: WorkspaceScope, id: string, from: Date, to: Date): Promise<Date[]>;
   /* Settings detection evaluates against. System-level: no tenant scope. */
   getForDetection(ids: string[]): Promise<MonitorForDetection[]>;
 }
@@ -168,6 +172,7 @@ function settingsOf(row: MonitorRow, tags: string[]): MonitorSettings {
     degradedLatencyMs: row.policies.degradedLatencyMs,
     degradedAfterChecks: row.policies.degradedAfterChecks,
     upsideDown: row.policies.upsideDown,
+    sloTarget: row.policies.sloTarget ?? 99.9,
     reminderMinutes: row.policies.reminderMinutes,
     severity: row.severity,
     tags,
@@ -223,6 +228,7 @@ function columnsFrom(settings: MonitorSettings) {
       degradedAfterChecks: settings.degradedAfterChecks,
       upsideDown: settings.upsideDown,
       reminderMinutes: settings.reminderMinutes,
+      sloTarget: settings.sloTarget,
     },
     severity: settings.severity,
     alertPolicyId: settings.alertPolicyId ?? null,
@@ -575,6 +581,11 @@ export function createMonitorsService(deps: MonitorsServiceDeps): MonitorsServic
       };
     },
 
+    async changeTimes(scope, id, from, to) {
+      await mustFind(db, scope, id);
+      return repo.changeTimes(id, from, to);
+    },
+
     async getForDetection(ids) {
       return (await repo.findByIdsUnscoped(ids)).map((row) => ({
         id: row.id,
@@ -588,6 +599,7 @@ export function createMonitorsService(deps: MonitorsServiceDeps): MonitorsServic
         parentId: row.parentId ?? null,
         alertPolicyId: row.alertPolicyId ?? null,
         policies: row.policies,
+        target: targetHostOf(row.config),
       }));
     },
   };
@@ -620,6 +632,22 @@ export function createMonitorsService(deps: MonitorsServiceDeps): MonitorsServic
     };
   }
   return service;
+}
+
+/* The hostname a monitor checks, from its (secret-free) stored config. */
+function targetHostOf(config: MonitorRow["config"]): string | null {
+  const c = config as Record<string, unknown>;
+  if (typeof c.url === "string") {
+    try {
+      return new URL(c.url).hostname;
+    } catch {
+      return null;
+    }
+  }
+  for (const key of ["host", "hostname", "domain"] as const) {
+    if (typeof c[key] === "string") return c[key];
+  }
+  return null;
 }
 
 /* Cron schedules need a real parse (the schema only checks the five-field shape). */

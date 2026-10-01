@@ -54,6 +54,11 @@ const alertData = z.object({
     url,
   }),
   actor: z.string().nullable().default(null),
+  /* Plain-language cause and first checks from the failure explainer. */
+  explanation: z
+    .object({ headline: z.string(), detail: z.string(), nextSteps: z.array(z.string()) })
+    .nullable()
+    .default(null),
   /* Signed, single-use links for this recipient (acknowledge while triggered, resolve while open). */
   actions: z.object({ acknowledge: url.optional(), resolve: url.optional() }).default({}),
 });
@@ -118,6 +123,21 @@ function AlertEmail(d: z.infer<typeof alertData>) {
             <strong>{label}:</strong> {value}
           </Text>
         ))
+      )}
+      {d.explanation && (
+        <Section style={{ borderLeft: "3px solid #a3a3a3", paddingLeft: "12px", margin: "16px 0" }}>
+          <Text className="wp-text" style={{ ...styles.text, fontWeight: 600, margin: "0 0 4px" }}>
+            Likely cause: {d.explanation.headline}
+          </Text>
+          <Text className="wp-muted" style={{ ...styles.muted, fontSize: "14px" }}>
+            {d.explanation.detail}
+          </Text>
+          {d.explanation.nextSteps.map((step) => (
+            <Text key={step} className="wp-text" style={{ ...styles.text, margin: "0 0 4px" }}>
+              → {step}
+            </Text>
+          ))}
+        </Section>
       )}
       {d.actions.acknowledge && <Action href={d.actions.acknowledge}>Acknowledge</Action>}
       {d.actions.resolve && (

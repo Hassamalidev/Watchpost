@@ -9,9 +9,19 @@ import type {
   falseAlarmBody,
   incidentRefParams,
   listIncidentsQuery,
+  summaryQuery,
 } from "./validators/index.js";
 
-type Handlers = "list" | "get" | "create" | "acknowledge" | "resolve" | "comment" | "falseAlarm";
+type Handlers =
+  | "list"
+  | "get"
+  | "create"
+  | "acknowledge"
+  | "resolve"
+  | "comment"
+  | "falseAlarm"
+  | "summary"
+  | "drill";
 
 export type IncidentsController = Record<Handlers, RequestHandler>;
 
@@ -40,6 +50,13 @@ export function createIncidentsController(service: IncidentsService): IncidentsC
     comment: async (req, res) => {
       const { body } = inputOf<{ body: typeof commentBody }>(req, res);
       res.status(201).json(await service.comment(scopeOf(req, res), refOf(req, res), body.body));
+    },
+    summary: async (req, res) => {
+      const { query } = inputOf<{ query: typeof summaryQuery }>(req, res);
+      res.json(await service.summary(scopeOf(req, res), query.days));
+    },
+    drill: async (req, res) => {
+      res.status(201).json(await service.startDrill(scopeOf(req, res)));
     },
     falseAlarm: async (req, res) => {
       const { body } = inputOf<{ body: typeof falseAlarmBody }>(req, res);

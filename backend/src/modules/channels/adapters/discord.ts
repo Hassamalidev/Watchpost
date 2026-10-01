@@ -27,6 +27,17 @@ function embed(event: AlertEvent, message: RenderedMessage) {
     ...(incident.failingRegions.length > 0
       ? [{ name: "Regions", value: incident.failingRegions.join(", "), inline: true }]
       : []),
+    ...(event.explanation
+      ? [
+          {
+            name: "Likely cause",
+            value: [event.explanation.headline, event.explanation.nextSteps[0] ?? ""]
+              .join("\n")
+              .slice(0, 1_024),
+            inline: false,
+          },
+        ]
+      : []),
   ];
   return {
     title: message.title.slice(0, 256),

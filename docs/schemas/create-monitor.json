@@ -74,6 +74,12 @@
           "default": false,
           "type": "boolean"
         },
+        "sloTarget": {
+          "default": 99.9,
+          "type": "number",
+          "minimum": 90,
+          "maximum": 99.999
+        },
         "reminderMinutes": {
           "type": "integer",
           "minimum": 5,

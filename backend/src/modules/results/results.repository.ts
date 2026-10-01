@@ -199,6 +199,70 @@ export function createResultsRepository(db: DbOrTx) {
         .orderBy(table.bucket);
     },
 
+    /* Addresses each region connected to in [from, to), with first and last time seen. */
+    async ipHistory(monitorId: string, from: Date, to: Date) {
+      const result = await db.execute<{
+        region: string;
+        ip: string;
+        first_seen: string;
+        last_seen: string;
+      }>(sql`
+        select region, ip, min(checked_at) as first_seen, max(checked_at) as last_seen
+        from ${checkResults}
+        where monitor_id = ${monitorId} and ip is not null
+          and checked_at >= ${from.toISOString()}::timestamptz and checked_at < ${to.toISOString()}::timestamptz
+        group by region, ip
+        order by region, min(checked_at)`);
+      return result.rows.map((r) => ({
+        region: r.region,
+        ip: r.ip,
+        firstSeen: new Date(r.first_seen),
+        lastSeen: new Date(r.last_seen),
+      }));
+    },
+
+    /* Certificates each region saw in [from, to), by fingerprint, with first time seen. */
+    async tlsHistory(monitorId: string, from: Date, to: Date) {
+      const result = await db.execute<{
+        region: string;
+        fingerprint: string;
+        issuer: string | null;
+        valid_to: string | null;
+        first_seen: string;
+      }>(sql`
+        select region, tls->>'fingerprint256' as fingerprint, min(tls->>'issuer') as issuer,
+          max(tls->>'validTo') as valid_to, min(checked_at) as first_seen
+        from ${checkResults}
+        where monitor_id = ${monitorId} and tls is not null
+          and checked_at >= ${from.toISOString()}::timestamptz and checked_at < ${to.toISOString()}::timestamptz
+        group by region, tls->>'fingerprint256'
+        order by region, min(checked_at)`);
+      return result.rows.map((r) => ({
+        region: r.region,
+        fingerprint: r.fingerprint,
+        issuer: r.issuer,
+        validTo: r.valid_to,
+        firstSeen: new Date(r.first_seen),
+      }));
+    },
+
+    /* Mean latency of successful checks in [from, to). */
+    async latencyAverage(
+      monitorId: string,
+      from: Date,
+      to: Date,
+    ): Promise<{ averageMs: number | null; count: number }> {
+      const result = await db.execute<{ avg: string | null; n: number }>(sql`
+        select avg(latency_ms) as avg, count(*)::int as n from ${checkResults}
+        where monitor_id = ${monitorId} and ok
+          and checked_at >= ${from.toISOString()}::timestamptz and checked_at < ${to.toISOString()}::timestamptz`);
+      const row = result.rows[0];
+      return {
+        averageMs: row?.avg === null || row?.avg === undefined ? null : Number(row.avg),
+        count: row?.n ?? 0,
+      };
+    },
+
     async checks(monitorId: string, limit: number, region?: string): Promise<CheckResultRow[]> {
       return db
         .select()

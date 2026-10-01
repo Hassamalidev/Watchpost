@@ -33,6 +33,10 @@ export interface IngestOutcome {
 export interface ResultsService {
   ingest(results: StoredResult[]): Promise<IngestOutcome>;
   recent(monitorId: string, region: string, limit: number): Promise<CheckResultRow[]>;
+  /* History used by "what changed before this incident" (system-level; the caller checks scope). */
+  ipHistory: ResultsRepository["ipHistory"];
+  tlsHistory: ResultsRepository["tlsHistory"];
+  latencyAverage: ResultsRepository["latencyAverage"];
   /* The newest TLS facts per monitor (system-level, across workspaces). */
   latestTls(): ReturnType<ResultsRepository["latestTls"]>;
   /* Records a check event that isn't a failed result (for example a certificate change). */
@@ -120,6 +124,9 @@ export function createResultsService(deps: {
     recent: (monitorId, region, limit) => repo.recent(monitorId, region, limit),
 
     latestTls: () => repo.latestTls(),
+    ipHistory: (monitorId, from, to) => repo.ipHistory(monitorId, from, to),
+    tlsHistory: (monitorId, from, to) => repo.tlsHistory(monitorId, from, to),
+    latencyAverage: (monitorId, from, to) => repo.latencyAverage(monitorId, from, to),
 
     async recordEvent(event) {
       await repo.insertEvents(deps.db, [

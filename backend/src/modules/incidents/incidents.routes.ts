@@ -13,6 +13,7 @@ import {
   falseAlarmBody,
   incidentRefParams,
   listIncidentsQuery,
+  summaryQuery,
 } from "./validators/index.js";
 
 export function createIncidentsRouter(
@@ -27,6 +28,9 @@ export function createIncidentsRouter(
   router.use("/incidents", guards.session, guards.workspace);
 
   router.get("/incidents", read, validate({ query: listIncidentsQuery }), controller.list);
+  router.get("/incidents/summary", read, validate({ query: summaryQuery }), controller.summary);
+  /* Drills page everyone in the alert routes, so they are for admins. */
+  router.post("/incidents/drill", requireRole("admin"), controller.drill);
   router.post("/incidents", write, validate({ body: createIncidentBody }), controller.create);
   router.get("/incidents/:incidentRef", read, ref, controller.get);
   router.post("/incidents/:incidentRef/acknowledge", respond, ref, controller.acknowledge);

@@ -177,6 +177,7 @@ describe("channels API", () => {
       },
       actor: null,
       at: new Date().toISOString(),
+      explanation: null,
     };
     await channels.service.deliver({ channelId, event, idempotencyKey: "delivery.test-1" });
     await channels.service.deliver({ channelId, event, idempotencyKey: "delivery.test-1" });

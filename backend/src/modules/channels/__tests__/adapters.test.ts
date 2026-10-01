@@ -53,6 +53,14 @@ const event = (
   },
   actor,
   at: "2026-10-01T12:00:05.000Z",
+  explanation:
+    kind === "triggered"
+      ? {
+          headline: "Gateway error (HTTP 502): the app behind the proxy isn't answering",
+          detail: "A proxy in front of shop.example.com is up, but the app behind it is down.",
+          nextSteps: ["Check that the application servers behind the load balancer are running."],
+        }
+      : null,
 });
 
 const meta = (threadRef: string | null = null) => ({ idempotencyKey: "delivery.abc", threadRef });
@@ -366,5 +374,36 @@ describe("Telegram adapter", () => {
     await expect(
       adapter.update!(linked, "-100200:41", adapter.render(event())),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe("failure explanations in alerts", () => {
+  it("every channel shows the likely cause and the first check", async () => {
+    const plain = createTeamsAdapter({ http: stub().http }).render(event());
+    expect(plain.text).toContain("Likely cause: Gateway error (HTTP 502)");
+    expect(plain.text).toContain("Check first: Check that the application servers");
+
+    const slack = createSlackAdapter({
+      http: stub().http,
+      tokenFor: async () => "t",
+      ownsInstallation: async () => true,
+    }).render(event());
+    expect(JSON.stringify(slack.body)).toContain("*Likely cause:* Gateway error (HTTP 502)");
+
+    const card = createTeamsAdapter({ http: stub().http }).render(event()).body as {
+      attachments: Array<{ content: { body: Array<{ facts?: Array<{ title: string }> }> } }>;
+    };
+    expect(card.attachments[0]?.content.body[1]?.facts?.map((f) => f.title)).toContain(
+      "Likely cause",
+    );
+
+    const hook = createWebhookAdapter({
+      http: stub().http,
+      clock: createFakeClock(),
+    }).render(event()).body as { explanation: { headline: string } };
+    expect(hook.explanation.headline).toMatch(/^Gateway error/);
+
+    const resolved = createTeamsAdapter({ http: stub().http }).render(event("resolved"));
+    expect(resolved.text).not.toContain("Likely cause");
   });
 });

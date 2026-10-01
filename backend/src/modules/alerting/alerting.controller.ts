@@ -6,12 +6,13 @@ import type { AlertingService } from "./alerting.service.js";
 import type {
   channelIdParams,
   createPolicyBody,
+  incidentIdParams,
   policyIdParams,
   updatePolicyBody,
 } from "./validators/index.js";
 
 export type AlertingController = Record<
-  "list" | "create" | "update" | "remove" | "sendTest",
+  "list" | "create" | "update" | "remove" | "sendTest" | "deliveries",
   RequestHandler
 >;
 
@@ -30,6 +31,10 @@ export function createAlertingController(service: AlertingService): AlertingCont
     update: async (req, res) => {
       const { body } = inputOf<{ body: typeof updatePolicyBody }>(req, res);
       res.json(await service.updatePolicy(scopeOf(req, res), idOf(req, res), body));
+    },
+    deliveries: async (req, res) => {
+      const { params } = inputOf<{ params: typeof incidentIdParams }>(req, res);
+      res.json({ data: await service.deliveryLog(scopeOf(req, res), params.incidentId) });
     },
     sendTest: async (req, res) => {
       const { params } = inputOf<{ params: typeof channelIdParams }>(req, res);

@@ -28,6 +28,8 @@ export type {
 } from "./detection.service.js";
 export type { DowntimeKind, MonitorStateRow, RegionStatus } from "./schema/detection.js";
 export type { DayStatus, UptimeDay, UptimeSummary } from "./uptime.js";
+export type { ChangeEvent, ChangeKind } from "./changes.js";
+export type { BudgetStatus, ErrorBudget } from "./slo.js";
 
 export interface DetectionModuleDeps {
   infra: Pick<Infra, "db" | "logger" | "outbox" | "clock" | "queues">;
@@ -50,6 +52,10 @@ const uptimeQuery = z
     excludeMaintenance: flag,
   })
   .refine((q) => !q.from || !q.to || q.from < q.to, "from must be before to");
+const changesQuery = z.object({
+  before: z.iso.datetime({ offset: true }).optional(),
+  hours: z.coerce.number().int().min(1).max(48).default(24),
+});
 const daysQuery = z.object({
   days: z.coerce.number().int().min(1).max(366).default(90),
   excludeMaintenance: flag,
@@ -83,6 +89,35 @@ function createUptimeRouter(
           excludeMaintenance: query.excludeMaintenance,
         }),
       );
+    },
+  );
+  router.get("/error-budgets", ...read, async (req, res) => {
+    res.json({ data: await service.errorBudgets(scopeOf(req, res)) });
+  });
+  router.get(
+    "/monitors/:monitorId/error-budget",
+    ...read,
+    validate({ params: monitorParams }),
+    async (req, res) => {
+      const { params } = inputOf<{ params: typeof monitorParams }>(req, res);
+      res.json(await service.errorBudget(scopeOf(req, res), params.monitorId));
+    },
+  );
+  router.get(
+    "/monitors/:monitorId/changes",
+    ...read,
+    validate({ params: monitorParams, query: changesQuery }),
+    async (req, res) => {
+      const { params, query } = inputOf<{
+        params: typeof monitorParams;
+        query: typeof changesQuery;
+      }>(req, res);
+      res.json({
+        data: await service.changesBefore(scopeOf(req, res), params.monitorId, {
+          before: query.before ? new Date(query.before) : new Date(),
+          hours: query.hours,
+        }),
+      });
     },
   );
   router.get(

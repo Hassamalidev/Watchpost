@@ -8,6 +8,7 @@
  */
 import {
   alertPolicyRulesSchema,
+  explainFailure,
   type AlertEventKind,
   type AlertPolicyInput,
   type AlertPolicyRules,
@@ -66,6 +67,12 @@ export interface DeliveryView {
   sentAt: string | null;
 }
 
+export interface DeliveryLogEntry extends DeliveryView {
+  channelName: string | null;
+  channelType: string | null;
+  createdAt: string;
+}
+
 export type DeliveryOutcome = "sent" | "skipped" | "failed";
 
 export interface AlertingService {
@@ -99,6 +106,8 @@ export interface AlertingService {
     channelId: string,
   ): Promise<{ ok: true } | { ok: false; error: string }>;
   deliveriesFor(incidentId: string): Promise<DeliveryView[]>;
+  /* The delivery log of an incident for the API, with channel names. */
+  deliveryLog(scope: WorkspaceScope, incidentId: string): Promise<DeliveryLogEntry[]>;
   /* Recovery: re-queue deliveries whose jobs were lost. Returns how many. */
   recoverDeliveries(): Promise<number>;
   /* Recovery: re-schedule the next reminder of every open incident. Returns how many. */
@@ -200,7 +209,24 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
       },
       actor,
       at: clock.now().toISOString(),
+      explanation: explanationFor(kind, ctx),
     };
+  }
+
+  /* Failure alerts carry the explainer's cause and first checks (§4 pillar 2). */
+  function explanationFor(kind: AlertEventKind, ctx: AlertContext): AlertEvent["explanation"] {
+    const { incident } = ctx;
+    if (kind === "resolved" || kind === "acknowledged" || incident.causeCode === null) return null;
+    const evidence = incident.evidence ?? {};
+    const e = explainFailure({
+      errorCode: incident.causeCode,
+      httpStatus: typeof evidence.httpStatus === "number" ? evidence.httpStatus : null,
+      failingRegions: incident.failingRegions,
+      totalRegions: ctx.monitor?.regionCount,
+      target: ctx.monitor?.target,
+    });
+    if (e.category === "unknown") return null;
+    return { headline: e.headline, detail: e.detail, nextSteps: e.nextSteps.slice(0, 3) };
   }
 
   const notifyJob = (
@@ -466,12 +492,28 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
             },
             actor: null,
             at: now,
+            explanation: null,
           },
         });
         return { ok: true };
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
       }
+    },
+
+    async deliveryLog(scope, incidentId) {
+      const rows = await repo.deliveriesForIncidentScoped(deps.db, scope, incidentId);
+      const ids = [...new Set(rows.flatMap((r) => (r.channelId ? [r.channelId] : [])))];
+      const channels = new Map((await deps.channels.existing(scope, ids)).map((c) => [c.id, c]));
+      return rows.map((row) => {
+        const channel = row.channelId ? channels.get(row.channelId) : undefined;
+        return {
+          ...toDelivery(row),
+          channelName: channel?.name ?? null,
+          channelType: channel?.type ?? null,
+          createdAt: row.createdAt.toISOString(),
+        };
+      });
     },
 
     async deliveriesFor(incidentId) {

@@ -222,6 +222,8 @@ export const monitorSettingsObject = z.object({
   degradedLatencyMs: z.number().int().min(1).max(60_000).optional(),
   degradedAfterChecks: z.number().int().min(1).max(20).default(3),
   upsideDown: z.boolean().default(false),
+  /* Monthly availability objective; the error budget is the downtime it allows. */
+  sloTarget: z.number().min(90).max(99.999).default(99.9),
   /* Re-notify channels every N minutes while down; off when omitted. */
   reminderMinutes: z.number().int().min(5).max(1_440).optional(),
   severity: z.enum(SEVERITIES).default("high"),

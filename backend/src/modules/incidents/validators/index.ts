@@ -30,6 +30,10 @@ export const createIncidentBody = z
   })
   .strict();
 
+export const summaryQuery = z.object({
+  days: z.coerce.number().int().min(1).max(365).default(30),
+});
+
 export const commentBody = z.object({ body: z.string().trim().min(1).max(10_000) }).strict();
 
 export const falseAlarmBody = z.object({ falseAlarm: z.boolean() }).strict();

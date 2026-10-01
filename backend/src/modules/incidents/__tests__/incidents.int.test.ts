@@ -251,6 +251,59 @@ describe("monitor incidents", () => {
   });
 });
 
+describe("insights", () => {
+  it("the summary counts real incidents, false alarms and response times", async () => {
+    const noise = await post(member, base(), { title: "Flaky check" });
+    await post(member, `${base()}/${noise.body.id}/false-alarm`, { falseAlarm: true });
+    const res = await get(owner, `${base()}/summary?days=7`);
+    expect(res.status, res.text).toBe(200);
+    expect(res.body).toMatchObject({ days: 7 });
+    expect(res.body.incidents).toBeGreaterThan(0);
+    expect(res.body.falseAlarms).toBeGreaterThan(0);
+    expect(res.body.accuracyPercent).toBeLessThan(100);
+    expect(res.body.mttaMinutes).not.toBeNull();
+    expect((await get(owner, `${base()}/summary?days=0`)).status).toBe(400);
+  });
+
+  it("an alert drill is a labelled incident that doesn't count in the summary", async () => {
+    const before = (await get(owner, `${base()}/summary`)).body.incidents as number;
+    expect((await post(member, `${base()}/drill`)).status).toBe(403);
+    const drill = await post(owner, `${base()}/drill`);
+    expect(drill.status, drill.text).toBe(201);
+    expect(drill.body).toMatchObject({ source: "drill", severity: "high", monitorId: null });
+    expect(await outboxTypes(drill.body.id)).toContain("incident.triggered");
+    expect((await get(owner, `${base()}/summary`)).body.incidents).toBe(before);
+    expect((await post(owner, `${base()}/${drill.body.id}/resolve`)).status).toBe(200);
+  });
+
+  it("the delivery log is readable by viewers and scoped to the workspace", async () => {
+    const [latest] = (await get(owner, base())).body.data as Array<{ id: string }>;
+    const res = await get(viewer, `/api/w/${ws}/incidents/${latest?.id}/deliveries`);
+    expect(res.status, res.text).toBe(200);
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect((await get(stranger, `/api/w/${ws}/incidents/${latest?.id}/deliveries`)).status).toBe(
+      404,
+    );
+  });
+
+  it("monitors have an error budget and a change timeline", async () => {
+    const budget = await get(viewer, `/api/w/${ws}/monitors/${monitorId}/error-budget`);
+    expect(budget.status, budget.text).toBe(200);
+    expect(budget.body).toMatchObject({ target: 99.9, status: "healthy" });
+    expect(budget.body.budgetSeconds).toBeGreaterThan(2_000);
+
+    const all = await get(viewer, `/api/w/${ws}/error-budgets`);
+    expect(all.status, all.text).toBe(200);
+    expect(all.body.data).toEqual([
+      expect.objectContaining({ monitorId, name: "Checkout", status: "healthy" }),
+    ]);
+
+    const changes = await get(viewer, `/api/w/${ws}/monitors/${monitorId}/changes`);
+    expect(changes.status, changes.text).toBe(200);
+    expect(changes.body.data).toEqual([expect.objectContaining({ title: "Monitor created" })]);
+  });
+});
+
 describe("permissions", () => {
   it("viewers read but can't act", async () => {
     const [latest] = (await get(viewer, base())).body.data as Array<{ id: string }>;

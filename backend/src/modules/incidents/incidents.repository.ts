@@ -1,5 +1,5 @@
 /* Queries on incidents, incident_events and incident_comments, owned by the incidents module. */
-import { and, asc, desc, eq, gt, lt, ne, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, lt, ne, notInArray, sql, type SQL } from "drizzle-orm";
 import { assertWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
 import { tenantWhere, withWorkspace, type DbOrTx } from "../../infra/db/index.js";
 import {
@@ -135,32 +135,40 @@ export function createIncidentsRepository() {
       return rows.map((r) => r.id);
     },
 
-    /* Incidents (not expiry warnings) started in [from, to): opened, resolved and mean time to resolve. */
+    /*
+     * Real incidents (not expiry warnings or drills) started in [from, to): opened, resolved, false
+     * alarms, and mean times to acknowledge and to resolve.
+     */
     async stats(tx: DbOrTx, workspaceId: string, from: Date, to: Date) {
       const [row] = await tx
         .select({
           opened: sql<number>`count(*)::int`,
           resolved: sql<number>`(count(*) filter (where ${incidents.status} = 'resolved'))::int`,
+          falseAlarms: sql<number>`(count(*) filter (where ${incidents.falseAlarm}))::int`,
           mttrSeconds: sql<
             number | null
           >`avg(extract(epoch from ${incidents.resolvedAt} - ${incidents.startedAt})) filter (where ${incidents.status} = 'resolved')`,
+          mttaSeconds: sql<
+            number | null
+          >`avg(extract(epoch from ${incidents.ackedAt} - ${incidents.startedAt})) filter (where ${incidents.ackedAt} is not null)`,
         })
         .from(incidents)
         .where(
           and(
             eq(incidents.workspaceId, workspaceId),
-            ne(incidents.source, "expiry"),
+            notInArray(incidents.source, ["expiry", "drill"]),
             sql`${incidents.startedAt} >= ${from.toISOString()}::timestamptz`,
             sql`${incidents.startedAt} < ${to.toISOString()}::timestamptz`,
           ),
         );
+      const num = (v: number | null | undefined) =>
+        v === null || v === undefined ? null : Number(v);
       return {
         opened: row?.opened ?? 0,
         resolved: row?.resolved ?? 0,
-        mttrSeconds:
-          row?.mttrSeconds === null || row?.mttrSeconds === undefined
-            ? null
-            : Number(row.mttrSeconds),
+        falseAlarms: row?.falseAlarms ?? 0,
+        mttrSeconds: num(row?.mttrSeconds),
+        mttaSeconds: num(row?.mttaSeconds),
       };
     },
 

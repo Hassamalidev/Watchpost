@@ -120,3 +120,9 @@ export {
   nextExpectedAt,
   type HeartbeatSchedule,
 } from "./schemas/heartbeat-schedule.js";
+export {
+  explainFailure,
+  type Explanation,
+  type FailureCategory,
+  type FailureFacts,
+} from "./explain/failure.js";

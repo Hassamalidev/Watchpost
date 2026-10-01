@@ -26,6 +26,8 @@ export interface AlertEvent {
   /* Who acted ("Sara"), for acknowledgements and manual resolves. */
   actor: string | null;
   at: string;
+  /* Plain-language cause and first checks (failure explainer); null when nothing failed. */
+  explanation: { headline: string; detail: string; nextSteps: string[] } | null;
 }
 
 export interface RenderedMessage {

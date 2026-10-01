@@ -169,6 +169,21 @@ export function createMonitorsRepository(db: DbOrTx) {
     },
 
     /* System-level read for probe assignments (no tenant scope: probes see many workspaces). */
+    async changeTimes(monitorId: string, from: Date, to: Date): Promise<Date[]> {
+      const rows = await db
+        .select({ at: monitorConfigChanges.createdAt })
+        .from(monitorConfigChanges)
+        .where(
+          and(
+            eq(monitorConfigChanges.monitorId, monitorId),
+            sql`${monitorConfigChanges.createdAt} >= ${from.toISOString()}::timestamptz`,
+            sql`${monitorConfigChanges.createdAt} < ${to.toISOString()}::timestamptz`,
+          ),
+        )
+        .orderBy(asc(monitorConfigChanges.seq));
+      return rows.map((r) => r.at);
+    },
+
     async findByIdsUnscoped(ids: string[]): Promise<MonitorRow[]> {
       if (ids.length === 0) return [];
       return db.select().from(monitors).where(inArray(monitors.id, ids));

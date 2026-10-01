@@ -152,6 +152,23 @@ export function createAlertingRepository() {
       return rows[0];
     },
 
+    async deliveriesForIncidentScoped(
+      tx: DbOrTx,
+      scope: WorkspaceScope,
+      incidentId: string,
+    ): Promise<DeliveryRow[]> {
+      return tx
+        .select()
+        .from(notificationDeliveries)
+        .where(
+          and(
+            eq(notificationDeliveries.workspaceId, scope.workspaceId),
+            eq(notificationDeliveries.incidentId, incidentId),
+          ),
+        )
+        .orderBy(asc(notificationDeliveries.createdAt), asc(notificationDeliveries.id));
+    },
+
     async deliveriesForIncident(tx: DbOrTx, incidentId: string): Promise<DeliveryRow[]> {
       return tx
         .select()

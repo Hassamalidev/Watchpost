@@ -29,6 +29,8 @@ import {
 } from "./detection.engine.js";
 import type { MonitorStateRow } from "./schema/detection.js";
 import { computeUptime, uptimeDays, type UptimeDay, type UptimeSummary } from "./uptime.js";
+import { buildChanges, type ChangeEvent } from "./changes.js";
+import { errorBudget, monthOf, type ErrorBudget } from "./slo.js";
 
 /* Same-region verification waits a little so a blip has time to clear (§9.2). */
 export const SAME_REGION_VERIFY_DELAY_MS = 5_000;
@@ -83,6 +85,18 @@ export interface DetectionService {
     to: Date,
     limit: number,
   ): Promise<Array<{ monitorId: string; seconds: number }>>;
+  /* What changed in the `hours` before `before` (address, certificate, settings, response time). */
+  changesBefore(
+    scope: WorkspaceScope,
+    monitorId: string,
+    options: { before: Date; hours: number },
+  ): Promise<ChangeEvent[]>;
+  /* This month's error budget for a monitor. */
+  errorBudget(scope: WorkspaceScope, monitorId: string): Promise<ErrorBudget>;
+  /* This month's error budget for every monitor in the workspace, most used first. */
+  errorBudgets(
+    scope: WorkspaceScope,
+  ): Promise<Array<ErrorBudget & { monitorId: string; name: string }>>;
   /* Per-day uptime bars for the last `days` UTC days. */
   uptimeDays(
     scope: WorkspaceScope,
@@ -94,8 +108,14 @@ export interface DetectionService {
 export interface DetectionServiceDeps {
   db: Db;
   repository: DetectionRepository;
-  monitors: Pick<MonitorsService, "getForProbes" | "getForDetection" | "get">;
-  results: Pick<ResultsService, "ingest" | "recent">;
+  monitors: Pick<
+    MonitorsService,
+    "getForProbes" | "getForDetection" | "get" | "changeTimes" | "list"
+  >;
+  results: Pick<
+    ResultsService,
+    "ingest" | "recent" | "ipHistory" | "tlsHistory" | "latencyAverage"
+  >;
   probes: Pick<ProbesService, "isAssigned" | "completeTasks" | "createTasks" | "healthyRegions">;
   incidents: Pick<
     IncidentsService,
@@ -413,6 +433,77 @@ export function createDetectionService(deps: DetectionServiceDeps): DetectionSer
         since: new Date(monitor.createdAt),
         excludeMaintenance,
       });
+    },
+
+    async changesBefore(scope, monitorId, { before, hours }) {
+      const monitor = await deps.monitors.get(scope, monitorId);
+      const from = new Date(before.getTime() - hours * 3_600_000);
+      const hourBefore = new Date(before.getTime() - 3_600_000);
+      const [ips, certificates, configChanges, recent, baseline] = await Promise.all([
+        deps.results.ipHistory(monitorId, from, before),
+        deps.results.tlsHistory(monitorId, from, before),
+        deps.monitors.changeTimes(scope, monitorId, from, before),
+        deps.results.latencyAverage(monitorId, hourBefore, before),
+        deps.results.latencyAverage(monitorId, from, hourBefore),
+      ]);
+      return buildChanges({
+        before,
+        createdAt: new Date(monitor.createdAt),
+        ips,
+        certificates,
+        configChanges,
+        latency: { recent, baseline },
+      });
+    },
+
+    async errorBudget(scope, monitorId) {
+      await deps.monitors.get(scope, monitorId);
+      const [monitor] = await deps.monitors.getForDetection([monitorId]);
+      const now = clock.now();
+      const { start } = monthOf(now);
+      const [used] = (
+        await repo.downtimeByMonitor(deps.db, scope.workspaceId, start, now, 10_000)
+      ).filter((d) => d.monitorId === monitorId);
+      return errorBudget({
+        target: monitor?.policies.sloTarget ?? 99.9,
+        usedSeconds: used?.seconds ?? 0,
+        now,
+      });
+    },
+
+    async errorBudgets(scope) {
+      const now = clock.now();
+      const { start } = monthOf(now);
+      const monitors = (await deps.monitors.list(scope, { limit: 200 })).data.filter(
+        (m) => m.type !== "heartbeat",
+      );
+      const targets = new Map(
+        (await deps.monitors.getForDetection(monitors.map((m) => m.id))).map((m) => [
+          m.id,
+          m.policies.sloTarget ?? 99.9,
+        ]),
+      );
+      const used = new Map(
+        (await repo.downtimeByMonitor(deps.db, scope.workspaceId, start, now, 10_000)).map((d) => [
+          d.monitorId,
+          d.seconds,
+        ]),
+      );
+      return monitors
+        .map((m) => ({
+          monitorId: m.id,
+          name: m.name,
+          ...errorBudget({
+            target: targets.get(m.id) ?? 99.9,
+            usedSeconds: used.get(m.id) ?? 0,
+            now,
+          }),
+        }))
+        .sort(
+          (a, b) =>
+            b.usedSeconds / Math.max(1, b.budgetSeconds) -
+            a.usedSeconds / Math.max(1, a.budgetSeconds),
+        );
     },
 
     downtimeByMonitor: (workspaceId, from, to, limit) =>

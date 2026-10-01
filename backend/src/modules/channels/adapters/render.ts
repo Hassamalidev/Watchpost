@@ -49,6 +49,11 @@ export function renderPlain(event: AlertEvent): RenderedMessage {
     lines.push(`Failing regions: ${incident.failingRegions.join(", ")}`);
   }
   lines.push(`Started: ${incident.startedAt}`);
+  if (event.explanation) {
+    lines.push("", `Likely cause: ${event.explanation.headline}`);
+    const first = event.explanation.nextSteps[0];
+    if (first) lines.push(`Check first: ${first}`);
+  }
   if (event.kind === "flapping") {
     lines.push(
       "",

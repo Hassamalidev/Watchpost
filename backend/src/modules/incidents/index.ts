@@ -14,6 +14,7 @@ export type {
   CommentView,
   CreateIncidentInput,
   ExpiryIncidentInput,
+  IncidentSummary,
   IncidentDetail,
   IncidentView,
   IncidentsService,

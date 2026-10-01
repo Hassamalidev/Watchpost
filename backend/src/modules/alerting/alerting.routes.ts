@@ -9,6 +9,7 @@ import type { AlertingController } from "./alerting.controller.js";
 import {
   channelIdParams,
   createPolicyBody,
+  incidentIdParams,
   policyIdParams,
   updatePolicyBody,
 } from "./validators/index.js";
@@ -35,6 +36,15 @@ export function createAlertingRouter(
     admin,
     validate({ params: policyIdParams }),
     controller.remove,
+  );
+  /* Who was notified about an incident, through which channel, and whether it worked. */
+  router.get(
+    "/incidents/:incidentId/deliveries",
+    guards.session,
+    guards.workspace,
+    requireRole("viewer"),
+    validate({ params: incidentIdParams }),
+    controller.deliveries,
   );
   /* "Send test" lives here: alerting builds alert events (it knows the workspace name). */
   router.post(

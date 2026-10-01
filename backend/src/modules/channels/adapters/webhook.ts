@@ -72,6 +72,7 @@ export function createWebhookAdapter(deps: {
           monitor:
             event.incident.monitorName === null ? null : { name: event.incident.monitorName },
           actor: event.actor,
+          explanation: event.explanation,
         },
       };
     },

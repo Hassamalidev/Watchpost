@@ -14,6 +14,7 @@ import { createAlertingProcessors } from "./jobs/index.js";
 export type {
   AlertPolicyView,
   AlertingService,
+  DeliveryLogEntry,
   DeliveryOutcome,
   DeliveryView,
   TimerJob,

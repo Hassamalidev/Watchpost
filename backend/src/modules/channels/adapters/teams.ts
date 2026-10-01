@@ -35,6 +35,12 @@ export function adaptiveCard(event: AlertEvent, message: RenderedMessage) {
             ? [{ title: "Regions", value: incident.failingRegions.join(", ") }]
             : []),
           { title: "Started", value: incident.startedAt },
+          ...(event.explanation
+            ? [{ title: "Likely cause", value: event.explanation.headline }]
+            : []),
+          ...(event.explanation?.nextSteps[0]
+            ? [{ title: "Check first", value: event.explanation.nextSteps[0] }]
+            : []),
         ];
   return {
     type: "message",

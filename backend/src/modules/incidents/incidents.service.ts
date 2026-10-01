@@ -83,6 +83,9 @@ export interface AlertContext {
     name: string;
     alertPolicyId: string | null;
     reminderMinutes: number | null;
+    /* Hostname it checks and how many regions check it, for the failure explanation. */
+    target: string | null;
+    regionCount: number;
   } | null;
 }
 
@@ -95,6 +98,19 @@ export interface ExpiryIncidentInput {
   causeCode: string;
   evidence: Record<string, unknown>;
 }
+
+export interface IncidentSummary {
+  days: number;
+  incidents: number;
+  resolved: number;
+  falseAlarms: number;
+  /* Share of incidents nobody marked as a false alarm; null without incidents. */
+  accuracyPercent: number | null;
+  mttaMinutes: number | null;
+  mttrMinutes: number | null;
+}
+
+export const DRILL_TITLE = "Alert drill: acknowledge this to finish the drill";
 
 export interface CreateIncidentInput {
   title: string;
@@ -134,6 +150,13 @@ export interface IncidentsService {
   ): Promise<{ incident: IncidentRow; created: boolean }>;
   /* System: resolves the open incident with this key (after a renewal). */
   resolveByDedupKey(tx: Tx, workspaceId: string, dedupKey: string): Promise<boolean>;
+  /*
+   * Alert accuracy for the last `days` days: incidents, false alarms (marked by people), accuracy and
+   * mean minutes to acknowledge and resolve. Drills and expiry warnings don't count.
+   */
+  summary(scope: WorkspaceScope, days: number): Promise<IncidentSummary>;
+  /* Starts an alert drill: a real incident through every alert route, labelled as a drill. */
+  startDrill(scope: WorkspaceScope): Promise<IncidentView>;
   /* System: incidents started in [from, to) — opened, resolved, mean minutes to resolve (digests). */
   stats(
     workspaceId: string,
@@ -374,11 +397,47 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
                 name: monitor.name,
                 alertPolicyId: monitor.alertPolicyId,
                 reminderMinutes: monitor.policies.reminderMinutes ?? null,
+                target: monitor.target,
+                regionCount: monitor.regions.length,
               },
       };
     },
 
     openIncidentIds: (options) => repo.openIds(deps.db, options),
+
+    async summary(scope, days) {
+      const to = clock.now();
+      const from = new Date(to.getTime() - days * 86_400_000);
+      const s = await repo.stats(deps.db, scope.workspaceId, from, to);
+      return {
+        days,
+        incidents: s.opened,
+        resolved: s.resolved,
+        falseAlarms: s.falseAlarms,
+        accuracyPercent:
+          s.opened === 0 ? null : Math.round((1 - s.falseAlarms / s.opened) * 1_000) / 10,
+        mttaMinutes: s.mttaSeconds === null ? null : Math.round((s.mttaSeconds / 60) * 10) / 10,
+        mttrMinutes: s.mttrSeconds === null ? null : Math.round((s.mttrSeconds / 60) * 10) / 10,
+      };
+    },
+
+    async startDrill(scope) {
+      return deps.db.transaction(async (tx) => {
+        const number = await deps.workspaces.nextIncidentNumber(tx, scope);
+        const created = await repo.insertScoped(tx, scope, {
+          id: deps.newId(),
+          number,
+          source: "drill",
+          monitorId: null,
+          title: DRILL_TITLE,
+          severity: "high",
+          startedAt: clock.now(),
+        });
+        if (created === undefined) throw new ConflictError("The drill couldn't start.");
+        await announceTriggered(tx, created, { drill: true, by: actorOf(scope) });
+        return toView(created);
+      });
+    },
 
     async stats(workspaceId, from, to) {
       const s = await repo.stats(deps.db, workspaceId, from, to);

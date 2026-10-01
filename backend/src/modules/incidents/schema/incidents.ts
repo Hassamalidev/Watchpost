@@ -18,7 +18,7 @@ import {
 import { organization } from "../../../infra/auth/schema.js";
 
 export type IncidentStatus = "triggered" | "acknowledged" | "snoozed" | "resolved";
-export type IncidentSource = "monitor" | "heartbeat" | "inbound" | "manual" | "expiry";
+export type IncidentSource = "monitor" | "heartbeat" | "inbound" | "manual" | "expiry" | "drill";
 export type IncidentSeverity = "critical" | "high" | "low";
 
 export const incidents = pgTable(
