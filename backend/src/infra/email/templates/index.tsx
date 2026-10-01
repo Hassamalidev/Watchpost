@@ -492,6 +492,27 @@ export const EMAIL_TEMPLATES = {
       </EmailLayout>
     ),
   },
+  /* Notices to the people who run the platform (provider balances), never to customers. */
+  "ops-notice": {
+    data: z.object({
+      subject: z.string().min(1).max(200),
+      heading: z.string().min(1).max(200),
+      lines: z.array(z.string().max(1_000)).min(1).max(10),
+    }),
+    subject: (d: { subject: string }) => `[Watchpost ops] ${d.subject}`,
+    component: (d: { heading: string; lines: string[] }) => (
+      <EmailLayout preview={d.heading} footer="You get this email because OPS_EMAIL points here.">
+        <Heading as="h1" className="wp-warn" style={{ ...styles.heading, ...styles.tone.warn }}>
+          {d.heading}
+        </Heading>
+        {d.lines.map((line) => (
+          <Text key={line} className="wp-text" style={styles.text}>
+            {line}
+          </Text>
+        ))}
+      </EmailLayout>
+    ),
+  },
   billing: {
     data: billingData,
     subject: (d: BillingData) => billingCopy(d).subject,

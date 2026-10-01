@@ -121,6 +121,8 @@ export interface BillingState {
   };
   /* What Paddle.js needs; null when Paddle is not configured on this server. */
   paddle: { environment: "sandbox" | "production"; clientToken: string } | null;
+  /* The workspace has paid before, so Paddle's customer portal has invoices to show. */
+  portalAvailable: boolean;
   /* The founding-customer discount (30% for life) is still available to this workspace. */
   foundingOfferAvailable: boolean;
   isFoundingCustomer: boolean;

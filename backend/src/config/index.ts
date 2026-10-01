@@ -41,6 +41,9 @@ export interface AppConfig {
     | undefined;
   /* Paddle price IDs per plan, credit pack and add-on; missing ones can't be bought. */
   prices: PriceIds;
+  /* Upstream funding: the AI kill switch and the monthly cap on platform-paid AI, in micro-USD. */
+  funding: { aiEnabled: boolean; unfundedAiCapMicros: number; opsEmail: string | undefined };
+  twilio: { accountSid: string; authToken: string } | undefined;
 }
 
 function priceIds(env: Env): PriceIds {
@@ -121,6 +124,15 @@ export function toAppConfig(env: Env): AppConfig {
           }
         : undefined,
     prices: priceIds(env),
+    funding: {
+      aiEnabled: env.AI_ENABLED,
+      unfundedAiCapMicros: Math.round(env.UNFUNDED_AI_MONTHLY_CAP_USD * 1_000_000),
+      opsEmail: env.OPS_EMAIL,
+    },
+    twilio:
+      env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN
+        ? { accountSid: env.TWILIO_ACCOUNT_SID, authToken: env.TWILIO_AUTH_TOKEN }
+        : undefined,
   };
 }
 

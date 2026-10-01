@@ -7,16 +7,21 @@ import { z } from "zod";
 import type { DbOrTx } from "../../../infra/db/index.js";
 import { defineEventProcessor } from "../../../infra/outbox/index.js";
 import { defineProcessor, type JobProcessor } from "../../../infra/queues/index.js";
+import type { CreditsService } from "../../credits/index.js";
 import type { AlertingService } from "../alerting.service.js";
 import { createAlertingEventHandlers } from "../events/index.js";
 
-export function createAlertingProcessors(service: AlertingService, db: DbOrTx): JobProcessor[] {
+export function createAlertingProcessors(
+  service: AlertingService,
+  db: DbOrTx,
+  credits?: Pick<CreditsService, "refundIncident">,
+): JobProcessor[] {
   return [
     defineEventProcessor({
       queue: "alerting-events",
       handler: "alerting",
       db,
-      handlers: createAlertingEventHandlers(service),
+      handlers: createAlertingEventHandlers(service, credits),
     }),
     defineProcessor({
       queue: "notify",

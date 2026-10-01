@@ -206,6 +206,14 @@ export const ADDON_MONTHLY_USD: Record<AddonKey, number> = {
   extraClientWorkspace: 5,
 };
 
+/*
+ * What one credit may cost us at the provider, in micro-USD. The cheapest credit sells for $0.05 (the
+ * 500 pack) and §5 asks for at least a 3× margin, so the per-country multipliers (P3-T05) must keep
+ * the real cost of a credit at or under this. Funding sets this much aside for every credit a
+ * customer holds.
+ */
+export const CREDIT_PROVIDER_COST_MICROS = 16_000;
+
 /* Display prices of the one-time credit packs (§5). */
 export const CREDIT_PACK_USD: Record<CreditPack, number> = { 100: 6, 500: 25 };
 

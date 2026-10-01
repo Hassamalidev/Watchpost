@@ -19,6 +19,7 @@
     "new:module": "tsx scripts/new-module.ts",
     "probe:create": "tsx scripts/create-probe.ts",
     "paddle:catalog": "tsx scripts/paddle-catalog.ts",
+    "funding:status": "tsx scripts/funding-status.ts",
     "telegram:webhook": "tsx scripts/telegram-webhook.ts"
   },
   "dependencies": {

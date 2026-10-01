@@ -16,6 +16,7 @@ import type {
   ProrationMode,
 } from "../../infra/paddle/index.js";
 import type { BillingModule } from "../../modules/billing/index.js";
+import type { CreditsModule } from "../../modules/credits/index.js";
 import type { MonitorsModule } from "../../modules/monitors/index.js";
 import type { WorkspacesModule } from "../../modules/workspaces/index.js";
 import { WEB_ORIGIN, buildContainerApp, signUpVerified } from "./container-app.js";
@@ -151,6 +152,7 @@ export function buildBillingApp(clock: Clock, paddle?: FakePaddle) {
   return {
     ...ctx,
     billing: moduleOf<BillingModule>("billing"),
+    credits: moduleOf<CreditsModule>("credits"),
     monitors: moduleOf<MonitorsModule>("monitors"),
     workspaces: moduleOf<WorkspacesModule>("workspaces"),
   };
@@ -309,6 +311,59 @@ export async function checkoutData(
   });
   expect(res.status, res.text).toBe(200);
   return res.body.customData as Record<string, unknown>;
+}
+
+/*
+ * Subscribes a workspace the way a checkout does: the subscription webhook, then (unless `paid` is
+ * false) the completed payment for its first period.
+ */
+export async function subscribeWorkspace(
+  ctx: BillingApp,
+  paddle: FakePaddle,
+  clock: Clock,
+  owner: { agent: TestAgent; workspaceId: string },
+  options: {
+    priceId: string;
+    plan: string;
+    interval?: "month" | "year";
+    paid?: boolean;
+    days?: number;
+  },
+) {
+  const now = clock.now();
+  const periodEnd = new Date(now.getTime() + (options.days ?? 30) * 86_400_000);
+  const data = subscriptionFixture(
+    {
+      priceId: options.priceId,
+      periodStart: now,
+      periodEnd,
+      customData: await checkoutData(owner, options.plan, options.interval ?? "month"),
+      customerId: `ctm_${owner.workspaceId.slice(0, 8)}`,
+    },
+    now,
+  );
+  paddle.put(data);
+  expect(
+    await deliverAndProcess(
+      ctx,
+      paddleEvent("subscription.created", subscriptionPayload(data), now),
+    ),
+  ).toBe("applied");
+  if (options.paid !== false) {
+    await deliverAndProcess(
+      ctx,
+      paddleEvent(
+        "transaction.completed",
+        transactionPayload({
+          subscriptionId: data.id,
+          items: data.items,
+          period: { startsAt: now, endsAt: periodEnd },
+        }),
+        now,
+      ),
+    );
+  }
+  return data;
 }
 
 /* Outbox events of one type for a workspace, newest first. */

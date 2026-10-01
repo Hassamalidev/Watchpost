@@ -116,6 +116,55 @@ describe("parseEnv", () => {
   });
 });
 
+describe("upstream funding settings", () => {
+  it("defaults to AI on with a $5 monthly cap for unpaid workspaces", () => {
+    expect(toAppConfig(parseEnv(valid)).funding).toEqual({
+      aiEnabled: true,
+      unfundedAiCapMicros: 5_000_000,
+      opsEmail: undefined,
+    });
+  });
+
+  it("reads the kill switch, a zero cap and the ops address", () => {
+    const config = toAppConfig(
+      parseEnv({
+        ...valid,
+        AI_ENABLED: "false",
+        UNFUNDED_AI_MONTHLY_CAP_USD: "0",
+        OPS_EMAIL: "ops@example.com",
+      }),
+    );
+    expect(config.funding).toEqual({
+      aiEnabled: false,
+      unfundedAiCapMicros: 0,
+      opsEmail: "ops@example.com",
+    });
+    expect(() => parseEnv({ ...valid, AI_ENABLED: "yes" })).toThrow(/AI_ENABLED/);
+    expect(() => parseEnv({ ...valid, UNFUNDED_AI_MONTHLY_CAP_USD: "-1" })).toThrow(
+      /UNFUNDED_AI_MONTHLY_CAP_USD/,
+    );
+  });
+
+  it("needs both Twilio credentials or none", () => {
+    expect(toAppConfig(parseEnv(valid)).twilio).toBeUndefined();
+    expect(() => parseEnv({ ...valid, TWILIO_ACCOUNT_SID: `AC${"0".repeat(32)}` })).toThrow(
+      /TWILIO_AUTH_TOKEN: is required when Twilio is configured/,
+    );
+    expect(
+      toAppConfig(
+        parseEnv({
+          ...valid,
+          TWILIO_ACCOUNT_SID: `AC${"0".repeat(32)}`,
+          TWILIO_AUTH_TOKEN: "0123456789abcdef0123456789abcdef",
+        }),
+      ).twilio,
+    ).toEqual({
+      accountSid: `AC${"0".repeat(32)}`,
+      authToken: "0123456789abcdef0123456789abcdef",
+    });
+  });
+});
+
 describe("Paddle settings", () => {
   it("leaves billing off without keys and keeps empty price variables unset", () => {
     const config = toAppConfig(parseEnv({ ...valid, PADDLE_PRICE_PRO_MONTHLY: "" }));

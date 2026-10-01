@@ -149,6 +149,24 @@ const baseEnvSchema = z.object({
     .string()
     .regex(/^dsc_[a-z0-9]+$/, "must be a Paddle discount ID (dsc_…)")
     .optional(),
+  /*
+   * Upstream funding (PRODUCT.md §11). AI_ENABLED is the global kill switch. Workspaces without a
+   * collected payment (Free and trial) use AI on the platform's money; this caps that spend for all
+   * of them together, per calendar month, in USD. 0 means "only paying workspaces use AI".
+   */
+  AI_ENABLED: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
+  UNFUNDED_AI_MONTHLY_CAP_USD: z.coerce.number().min(0).max(10_000).default(5),
+  /* Where warnings about our own provider balances go; logged only when unset. */
+  OPS_EMAIL: z.email().optional(),
+  /* Twilio (SMS and voice, P3-T05); the pair also lets us read the prepaid balance. */
+  TWILIO_ACCOUNT_SID: z
+    .string()
+    .regex(/^AC[0-9a-fA-F]{32}$/, "must look like AC followed by 32 hex characters")
+    .optional(),
+  TWILIO_AUTH_TOKEN: z.string().min(16).optional(),
   ...(Object.fromEntries(PADDLE_PRICE_ENV.map((key) => [key, paddlePriceId])) as Record<
     (typeof PADDLE_PRICE_ENV)[number],
     typeof paddlePriceId
@@ -172,6 +190,7 @@ export const envSchema = baseEnvSchema.superRefine((env, ctx) => {
   }
   const groups: Array<[string, string[]]> = [
     ["Paddle", ["PADDLE_API_KEY", "PADDLE_WEBHOOK_SECRET"]],
+    ["Twilio", ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN"]],
     ["Slack", ["SLACK_CLIENT_ID", "SLACK_CLIENT_SECRET"]],
     ["Telegram", ["TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_USERNAME", "TELEGRAM_WEBHOOK_SECRET"]],
   ];

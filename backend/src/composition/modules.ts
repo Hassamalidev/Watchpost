@@ -17,6 +17,7 @@ import { createActionsModule } from "../modules/actions/index.js";
 import { createReportsModule } from "../modules/reports/index.js";
 import { createDeploysModule } from "../modules/deploys/index.js";
 import { createBillingModule } from "../modules/billing/index.js";
+import { createCreditsModule } from "../modules/credits/index.js";
 /* new-module:imports */
 
 export function createModules(infra: Infra): AppModule[] {
@@ -29,6 +30,12 @@ export function createModules(infra: Infra): AppModule[] {
     guards: workspaces.guards,
   });
   modules.push(billing);
+  const credits = createCreditsModule({
+    infra,
+    billing: billing.service,
+    guards: workspaces.guards,
+  });
+  modules.push(credits);
   const monitors = createMonitorsModule({
     infra,
     guards: workspaces.guards,
@@ -92,6 +99,7 @@ export function createModules(infra: Infra): AppModule[] {
       incidents: incidents.service,
       channels: channels.service,
       workspaces: workspaces.service,
+      credits: credits.service,
       guards: workspaces.guards,
     }),
   );

@@ -3,6 +3,7 @@ import type { RequestHandler } from "express";
 import type { AppModule, Infra } from "../../composition/types.js";
 import { newId } from "../../infra/ids.js";
 import type { ChannelsService } from "../channels/index.js";
+import type { CreditsService } from "../credits/index.js";
 import type { IncidentsService } from "../incidents/index.js";
 import type { WorkspacesService } from "../workspaces/index.js";
 import { createAlertingController } from "./alerting.controller.js";
@@ -26,6 +27,8 @@ export interface AlertingModuleDeps {
   incidents: IncidentsService;
   channels: ChannelsService;
   workspaces: WorkspacesService;
+  /* False-alarm refunds (§5); optional so tests can build alerting without credits. */
+  credits?: Pick<CreditsService, "refundIncident">;
   guards: { session: RequestHandler; workspace: RequestHandler };
 }
 
@@ -59,7 +62,7 @@ export function createAlertingModule(deps: AlertingModuleDeps): AlertingModule {
         router: createAlertingRouter(createAlertingController(service), deps.guards),
       },
     ],
-    processors: createAlertingProcessors(service, infra.db),
+    processors: createAlertingProcessors(service, infra.db, deps.credits),
     /* Lost notify jobs and reminder timers are rebuilt from Postgres on every worker start. */
     recoverySweeps: [
       { name: "notify-deliveries", run: () => service.recoverDeliveries() },

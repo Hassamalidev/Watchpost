@@ -1,9 +1,14 @@
 /* Handlers for events the alerting module consumes (the `alerting-events` queue, §7.5). */
 import type { EventHandlers } from "../../../infra/outbox/index.js";
+import { createWorkspaceScope } from "../../../core/workspace-scope.js";
+import type { CreditsService } from "../../credits/index.js";
 import type { AlertingService } from "../alerting.service.js";
 
-export function createAlertingEventHandlers(service: AlertingService): EventHandlers {
-  /* Handled by later tasks (snooze, escalation, AI follow-ups, credit refunds). */
+export function createAlertingEventHandlers(
+  service: AlertingService,
+  credits?: Pick<CreditsService, "refundIncident">,
+): EventHandlers {
+  /* Handled by later tasks (snooze, escalation, AI follow-ups). */
   const later = async () => undefined;
   return {
     "workspace.created": async ({ workspaceId }) => {
@@ -43,6 +48,14 @@ export function createAlertingEventHandlers(service: AlertingService): EventHand
     "incident.reopened": later,
     "incident.escalation_requested": later,
     "incident.ai_summary_ready": later,
-    "incident.false_alarm_marked": later,
+    /* A false alarm gives back the SMS and voice credits its alerts used (§5). */
+    "incident.false_alarm_marked": async ({ incidentId }, meta) => {
+      if (credits === undefined || meta.workspaceId === null) return;
+      const refunded = await credits.refundIncident(
+        createWorkspaceScope({ workspaceId: meta.workspaceId }),
+        incidentId,
+      );
+      if (refunded > 0) meta.logger.info({ incidentId, refunded }, "false-alarm credits refunded");
+    },
   };
 }

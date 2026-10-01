@@ -30,7 +30,8 @@ import {
   type AddonKey,
   type PriceCatalog,
 } from "../../config/plans.js";
-import type { Db } from "../../infra/db/index.js";
+import type { Db, Tx } from "../../infra/db/index.js";
+import type { BillingEmailKind } from "../../infra/email/index.js";
 import type { Locks } from "../../infra/locks.js";
 import type { Logger } from "../../infra/logger.js";
 import type { PaddleItem } from "../../infra/paddle/index.js";
@@ -85,6 +86,18 @@ export interface BillingService {
     afterId?: string | undefined;
     limit: number;
   }): Promise<{ subscriptions: PaidSubscription[]; nextAfterId: string | null }>;
+
+  /*
+   * Emails the workspace's owners, admins and billing members inside the caller's transaction (the
+   * credits module uses it for low-balance warnings). `key` makes the email one-time.
+   */
+  notifyContacts(
+    tx: Tx,
+    workspaceId: string,
+    kind: BillingEmailKind,
+    data: { planName?: string; date?: string; daysLeft?: number; credits?: number },
+    key: string,
+  ): Promise<void>;
 
   /* System: creates the billing account of a workspace and announces its plan. Idempotent. */
   ensureAccount(workspaceId: string): Promise<PlanChange | null>;
@@ -233,6 +246,7 @@ export function createBillingService(deps: {
           deps.paddle?.clientToken === undefined
             ? null
             : { environment: deps.paddle.environment, clientToken: deps.paddle.clientToken },
+        portalAvailable: deps.paddle !== undefined && account?.paddleCustomerId != null,
         foundingOfferAvailable:
           deps.paddle?.foundingDiscountId !== undefined &&
           !isFoundingCustomer &&
@@ -428,6 +442,9 @@ export function createBillingService(deps: {
         nextAfterId: rows.length === limit ? (rows.at(-1)?.id ?? null) : null,
       };
     },
+
+    notifyContacts: (tx, workspaceId, kind, data, key) =>
+      paddleSync.notify(tx, workspaceId, kind, data, key),
 
     async ensureAccount(workspaceId) {
       return deps.db.transaction((tx) => planSync.syncTx(tx, workspaceId));

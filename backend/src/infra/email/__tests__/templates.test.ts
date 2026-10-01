@@ -53,6 +53,11 @@ const SAMPLES: Record<EmailTemplate, Record<string, unknown>> = {
     error: "HTTP 410",
     url: "https://app.example.com/w/1/integrations",
   },
+  "ops-notice": {
+    subject: "twilio balance is $12.00 short",
+    heading: "Top up twilio",
+    lines: ["Customers have paid for $40.00 of twilio usage.", "The balance is $28.00."],
+  },
   billing: {
     kind: "payment_failed",
     workspaceName: "Acme",
