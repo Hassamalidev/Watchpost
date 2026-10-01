@@ -8,6 +8,7 @@ import { Environment, Paddle } from "@paddle/paddle-node-sdk";
 import {
   ADDON_MONTHLY_USD,
   CREDIT_PACK_USD,
+  FOUNDING_CUSTOMER_SLOTS,
   PAID_PLAN_KEYS,
   PLANS,
   type AddonKey,
@@ -34,7 +35,13 @@ export interface CatalogClient {
     maxQuantity: number;
   }): Promise<string>;
   listDiscounts(): Promise<CatalogObject[]>;
-  createDiscount(input: { key: string; description: string; percent: number }): Promise<string>;
+  createDiscount(input: {
+    key: string;
+    description: string;
+    percent: number;
+    /* How many checkouts may use it; Paddle refuses the discount after that. */
+    usageLimit: number;
+  }): Promise<string>;
 }
 
 interface PriceSpec {
@@ -133,6 +140,7 @@ export const FOUNDING_DISCOUNT = {
   env: "PADDLE_DISCOUNT_FOUNDING",
   description: "Founding customer: 30% off for life",
   percent: 30,
+  usageLimit: FOUNDING_CUSTOMER_SLOTS,
 } as const;
 
 export interface CatalogResult {
@@ -184,6 +192,7 @@ export async function syncCatalog(client: CatalogClient): Promise<CatalogResult>
       key: FOUNDING_DISCOUNT.key,
       description: FOUNDING_DISCOUNT.description,
       percent: FOUNDING_DISCOUNT.percent,
+      usageLimit: FOUNDING_DISCOUNT.usageLimit,
     });
     created.push(FOUNDING_DISCOUNT.key);
   }
@@ -245,7 +254,7 @@ export function createSdkCatalogClient(options: {
       const rows = await all(paddle.discounts.list({ perPage: 200 }));
       return rows.map((d) => ({ id: d.id, key: keyOf(d.customData) }));
     },
-    async createDiscount({ key, description, percent }) {
+    async createDiscount({ key, description, percent, usageLimit }) {
       const discount = await paddle.discounts.create({
         description,
         type: "percentage",
@@ -253,6 +262,7 @@ export function createSdkCatalogClient(options: {
         /* Applies to every renewal, for as long as the subscription lives. */
         recur: true,
         maximumRecurringIntervals: null,
+        usageLimit,
         enabledForCheckout: true,
         customData: { key },
       });

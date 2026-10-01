@@ -8,12 +8,12 @@ import { Construction } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { workspaceHref, type NavItem } from "@/lib/navigation";
 
-type Section = Extract<NavItem["labelKey"], "billing" | "onCall" | "reports" | "statusPages">;
+type Section = Extract<NavItem["labelKey"], "onCall" | "reports" | "statusPages">;
 
 /* Build phase (PRODUCT.md §17) and the page that helps meanwhile. */
 const SECTIONS: Record<Section, { phase: number; meanwhile: string }> = {
   statusPages: { phase: 2, meanwhile: "monitors" },
-  billing: { phase: 3, meanwhile: "settings" },
+
   onCall: { phase: 4, meanwhile: "integrations" },
   reports: { phase: 5, meanwhile: "overview" },
 };

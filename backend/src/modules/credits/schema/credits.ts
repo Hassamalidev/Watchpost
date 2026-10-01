@@ -37,7 +37,7 @@ export const creditBalances = pgTable("credit_balances", {
   grantRef: text("grant_ref"),
   granted: integer("granted").notNull().default(0),
   includedGrantedAt: timestamp("included_granted_at", { withTimezone: true }),
-  /* Included credits are worth nothing from this moment (the next grant, or the paid period's end). */
+  /* Included credits are worth nothing from this moment: the month's end plus a renewal grace. */
   includedExpiresAt: timestamp("included_expires_at", { withTimezone: true }),
   /* Set when the low-balance email went out; cleared by the next grant or purchase. */
   lowNotifiedAt: timestamp("low_notified_at", { withTimezone: true }),

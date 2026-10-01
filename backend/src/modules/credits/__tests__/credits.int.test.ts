@@ -312,8 +312,8 @@ describe("plan changes and months", () => {
     expect((await credits.state(scope)).included).toBe(110);
 
     clock.advance(25 * DAY);
-    /* The old month is over: its credits are worth nothing even before the sweep runs. */
-    expect(await credits.state(scope)).toMatchObject({ included: 0, purchased: 100 });
+    /* The old month is over; what is left of it stays usable until the new grant replaces it. */
+    expect(await credits.state(scope)).toMatchObject({ included: 110, purchased: 100 });
     expect(await credits.grantSweep()).toBeGreaterThanOrEqual(1);
     await credits.grantSweep();
     const state = await credits.state(scope);
@@ -352,11 +352,20 @@ describe("plan changes and months", () => {
       paddleEvent("subscription.updated", subscriptionPayload(rolled), clock.now()),
     );
     expect(await credits.grantDue(o.workspaceId)).toBe(0);
+    /* No new allowance, but what was left of the paid month still sends alerts for a week. */
     expect(await credits.state(scope)).toMatchObject({
-      included: 0,
-      total: 0,
+      included: 150,
+      total: 150,
       monthlyAllowance: 0,
     });
+    expect(await credits.charge(scope, { credits: 1, refId: "in-grace" })).toMatchObject({
+      ok: true,
+      remaining: 149,
+    });
+
+    clock.advance(7 * DAY);
+    expect(await credits.grantDue(o.workspaceId)).toBe(0);
+    expect(await credits.state(scope)).toMatchObject({ included: 0, total: 0 });
     expect(await credits.charge(scope, { credits: 1, refId: "after-lapse" })).toEqual({
       ok: false,
       balance: 0,

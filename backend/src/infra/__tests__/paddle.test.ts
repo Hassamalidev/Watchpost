@@ -158,7 +158,8 @@ describe("catalog sync", () => {
         return `pri_${n}`;
       },
       listDiscounts: async () => discounts,
-      createDiscount: async ({ key }) => {
+      createDiscount: async ({ key, percent, usageLimit }) => {
+        expect({ percent, usageLimit }).toEqual({ percent: 30, usageLimit: 100 });
         discounts.push({ id: `dsc_${(n += 1)}`, key });
         return `dsc_${n}`;
       },

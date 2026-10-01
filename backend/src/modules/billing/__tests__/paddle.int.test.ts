@@ -312,20 +312,33 @@ describe("event order and paid periods", () => {
     );
     expect(await eventsOf(ctx, o.workspaceId, "billing.period_renewed")).toHaveLength(1);
 
-    /* A prorated charge or a one-time charge is not a period payment either. */
-    await deliverAndProcess(
-      ctx,
-      paddleEvent(
-        "transaction.completed",
-        transactionPayload({
-          subscriptionId: data.id,
-          origin: "subscription_update",
-          items: data.items,
-          period: { startsAt: later(31 * DAY), endsAt: nextEnd },
-        }),
-        later(21_000),
-      ),
-    );
+    /*
+     * None of these pays for the new period: a proration inside the period already paid for, an
+     * update charge that names no period, and a one-time charge.
+     */
+    const notPeriodPayments = [
+      {
+        origin: "subscription_update",
+        items: data.items,
+        period: { startsAt: later(10 * DAY), endsAt: later(30 * DAY) },
+      },
+      { origin: "subscription_update", items: data.items, period: null },
+      {
+        origin: "subscription_charge",
+        items: [{ priceId: PRICES.credits100, quantity: 1 }],
+        period: null,
+      },
+    ];
+    for (const [index, payment] of notPeriodPayments.entries()) {
+      await deliverAndProcess(
+        ctx,
+        paddleEvent(
+          "transaction.completed",
+          transactionPayload({ subscriptionId: data.id, ...payment }),
+          later(21_000 + index),
+        ),
+      );
+    }
     expect(await eventsOf(ctx, o.workspaceId, "billing.period_renewed")).toHaveLength(1);
 
     const renewal = paddleEvent(
@@ -343,6 +356,45 @@ describe("event order and paid periods", () => {
     const renewed = await eventsOf(ctx, o.workspaceId, "billing.period_renewed");
     expect(renewed).toHaveLength(2);
     expect(renewed[0]?.periodEnd).toBe(nextEnd.toISOString());
+  });
+
+  it("counts a switch to yearly billing as a paid year", async () => {
+    const o = await signUpWithWorkspace(ctx, "pdl-yearly");
+    const data = await subscribe(o, PRICES.proMonth);
+    /* Paddle starts a new yearly period now and charges it as a subscription update. */
+    const yearEnd = later(365 * DAY);
+    const yearly = {
+      ...data,
+      items: [{ priceId: PRICES.proYear, quantity: 1 }],
+      periodStart: clock.now(),
+      periodEnd: yearEnd,
+      updatedAt: later(5_000),
+    };
+    await deliverAndProcess(
+      ctx,
+      paddleEvent("subscription.updated", subscriptionPayload(yearly), later(5_000)),
+    );
+    await deliverAndProcess(
+      ctx,
+      paddleEvent(
+        "transaction.completed",
+        transactionPayload({
+          subscriptionId: data.id,
+          origin: "subscription_update",
+          items: yearly.items,
+          period: { startsAt: clock.now(), endsAt: yearEnd },
+        }),
+        later(6_000),
+      ),
+    );
+    const renewed = await eventsOf(ctx, o.workspaceId, "billing.period_renewed");
+    expect(renewed).toHaveLength(2);
+    expect(renewed[0]?.periodEnd).toBe(yearEnd.toISOString());
+    const paid = await ctx.billing.service.paidSubscription(
+      createWorkspaceScope({ workspaceId: o.workspaceId }),
+    );
+    expect(paid?.paidPeriodEnd.toISOString()).toBe(yearEnd.toISOString());
+    expect((await state(o)).subscription).toMatchObject({ plan: "pro", interval: "year" });
   });
 
   it("turns a paid credit pack into a credits_purchased event", async () => {

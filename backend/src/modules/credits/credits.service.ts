@@ -17,7 +17,7 @@ import type { CreditBucket, CreditLedgerEntry, CreditsState } from "@app/shared"
 import type { Clock } from "../../core/clock.js";
 import { ValidationError } from "../../core/errors.js";
 import { createWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
-import { CREDIT_PROVIDER_COST_MICROS, PLANS } from "../../config/plans.js";
+import { CREDIT_PROVIDER_COST_MICROS, PAST_DUE_GRACE_DAYS, PLANS } from "../../config/plans.js";
 import type { Db, Tx } from "../../infra/db/index.js";
 import type { ProviderBalanceReader } from "../../infra/funding/index.js";
 import type { Locks } from "../../infra/locks.js";
@@ -99,6 +99,13 @@ const DAY_MS = 86_400_000;
 const SWEEP_PAGE = 200;
 const RECENT_ENTRIES = 20;
 /* Warn below a fifth of the monthly allowance, and never later than this many credits. */
+/*
+ * What is left of a month's allowance stays usable this long after the month ends, unless the next
+ * grant replaces it first. A renewal is charged at the period end and its webhook arrives a little
+ * later, and a failed payment is retried for days; alerts must not lose SMS in that gap. These are
+ * credits the customer already paid for, not new ones.
+ */
+const INCLUDED_CREDITS_GRACE_MS = PAST_DUE_GRACE_DAYS * 86_400_000;
 const LOW_BALANCE_SHARE = 0.2;
 const LOW_BALANCE_MIN = 5;
 const PROVIDERS: Provider[] = ["anthropic", "twilio"];
@@ -372,7 +379,7 @@ export function createCreditsService(deps: {
             grantRef: ref,
             granted: allowance,
             includedGrantedAt: now,
-            includedExpiresAt: window.end,
+            includedExpiresAt: new Date(window.end.getTime() + INCLUDED_CREDITS_GRACE_MS),
             lowNotifiedAt: null,
           });
         } else if (allowance > row.granted) {

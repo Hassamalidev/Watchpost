@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
-import { SectionPlaceholder } from "@/components/app/section-placeholder";
+import { BillingPage } from "@/features/billing/components/billing-page";
 
 export const metadata: Metadata = { title: "Billing" };
 
-/* Built in a later phase (PRODUCT.md §20). */
-export default async function PlaceholderPage({ params }: { params: Promise<{ ws: string }> }) {
-  const { ws } = await params;
-  return <SectionPlaceholder ws={ws} labelKey="billing" />;
+export default function BillingRoute() {
+  return <BillingPage />;
 }

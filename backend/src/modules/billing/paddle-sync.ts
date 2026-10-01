@@ -340,10 +340,16 @@ export function createPaddleSync(deps: {
     return "applied";
   }
 
+  /*
+   * A payment for a billing period: the first checkout, a renewal, or a subscription update that
+   * starts a new period (monthly to yearly). A proration inside the current period ends where the
+   * paid period already ends, so it announces nothing; one-time charges carry no plan item.
+   */
   const isPeriodPayment = (t: PaddleTransactionData) =>
     t.subscriptionId !== null &&
-    ["web", "api", "subscription_recurring"].includes(t.origin) &&
-    t.items.some((i) => deps.catalog.lookup(i.priceId)?.kind === "plan");
+    t.items.some((i) => deps.catalog.lookup(i.priceId)?.kind === "plan") &&
+    (["web", "api", "subscription_recurring"].includes(t.origin) ||
+      (t.origin === "subscription_update" && t.billingPeriod !== null));
 
   async function applyTransaction(
     tx: Tx,
