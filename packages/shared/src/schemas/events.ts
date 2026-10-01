@@ -67,9 +67,18 @@ export const EVENT_SCHEMAS = {
     version: 1,
     schema: z.object({ from: z.string(), to: z.string() }),
   },
+  /* A billing period Paddle collected money for (the first one included). */
   "billing.period_renewed": {
     version: 1,
     schema: z.object({ subscriptionId: id, periodEnd: timestamp }),
+  },
+  /* A one-time credit pack was paid for. */
+  "billing.credits_purchased": {
+    version: 1,
+    schema: z.object({
+      transactionId: z.string().min(1).max(200),
+      credits: z.number().int().positive(),
+    }),
   },
   "import.completed": { version: 1, schema: z.object({ importId: id, source: z.string() }) },
   "email.requested": {

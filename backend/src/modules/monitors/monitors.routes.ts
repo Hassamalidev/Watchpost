@@ -51,6 +51,9 @@ export function createMonitorsRouter(
     controller.remove,
   );
 
+  /* Active monitors against the plan's limits (billing page meters, upgrade prompts). */
+  router.get("/monitor-usage", controller.usage);
+
   router.get("/tags", controller.tags);
 
   router.get("/monitor-groups", controller.groups);

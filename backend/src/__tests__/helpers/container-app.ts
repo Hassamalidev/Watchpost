@@ -12,6 +12,8 @@ import { PROBE_API_PREFIX, PROBE_HEADERS, probeSigningString } from "@app/shared
 import { createApp } from "../../app.js";
 import { createContainer } from "../../composition/container.js";
 import { parseEnv, toAppConfig } from "../../config/index.js";
+import type { Clock } from "../../core/clock.js";
+import type { PaddleApi } from "../../infra/paddle/index.js";
 import type { OutboundHttp, OutboundRequest, OutboundResponse } from "../../infra/http/outbound.js";
 import { outboxEvents } from "../../infra/outbox/index.js";
 import { TEST_DATABASE_URL, TEST_REDIS_URL } from "./test-env.js";
@@ -25,6 +27,10 @@ export function buildContainerApp(
     /* Extra environment (for example Slack or Telegram credentials). */
     env?: Record<string, string>;
     http?: OutboundHttp;
+    /* A controllable clock for everything that reads `infra.clock` (trial ends, grace periods). */
+    clock?: Clock;
+    /* A fake Paddle API; needs the PADDLE_* variables in `env` to switch billing on. */
+    paddleApi?: PaddleApi;
   } = {},
 ) {
   const config = toAppConfig(
@@ -49,6 +55,8 @@ export function buildContainerApp(
     logger,
     ...(options.authRateLimit === false ? { authRateLimit: false } : {}),
     ...(options.http === undefined ? {} : { http: options.http }),
+    ...(options.clock === undefined ? {} : { clock: options.clock }),
+    ...(options.paddleApi === undefined ? {} : { paddleApi: options.paddleApi }),
   });
   const app = createApp({
     config,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ConfigError, parseEnv } from "../env.js";
 import { toAppConfig } from "../index.js";
+import { createPriceCatalog } from "../plans.js";
 
 const KEY_A = Buffer.alloc(32, 1).toString("base64");
 const KEY_B = Buffer.alloc(32, 2).toString("base64");
@@ -112,5 +113,59 @@ describe("parseEnv", () => {
     );
     expect(() => parseEnv({ ...valid, API_PORT: "99999" })).toThrow(/API_PORT/);
     expect(() => parseEnv({ ...valid, NODE_ENV: "staging" })).toThrow(/NODE_ENV/);
+  });
+});
+
+describe("Paddle settings", () => {
+  it("leaves billing off without keys and keeps empty price variables unset", () => {
+    const config = toAppConfig(parseEnv({ ...valid, PADDLE_PRICE_PRO_MONTHLY: "" }));
+    expect(config.paddle).toBeUndefined();
+    expect(config.prices.plans.pro).toEqual({ month: undefined, year: undefined });
+  });
+
+  it("needs the API key and the webhook secret together", () => {
+    expect(() => parseEnv({ ...valid, PADDLE_API_KEY: "pdl_sdbx_apikey_0123456789" })).toThrow(
+      /PADDLE_WEBHOOK_SECRET: is required when Paddle is configured/,
+    );
+  });
+
+  it("maps price variables to plans, credit packs and add-ons", () => {
+    const config = toAppConfig(
+      parseEnv({
+        ...valid,
+        PADDLE_ENV: "production",
+        PADDLE_API_KEY: "pdl_live_apikey_0123456789",
+        PADDLE_WEBHOOK_SECRET: "pdl_ntfset_0123456789",
+        NEXT_PUBLIC_PADDLE_CLIENT_TOKEN: "live_0123456789abcdef",
+        PADDLE_DISCOUNT_FOUNDING: "dsc_01founding",
+        PADDLE_PRICE_PRO_MONTHLY: "pri_01promonth",
+        PADDLE_PRICE_CREDITS_500: "pri_01credits500",
+        PADDLE_PRICE_EXTRA_PROBE: "pri_01probe",
+      }),
+    );
+    expect(config.paddle).toMatchObject({
+      environment: "production",
+      clientToken: "live_0123456789abcdef",
+      foundingDiscountId: "dsc_01founding",
+    });
+    expect(config.prices.plans.pro.month).toBe("pri_01promonth");
+    expect(config.prices.credits[500]).toBe("pri_01credits500");
+    expect(config.prices.addons.extraProbe).toBe("pri_01probe");
+    const catalog = createPriceCatalog(config.prices);
+    expect(catalog.lookup("pri_01promonth")).toEqual({
+      kind: "plan",
+      plan: "pro",
+      interval: "month",
+    });
+    expect(catalog.lookup("pri_01credits500")).toEqual({ kind: "credits", credits: 500 });
+    expect(catalog.lookup("pri_01probe")).toEqual({ kind: "addon", addon: "extraProbe" });
+    expect(catalog.lookup("pri_unknown")).toBeUndefined();
+    expect(catalog.planPrice("starter", "year")).toBeUndefined();
+  });
+
+  it("rejects IDs that aren't Paddle prices", () => {
+    expect(() => parseEnv({ ...valid, PADDLE_PRICE_PRO_MONTHLY: "prod_123" })).toThrow(
+      /PADDLE_PRICE_PRO_MONTHLY/,
+    );
   });
 });

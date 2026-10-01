@@ -20,6 +20,7 @@ type Handlers =
   | "pause"
   | "resume"
   | "remove"
+  | "usage"
   | "tags"
   | "groups"
   | "createGroup"
@@ -49,6 +50,9 @@ export function createMonitorsController(service: MonitorsService): MonitorsCont
     update: async (req, res) => {
       const { body } = inputOf<{ body: typeof updateMonitorBody }>(req, res);
       res.json(await service.update(scopeOf(req, res), idOf(req, res), body));
+    },
+    usage: async (req, res) => {
+      res.json(await service.usage(scopeOf(req, res)));
     },
     pause: async (req, res) => {
       res.json(await service.setPaused(scopeOf(req, res), idOf(req, res), true));

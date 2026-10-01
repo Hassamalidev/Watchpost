@@ -16,13 +16,24 @@ import { createExpiryModule } from "../modules/expiry/index.js";
 import { createActionsModule } from "../modules/actions/index.js";
 import { createReportsModule } from "../modules/reports/index.js";
 import { createDeploysModule } from "../modules/deploys/index.js";
+import { createBillingModule } from "../modules/billing/index.js";
 /* new-module:imports */
 
 export function createModules(infra: Infra): AppModule[] {
   const modules: AppModule[] = [];
   const workspaces = createWorkspacesModule({ infra });
   modules.push(workspaces);
-  const monitors = createMonitorsModule({ infra, guards: workspaces.guards });
+  const billing = createBillingModule({
+    infra,
+    workspaces: workspaces.service,
+    guards: workspaces.guards,
+  });
+  modules.push(billing);
+  const monitors = createMonitorsModule({
+    infra,
+    guards: workspaces.guards,
+    limits: billing.service.limits,
+  });
   modules.push(monitors);
   const results = createResultsModule({
     infra,

@@ -12,6 +12,7 @@ import type { OutboundHttp } from "../infra/http/outbound.js";
 import type { Locks } from "../infra/locks.js";
 import type { Logger } from "../infra/logger.js";
 import type { Outbox } from "../infra/outbox/index.js";
+import type { PaddleClient } from "../infra/paddle/index.js";
 import type { JobProcessor, QueueName, Queues, RecoverySweep } from "../infra/queues/index.js";
 import type { RedisClient } from "../infra/redis.js";
 import type { ModuleName } from "./architecture.js";
@@ -38,6 +39,8 @@ export interface Infra {
   http: OutboundHttp;
   /* Signed single-use action links for alert emails. */
   actionLinks: ActionLinks;
+  /* Paddle Billing; undefined until the owner adds keys. */
+  paddle: PaddleClient | undefined;
 }
 
 export interface MountedRouter {
@@ -95,4 +98,6 @@ export interface ApiTimer {
 export interface AppHooks {
   /* After Better Auth creates an organization (workspace). Must be idempotent. */
   onWorkspaceCreated?: (workspaceId: string) => Promise<void>;
+  /* How many members the workspace's plan allows (Better Auth asks before adding one). */
+  memberLimit?: (workspaceId: string) => Promise<number>;
 }

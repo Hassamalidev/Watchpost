@@ -12,7 +12,9 @@ import { PermanentEmailError, type EmailTransport } from "./transport.js";
 import type { Db } from "../db/index.js";
 
 export {
+  BILLING_EMAIL_KINDS,
   EMAIL_TEMPLATES,
+  type BillingEmailKind,
   isEmailTemplate,
   renderEmail,
   type EmailTemplate,

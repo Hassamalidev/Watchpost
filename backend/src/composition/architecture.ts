@@ -37,6 +37,7 @@ export const EVENT_SUBSCRIPTIONS: Readonly<
 > = {
   "workspace.created": [
     { handler: "alerting", queue: "alerting-events" },
+    { handler: "billing", queue: "billing-events" },
     { handler: "admin", queue: "admin-events" },
   ],
   "monitor.created": [
@@ -93,6 +94,7 @@ export const EVENT_SUBSCRIPTIONS: Readonly<
     { handler: "admin", queue: "admin-events" },
   ],
   "billing.period_renewed": [{ handler: "credits", queue: "credits-events" }],
+  "billing.credits_purchased": [{ handler: "credits", queue: "credits-events" }],
   "import.completed": [{ handler: "admin", queue: "admin-events" }],
   "email.requested": [{ handler: "email", queue: "emails" }],
 };

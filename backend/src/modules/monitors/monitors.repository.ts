@@ -61,6 +61,19 @@ export function createMonitorsRepository(db: DbOrTx) {
       return rows[0]?.n ?? 0;
     },
 
+    /* Every monitor of the workspace, oldest first (UUIDv7 IDs sort by creation time). */
+    async allForWorkspace(tx: DbOrTx, scope: WorkspaceScope): Promise<MonitorRow[]> {
+      return tx.select().from(monitors).where(scoped(scope)).orderBy(asc(monitors.id));
+    },
+
+    async countPausedByPlan(tx: DbOrTx, scope: WorkspaceScope): Promise<number> {
+      const rows = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(monitors)
+        .where(scoped(scope, eq(monitors.paused, true), eq(monitors.pausedReason, "plan_limit")));
+      return rows[0]?.n ?? 0;
+    },
+
     async insert(tx: DbOrTx, row: NewMonitorRow): Promise<MonitorRow> {
       const [created] = await tx.insert(monitors).values(row).returning();
       if (created === undefined) throw new Error("insert returned no row");

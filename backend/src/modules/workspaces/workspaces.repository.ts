@@ -2,7 +2,7 @@
  * Workspaces data. Better Auth owns `member`, `user` and `organization` (infra/auth); this repository
  * is the only place modules read them (PRODUCT.md §7.4). It also owns workspace_settings.
  */
-import { and, asc, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gt, gte, isNull, lt, sql } from "drizzle-orm";
 import { assertWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
 import { member, organization, user } from "../../infra/auth/schema.js";
 import type { DbOrTx } from "../../infra/db/index.js";
@@ -44,6 +44,42 @@ export function createWorkspacesRepository(db: DbOrTx) {
         .innerJoin(user, eq(user.id, member.userId))
         .where(eq(member.organizationId, scope.workspaceId))
         .orderBy(asc(member.createdAt));
+    },
+
+    async countMembers(scope: WorkspaceScope): Promise<number> {
+      assertWorkspaceScope(scope);
+      const [row] = await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(member)
+        .where(eq(member.organizationId, scope.workspaceId));
+      return row?.n ?? 0;
+    },
+
+    /* System-level: workspaces whose trial ends in [from, to), paged by ID (trial emails). */
+    async trialsEndingBetween(
+      from: Date,
+      to: Date,
+      limit: number,
+      afterId?: string,
+    ): Promise<Array<{ workspaceId: string; trialEndsAt: Date }>> {
+      const rows = await db
+        .select({
+          workspaceId: workspaceSettings.workspaceId,
+          trialEndsAt: workspaceSettings.trialEndsAt,
+        })
+        .from(workspaceSettings)
+        .where(
+          and(
+            gte(workspaceSettings.trialEndsAt, from),
+            lt(workspaceSettings.trialEndsAt, to),
+            afterId ? gt(workspaceSettings.workspaceId, afterId) : undefined,
+          ),
+        )
+        .orderBy(asc(workspaceSettings.workspaceId))
+        .limit(limit);
+      return rows.flatMap((r) =>
+        r.trialEndsAt === null ? [] : [{ workspaceId: r.workspaceId, trialEndsAt: r.trialEndsAt }],
+      );
     },
 
     async workspaceName(scope: WorkspaceScope): Promise<string | undefined> {

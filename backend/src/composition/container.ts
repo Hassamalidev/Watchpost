@@ -15,6 +15,7 @@ import { createOutboundHttp, type OutboundHttp } from "../infra/http/outbound.js
 import { createLocks } from "../infra/locks.js";
 import { createLogger, type Logger } from "../infra/logger.js";
 import { createOutbox, OUTBOX_MAX_LAG_SECONDS } from "../infra/outbox/index.js";
+import { createPaddle, type PaddleApi } from "../infra/paddle/index.js";
 import { createQueueConnection, createQueues } from "../infra/queues/index.js";
 import type { ReadinessCheck } from "../infra/health.js";
 import { createRedis, pingRedis } from "../infra/redis.js";
@@ -36,6 +37,8 @@ export interface Container {
  */
 export interface LateHooks {
   onWorkspaceCreated: Array<(workspaceId: string) => Promise<void>>;
+  /* Set by the billing module; until then Better Auth's own default applies. */
+  memberLimit?: (workspaceId: string) => Promise<number>;
 }
 
 /*
@@ -62,6 +65,8 @@ export function createInfra(
     authRateLimit?: boolean;
     /* Tests replace outbound HTTP (Slack, Telegram, webhooks) with a stub. */
     http?: OutboundHttp;
+    /* Tests replace Paddle's API with a fake; webhook signatures are still really verified. */
+    paddleApi?: PaddleApi;
   },
 ): Infra {
   const logger =
@@ -87,6 +92,7 @@ export function createInfra(
     onWorkspaceCreated: async (workspaceId) => {
       for (const hook of hooks.onWorkspaceCreated) await hook(workspaceId);
     },
+    memberLimit: (workspaceId) => hooks.memberLimit?.(workspaceId),
     db,
     baseURL: config.auth.baseURL,
     secret: config.auth.secret,
@@ -104,9 +110,15 @@ export function createInfra(
       : {}),
   });
 
+  const paddle = config.paddle === undefined ? undefined : createPaddle(config.paddle);
+
   return {
     config,
     logger,
+    paddle:
+      paddle === undefined
+        ? undefined
+        : { webhooks: paddle.webhooks, api: options.paddleApi ?? paddle.api },
     clock: options.clock ?? systemClock,
     pool,
     db,
@@ -139,6 +151,7 @@ export function createContainer(
     clock?: Clock;
     authRateLimit?: boolean;
     http?: OutboundHttp;
+    paddleApi?: PaddleApi;
   },
 ): Container {
   const hooks: LateHooks = { onWorkspaceCreated: [] };
@@ -147,6 +160,7 @@ export function createContainer(
   for (const module of modules) {
     if (module.hooks?.onWorkspaceCreated)
       hooks.onWorkspaceCreated.push(module.hooks.onWorkspaceCreated);
+    if (module.hooks?.memberLimit) hooks.memberLimit = module.hooks.memberLimit;
   }
 
   const readinessChecks: Record<string, ReadinessCheck> = {

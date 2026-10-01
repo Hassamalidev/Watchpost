@@ -8,7 +8,7 @@ import { createMonitorsController } from "./monitors.controller.js";
 import { createMonitorsRepository } from "./monitors.repository.js";
 import { createMonitorsRouter } from "./monitors.routes.js";
 import { createMonitorsService, type MonitorsService } from "./monitors.service.js";
-import { monitorsProcessors } from "./jobs/index.js";
+import { createMonitorsProcessors } from "./jobs/index.js";
 
 export type {
   MonitorForDetection,
@@ -16,6 +16,7 @@ export type {
   MonitorGroupView,
   MonitorView,
   MonitorsService,
+  PlanEnforcement,
   UpdateMonitorInput,
 } from "./monitors.service.js";
 export { MASKED } from "./types/secrets.js";
@@ -54,6 +55,6 @@ export function createMonitorsModule(deps: MonitorsModuleDeps): MonitorsModule {
     routers: [
       { path: "/api/w/:workspaceId", router: createMonitorsRouter(controller, deps.guards) },
     ],
-    processors: monitorsProcessors,
+    processors: createMonitorsProcessors(service, deps.infra.db),
   };
 }

@@ -53,6 +53,13 @@ const SAMPLES: Record<EmailTemplate, Record<string, unknown>> = {
     error: "HTTP 410",
     url: "https://app.example.com/w/1/integrations",
   },
+  billing: {
+    kind: "payment_failed",
+    workspaceName: "Acme",
+    url: "https://app.example.com/w/1/billing",
+    planName: "Pro",
+    date: "14 October 2026",
+  },
   digest: {
     workspaceName: "Acme",
     weekStart: "2026-09-21",

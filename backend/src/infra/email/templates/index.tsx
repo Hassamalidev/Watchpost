@@ -217,6 +217,157 @@ function DigestEmail(d: z.infer<typeof digestData>) {
   );
 }
 
+export const BILLING_EMAIL_KINDS = [
+  "trial_started",
+  "trial_midway",
+  "trial_ending",
+  "trial_ended",
+  "payment_failed",
+  "subscription_started",
+  "subscription_canceled",
+  "credits_low",
+] as const;
+export type BillingEmailKind = (typeof BILLING_EMAIL_KINDS)[number];
+
+const billingData = z.object({
+  kind: z.enum(BILLING_EMAIL_KINDS),
+  workspaceName: z.string(),
+  /* The workspace's billing page. */
+  url,
+  planName: z.string().optional(),
+  /* A date already written for people ("14 October 2026"): trial end, grace end or period end. */
+  date: z.string().optional(),
+  daysLeft: z.number().int().optional(),
+  credits: z.number().int().optional(),
+});
+type BillingData = z.infer<typeof billingData>;
+
+interface BillingCopy {
+  subject: string;
+  heading: string;
+  lines: string[];
+  action: string;
+  tone: Tone;
+}
+
+/* One place for billing wording, so every email says what happens next and what to do about it. */
+export function billingCopy(d: BillingData): BillingCopy {
+  const plan = d.planName ?? "Pro";
+  const date = d.date ?? "soon";
+  switch (d.kind) {
+    case "trial_started":
+      return {
+        subject: `Your 14-day ${plan} trial of Watchpost has started`,
+        heading: `${d.workspaceName} is on the ${plan} plan for 14 days`,
+        lines: [
+          `No card needed. Until ${date} you have faster checks, more regions and more monitors.`,
+          "When the trial ends the workspace moves to the Free plan unless you pick a plan. Nothing is deleted.",
+        ],
+        action: "See plans",
+        tone: "neutral",
+      };
+    case "trial_midway":
+      return {
+        subject: `${d.daysLeft ?? 7} days left in your Watchpost trial`,
+        heading: `Your ${plan} trial is halfway through`,
+        lines: [
+          `The trial for ${d.workspaceName} ends on ${date}.`,
+          "Pick a plan any time to keep what you set up. On Free, monitors over the limit are paused, never deleted.",
+        ],
+        action: "Compare plans",
+        tone: "neutral",
+      };
+    case "trial_ending":
+      return {
+        subject: `Your Watchpost trial ends in ${d.daysLeft ?? 2} days`,
+        heading: `The ${plan} trial ends on ${date}`,
+        lines: [
+          `After that ${d.workspaceName} moves to the Free plan: 20 monitors, checks every 3 minutes, 2 regions.`,
+          "Monitors over the limit are paused and faster checks slow down. Your data stays.",
+        ],
+        action: "Keep your plan",
+        tone: "warn",
+      };
+    case "trial_ended":
+      return {
+        subject: `Your Watchpost trial has ended`,
+        heading: `${d.workspaceName} is now on the Free plan`,
+        lines: [
+          "Monitors over the Free limit are paused and checks faster than 3 minutes were slowed down. Nothing was deleted.",
+          "Upgrade to resume them; you choose which monitors stay active.",
+        ],
+        action: "Upgrade",
+        tone: "warn",
+      };
+    case "payment_failed":
+      return {
+        subject: `Payment failed for ${d.workspaceName} on Watchpost`,
+        heading: "We couldn't take your payment",
+        lines: [
+          `The ${plan} plan stays on until ${date} while the payment is retried.`,
+          "Update the payment method to keep paid features. After that date the workspace moves to Free and monitors over the limit are paused.",
+        ],
+        action: "Update payment method",
+        tone: "down",
+      };
+    case "subscription_started":
+      return {
+        subject: `${d.workspaceName} is now on Watchpost ${plan}`,
+        heading: `Welcome to ${plan}`,
+        lines: [
+          `Your subscription is active. It renews on ${date}.`,
+          "Invoices, payment method and cancellation are on the billing page.",
+        ],
+        action: "Open billing",
+        tone: "up",
+      };
+    case "subscription_canceled":
+      return {
+        subject: `Your Watchpost subscription has ended`,
+        heading: `${d.workspaceName} is now on the Free plan`,
+        lines: [
+          "Monitors over the Free limit are paused, never deleted. Unused purchased credits stay in the workspace.",
+          "You can subscribe again any time.",
+        ],
+        action: "Open billing",
+        tone: "neutral",
+      };
+    case "credits_low":
+      return {
+        subject: `${d.workspaceName} has ${d.credits ?? 0} SMS and voice credits left`,
+        heading: "Credits are running low",
+        lines: [
+          `${d.credits ?? 0} credits are left. When they run out, SMS and voice alerts stop; email and chat alerts keep working.`,
+          "Buy a credit pack to keep phone alerts on.",
+        ],
+        action: "Buy credits",
+        tone: "warn",
+      };
+  }
+}
+
+function BillingEmail(d: BillingData) {
+  const copy = billingCopy(d);
+  return (
+    <EmailLayout preview={copy.heading}>
+      <Heading
+        as="h1"
+        className={copy.tone === "neutral" ? "wp-text" : `wp-${copy.tone}`}
+        style={{ ...styles.heading, ...styles.tone[copy.tone] }}
+      >
+        {copy.heading}
+      </Heading>
+      {copy.lines.map((line) => (
+        <Text key={line} className="wp-text" style={styles.text}>
+          {line}
+        </Text>
+      ))}
+      <Action href={d.url}>{copy.action}</Action>
+      <Fallback href={d.url} />
+    </EmailLayout>
+  );
+}
+
 export const EMAIL_TEMPLATES = {
   "verify-email": {
     data: z.object({ url, name: z.string().optional() }),
@@ -340,6 +491,11 @@ export const EMAIL_TEMPLATES = {
         <Action href={d.url}>Check the channel</Action>
       </EmailLayout>
     ),
+  },
+  billing: {
+    data: billingData,
+    subject: (d: BillingData) => billingCopy(d).subject,
+    component: BillingEmail,
   },
   digest: {
     data: digestData,

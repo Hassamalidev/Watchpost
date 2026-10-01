@@ -18,10 +18,12 @@
     "db:migrate": "tsx src/migrate.ts",
     "new:module": "tsx scripts/new-module.ts",
     "probe:create": "tsx scripts/create-probe.ts",
+    "paddle:catalog": "tsx scripts/paddle-catalog.ts",
     "telegram:webhook": "tsx scripts/telegram-webhook.ts"
   },
   "dependencies": {
     "@app/shared": "workspace:*",
+    "@paddle/paddle-node-sdk": "3.10.0",
     "@react-email/components": "1.0.12",
     "better-auth": "1.7.6",
     "bullmq": "6.3.10",

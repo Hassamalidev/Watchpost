@@ -6,6 +6,7 @@
  * the coarsest rollup that fits the range and merge regions by summing histograms.
  */
 import type { Clock } from "../../core/clock.js";
+import { QuotaExceededError } from "../../core/errors.js";
 import type { WorkspaceScope } from "../../core/workspace-scope.js";
 import type { MonitorsService } from "../monitors/index.js";
 import { mergeHistograms, percentile } from "./histogram.js";
@@ -99,7 +100,7 @@ function point(
 
 export function createRollupsService(deps: {
   repository: ResultsRepository;
-  monitors: Pick<MonitorsService, "get">;
+  monitors: Pick<MonitorsService, "get" | "planLimits">;
   clock: Clock;
 }): RollupsService {
   const { repository: repo, clock } = deps;
@@ -128,6 +129,13 @@ export function createRollupsService(deps: {
 
     async latency(scope, monitorId, { range, region }) {
       await deps.monitors.get(scope, monitorId);
+      /* History beyond the plan's window is an upgrade moment (§5), not an empty chart. */
+      const { historyDays } = await deps.monitors.planLimits(scope);
+      if (CHART_RANGES[range].ms > historyDays * DAY) {
+        throw new QuotaExceededError(
+          `Your plan keeps ${historyDays} days of history. Upgrade to see the last ${range}.`,
+        );
+      }
       const { ms, size } = CHART_RANGES[range];
       const now = clock.now();
       const rows = await repo.rollups(size, monitorId, new Date(now.getTime() - ms), now, region);

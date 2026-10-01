@@ -10,6 +10,7 @@ import {
   type CreateMonitorInput,
   type MonitorConfig,
   type MonitorSettings,
+  type MonitorUsage,
 } from "@app/shared";
 import type { Clock } from "../../core/clock.js";
 import {
@@ -110,6 +111,17 @@ export interface MonitorsService {
   ): Promise<{ data: MonitorView[]; nextCursor: string | null }>;
   update(scope: WorkspaceScope, id: string, input: UpdateMonitorInput): Promise<MonitorView>;
   setPaused(scope: WorkspaceScope, id: string, paused: boolean): Promise<MonitorView>;
+  /* The workspace's plan limits (other modules ask here instead of calling billing themselves). */
+  planLimits(scope: WorkspaceScope): Promise<PlanLimits>;
+  /* Active monitors against the plan, for usage meters. */
+  usage(scope: WorkspaceScope): Promise<MonitorUsage>;
+  /*
+   * Brings the workspace in line with its plan after the plan changed (PRODUCT.md §5: downgrades
+   * pause, never delete). Over the limit: the newest monitors are paused with reason `plan_limit`.
+   * Room again: monitors paused that way resume, oldest first. Checks faster than the plan allows are
+   * slowed to the plan's minimum and extra regions are dropped. Idempotent.
+   */
+  enforcePlanLimits(scope: WorkspaceScope): Promise<PlanEnforcement>;
   delete(scope: WorkspaceScope, id: string): Promise<void>;
   listTags(scope: WorkspaceScope): Promise<Array<{ id: string; name: string }>>;
   createGroup(scope: WorkspaceScope, name: string): Promise<MonitorGroupView>;
@@ -146,6 +158,12 @@ export interface MonitorsService {
   changeTimes(scope: WorkspaceScope, id: string, from: Date, to: Date): Promise<Date[]>;
   /* Settings detection evaluates against. System-level: no tenant scope. */
   getForDetection(ids: string[]): Promise<MonitorForDetection[]>;
+}
+
+export interface PlanEnforcement {
+  paused: number;
+  resumed: number;
+  adjusted: number;
 }
 
 export interface MonitorsServiceDeps {
@@ -497,6 +515,81 @@ export function createMonitorsService(deps: MonitorsServiceDeps): MonitorsServic
           { workspaceId: scope.workspaceId },
         );
         return viewOf(tx, await mustFind(tx, scope, id));
+      });
+    },
+
+    planLimits: (scope) => deps.limits(scope),
+
+    async usage(scope) {
+      const limits = await deps.limits(scope);
+      const [monitorCount, heartbeatCount, pausedByPlan] = await Promise.all([
+        repo.countByKind(db, scope, "monitor"),
+        repo.countByKind(db, scope, "heartbeat"),
+        repo.countPausedByPlan(db, scope),
+      ]);
+      return {
+        monitors: { used: monitorCount, limit: limits.monitors },
+        heartbeats: { used: heartbeatCount, limit: limits.heartbeats },
+        pausedByPlan,
+      };
+    },
+
+    async enforcePlanLimits(scope) {
+      return db.transaction(async (tx) => {
+        await repo.lockWorkspace(tx, scope);
+        const limits = await deps.limits(scope);
+        const rows = await repo.allForWorkspace(tx, scope);
+        const result: PlanEnforcement = { paused: 0, resumed: 0, adjusted: 0 };
+        const change = async (row: MonitorRow, patch: Partial<MonitorRow>) => {
+          await repo.update(tx, scope, row.id, patch);
+          Object.assign(row, patch);
+          await recordChange(tx, scope, row.id, "upsert");
+          await deps.outbox.emit(
+            tx,
+            "monitor.updated",
+            { monitorId: row.id, name: row.name },
+            { workspaceId: scope.workspaceId },
+          );
+        };
+
+        for (const kind of ["monitor", "heartbeat"] as const) {
+          const max = kind === "heartbeat" ? limits.heartbeats : limits.monitors;
+          const ofKind = rows.filter((r) => (r.type === "heartbeat") === (kind === "heartbeat"));
+          const active = ofKind.filter((r) => !r.paused);
+          if (active.length > max) {
+            /* The oldest stay active; the user can swap which ones afterwards. */
+            for (const row of active.slice(max)) {
+              await change(row, { paused: true, pausedReason: "plan_limit" });
+              result.paused += 1;
+            }
+          } else {
+            const waiting = ofKind.filter((r) => r.paused && r.pausedReason === "plan_limit");
+            for (const row of waiting.slice(0, max - active.length)) {
+              await change(row, { paused: false, pausedReason: null });
+              result.resumed += 1;
+            }
+          }
+        }
+
+        for (const row of rows) {
+          if (row.paused) continue;
+          const patch: Partial<MonitorRow> = {};
+          if (row.intervalS < limits.minIntervalSeconds) {
+            patch.intervalS = limits.minIntervalSeconds;
+          }
+          if (row.regions.length > limits.regionsPerMonitor) {
+            patch.regions = row.regions.slice(0, limits.regionsPerMonitor);
+            patch.policies = {
+              ...row.policies,
+              minFailingRegions: Math.min(row.policies.minFailingRegions, limits.regionsPerMonitor),
+            };
+          }
+          if (Object.keys(patch).length > 0) {
+            await change(row, patch);
+            result.adjusted += 1;
+          }
+        }
+        return result;
       });
     },
 

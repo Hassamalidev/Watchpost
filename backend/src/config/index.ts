@@ -2,6 +2,7 @@
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseEnv, type Env } from "./env.js";
+import type { PriceIds } from "./plans.js";
 
 export { ConfigError, parseEnv, type Env } from "./env.js";
 
@@ -28,6 +29,37 @@ export interface AppConfig {
   outbound: { allowCidrs: string[] };
   slack: { clientId: string; clientSecret: string; signingSecret: string | undefined } | undefined;
   telegram: { botToken: string; botUsername: string; webhookSecret: string } | undefined;
+  /* Paddle Billing; undefined until the owner adds keys (checkout is off, plans still show). */
+  paddle:
+    | {
+        environment: "sandbox" | "production";
+        apiKey: string;
+        webhookSecret: string;
+        clientToken: string | undefined;
+        foundingDiscountId: string | undefined;
+      }
+    | undefined;
+  /* Paddle price IDs per plan, credit pack and add-on; missing ones can't be bought. */
+  prices: PriceIds;
+}
+
+function priceIds(env: Env): PriceIds {
+  return {
+    plans: {
+      starter: { month: env.PADDLE_PRICE_STARTER_MONTHLY, year: env.PADDLE_PRICE_STARTER_ANNUAL },
+      pro: { month: env.PADDLE_PRICE_PRO_MONTHLY, year: env.PADDLE_PRICE_PRO_ANNUAL },
+      business: {
+        month: env.PADDLE_PRICE_BUSINESS_MONTHLY,
+        year: env.PADDLE_PRICE_BUSINESS_ANNUAL,
+      },
+    },
+    credits: { 100: env.PADDLE_PRICE_CREDITS_100, 500: env.PADDLE_PRICE_CREDITS_500 },
+    addons: {
+      extraMonitors100: env.PADDLE_PRICE_EXTRA_MONITORS_100,
+      extraProbe: env.PADDLE_PRICE_EXTRA_PROBE,
+      extraClientWorkspace: env.PADDLE_PRICE_EXTRA_CLIENT_WORKSPACE,
+    },
+  };
 }
 
 function encryptionKeys(env: Env): AppConfig["encryption"] {
@@ -78,6 +110,17 @@ export function toAppConfig(env: Env): AppConfig {
             webhookSecret: env.TELEGRAM_WEBHOOK_SECRET,
           }
         : undefined,
+    paddle:
+      env.PADDLE_API_KEY && env.PADDLE_WEBHOOK_SECRET
+        ? {
+            environment: env.PADDLE_ENV,
+            apiKey: env.PADDLE_API_KEY,
+            webhookSecret: env.PADDLE_WEBHOOK_SECRET,
+            clientToken: env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN,
+            foundingDiscountId: env.PADDLE_DISCOUNT_FOUNDING,
+          }
+        : undefined,
+    prices: priceIds(env),
   };
 }
 

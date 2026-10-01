@@ -7,6 +7,7 @@ Do not edit by hand: run `pnpm --filter @app/shared schemas:generate`. A test fa
 - [check-result](./check-result.json)
 - [create-channel](./create-channel.json)
 - [create-monitor](./create-monitor.json)
+- [event.billing.credits_purchased.v1](./event.billing.credits_purchased.v1.json)
 - [event.billing.period_renewed.v1](./event.billing.period_renewed.v1.json)
 - [event.billing.plan_changed.v1](./event.billing.plan_changed.v1.json)
 - [event.channel.health_changed.v1](./event.channel.health_changed.v1.json)

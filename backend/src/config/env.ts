@@ -59,6 +59,26 @@ const commaList = z
       .filter((v) => v !== ""),
   );
 
+const paddlePriceId = z
+  .string()
+  .regex(/^pri_[a-z0-9]+$/, "must be a Paddle price ID (pri_…)")
+  .optional();
+
+/* PADDLE_PRICE_* variables (PRODUCT.md Appendix A); sandbox and live IDs differ. */
+export const PADDLE_PRICE_ENV = [
+  "PADDLE_PRICE_STARTER_MONTHLY",
+  "PADDLE_PRICE_STARTER_ANNUAL",
+  "PADDLE_PRICE_PRO_MONTHLY",
+  "PADDLE_PRICE_PRO_ANNUAL",
+  "PADDLE_PRICE_BUSINESS_MONTHLY",
+  "PADDLE_PRICE_BUSINESS_ANNUAL",
+  "PADDLE_PRICE_CREDITS_100",
+  "PADDLE_PRICE_CREDITS_500",
+  "PADDLE_PRICE_EXTRA_MONITORS_100",
+  "PADDLE_PRICE_EXTRA_PROBE",
+  "PADDLE_PRICE_EXTRA_CLIENT_WORKSPACE",
+] as const;
+
 const baseEnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   LOG_LEVEL: z.enum(LOG_LEVELS).default("info"),
@@ -115,6 +135,24 @@ const baseEnvSchema = z.object({
     .string()
     .regex(/^[A-Za-z0-9_-]{16,256}$/, "must be 16-256 letters, digits, _ or -")
     .optional(),
+  /*
+   * Paddle Billing (PRODUCT.md §11). The API key and the webhook secret come together; without them
+   * the billing page shows plans but checkout is off. The client token is what Paddle.js uses in the
+   * browser (the API hands it to the billing page, so the web build needs no Paddle variable).
+   */
+  PADDLE_ENV: z.enum(["sandbox", "production"]).default("sandbox"),
+  PADDLE_API_KEY: z.string().min(10).optional(),
+  PADDLE_WEBHOOK_SECRET: z.string().min(10).optional(),
+  NEXT_PUBLIC_PADDLE_CLIENT_TOKEN: z.string().min(10).optional(),
+  /* The 30%-for-life discount for the first 100 paying workspaces (§5); created by the catalog script. */
+  PADDLE_DISCOUNT_FOUNDING: z
+    .string()
+    .regex(/^dsc_[a-z0-9]+$/, "must be a Paddle discount ID (dsc_…)")
+    .optional(),
+  ...(Object.fromEntries(PADDLE_PRICE_ENV.map((key) => [key, paddlePriceId])) as Record<
+    (typeof PADDLE_PRICE_ENV)[number],
+    typeof paddlePriceId
+  >),
 });
 
 export const envSchema = baseEnvSchema.superRefine((env, ctx) => {
@@ -133,6 +171,7 @@ export const envSchema = baseEnvSchema.superRefine((env, ctx) => {
     });
   }
   const groups: Array<[string, string[]]> = [
+    ["Paddle", ["PADDLE_API_KEY", "PADDLE_WEBHOOK_SECRET"]],
     ["Slack", ["SLACK_CLIENT_ID", "SLACK_CLIENT_SECRET"]],
     ["Telegram", ["TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_USERNAME", "TELEGRAM_WEBHOOK_SECRET"]],
   ];

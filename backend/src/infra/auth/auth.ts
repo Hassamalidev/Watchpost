@@ -39,7 +39,14 @@ export interface AuthOptions {
    * sweep covers a crash before it runs. Late-bound because modules are created after infra.
    */
   onWorkspaceCreated?: (workspaceId: string) => Promise<void>;
+  /*
+   * How many members a workspace may have on its plan (PRODUCT.md §5). Late-bound like the hook above;
+   * `undefined` (no billing module, or it isn't wired yet) falls back to DEFAULT_MEMBER_LIMIT.
+   */
+  memberLimit?: (workspaceId: string) => Promise<number | undefined> | undefined;
 }
+
+export const DEFAULT_MEMBER_LIMIT = 100;
 
 export const AUTH_BASE_PATH = "/api/auth";
 export const INVITATION_EXPIRES_SECONDS = 48 * 3_600;
@@ -95,6 +102,8 @@ export function createAuth(options: AuthOptions) {
         roles: workspaceRoles,
         creatorRole: "owner",
         allowUserToCreateOrganization: true,
+        membershipLimit: async (_user, organization) =>
+          (await options.memberLimit?.(organization.id)) ?? DEFAULT_MEMBER_LIMIT,
         requireEmailVerificationOnInvitation: true,
         invitationExpiresIn: INVITATION_EXPIRES_SECONDS,
         organizationHooks: {

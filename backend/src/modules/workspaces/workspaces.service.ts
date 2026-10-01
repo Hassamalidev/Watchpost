@@ -42,6 +42,18 @@ export interface WorkspacesService {
     session: SessionContext,
   ): { workspaceId: string; userId: string; email: string; role: WorkspaceScope["role"] };
   listMembers(scope: WorkspaceScope): Promise<WorkspaceMember[]>;
+  countMembers(scope: WorkspaceScope): Promise<number>;
+  /* Who hears about billing: owners, admins and members with the billing role. */
+  billingContacts(scope: WorkspaceScope): Promise<WorkspaceMember[]>;
+  /* System: workspaces whose trial ends in [from, to), paged by ID. */
+  trialsEndingBetween(options: {
+    from: Date;
+    to: Date;
+    afterId?: string | undefined;
+    limit: number;
+  }): Promise<Array<{ workspaceId: string; trialEndsAt: Date }>>;
+  /* System: whether the workspace still exists (webhooks name workspaces by ID). */
+  exists(workspaceId: string): Promise<boolean>;
   /* The workspace's display name ("Acme"); empty if the workspace is gone. */
   workspaceName(scope: WorkspaceScope): Promise<string>;
   /* Creates default settings and emits workspace.created, once. Returns true if it created them. */
@@ -87,6 +99,10 @@ export function createWorkspacesService(deps: {
       };
     },
 
+    async exists(workspaceId) {
+      return (await repository.workspaceName(systemScope(workspaceId))) !== undefined;
+    },
+
     async workspaceName(scope) {
       return (await repository.workspaceName(scope)) ?? "";
     },
@@ -107,6 +123,18 @@ export function createWorkspacesService(deps: {
         ];
       });
     },
+
+    countMembers: (scope) => repository.countMembers(scope),
+
+    async billingContacts(scope) {
+      const members = await service.listMembers(scope);
+      return members.filter(
+        (m) => m.role === "owner" || m.role === "admin" || m.role === "billing",
+      );
+    },
+
+    trialsEndingBetween: ({ from, to, afterId, limit }) =>
+      repository.trialsEndingBetween(from, to, limit, afterId),
 
     async ensureSettings(workspaceId) {
       const trialEndsAt = new Date(clock.now().getTime() + TRIAL_DAYS * 86_400_000);

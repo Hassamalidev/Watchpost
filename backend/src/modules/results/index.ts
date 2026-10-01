@@ -27,7 +27,7 @@ export {
 
 export interface ResultsModuleDeps {
   infra: Pick<Infra, "db" | "clock">;
-  monitors: Pick<MonitorsService, "get">;
+  monitors: Pick<MonitorsService, "get" | "planLimits">;
   guards: { session: RequestHandler; workspace: RequestHandler };
 }
 

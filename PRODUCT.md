@@ -1,7 +1,7 @@
 # Watchpost — Product Spec and Build Plan (`PRODUCT.md`)
 
 > **Working name:** Watchpost. Replace it and `<domain>` everywhere once the final name and domain are chosen (Open decision #1).
-> **Status:** In progress · **Current phase:** 1 · **Next task:** `P1-T20` · **Last updated:** 2026-10-01 (PC-002 tasks P1-T22 to P1-T28 done; P1-T20 needs owner decisions #1 and #7, P1-T21 waits for the owner; owner action: branch ruleset in `docs/ci.md`)
+> **Status:** In progress · **Current phase:** 1 · **Next task:** `P1-T20` · **Last updated:** 2026-10-01 (PC-002 tasks P1-T22 to P1-T28 done; P1-T20 needs owner decisions #1 and #7, P1-T21 waits for the owner; owner action: branch ruleset in `docs/ci.md`. **PC-003:** the billing tasks of Phase 3 are being built ahead of schedule on branch `phase/3-monetization`, which is stacked on `phase/1-core-monitoring`)
 > The build agent keeps this status block current.
 
 **Companion files**
@@ -516,11 +516,11 @@ Better Auth's tables are managed by Better Auth through `infra/auth`; modules re
 | Module | Owns tables | Responsibility | May call |
 |---|---|---|---|
 | `audit` | audit_logs | Append-only audit trail (`audit.record(tx, …)`) | — |
-| `workspaces` | workspace_settings | Workspaces, members and roles (via Better Auth), settings, incident numbers, trial dates | audit |
+| `workspaces` | workspace_settings | Workspaces, members and roles (via Better Auth), settings, incident numbers, trial dates, billing contacts | audit |
 | `apikeys` | api_keys, idempotency_keys | API keys, scopes, idempotency for the public API | workspaces, audit |
-| `billing` | subscriptions, billing_events | Paddle, plans, entitlements (`billing.entitlements(scope)`) | workspaces, audit |
+| `billing` | subscriptions, subscription_payments, billing_accounts, billing_events, trial_notices | Paddle (webhooks, checkout, plan changes, portal, reconcile), plans, entitlements (`billing.entitlements(scope)`), the card-less trial and its emails | workspaces, audit |
 | `credits` | credit_ledger, usage_ledger | Credit balance, charges, refunds, cost metering | billing |
-| `monitors` | monitors, monitor_groups, tags, monitor_tags, monitor_config_changes | Monitor configuration, limits, config change feed for probes | workspaces, billing, audit |
+| `monitors` | monitors, monitor_groups, tags, monitor_tags, monitor_config_changes | Monitor configuration, limits (pauses or resumes monitors when the plan changes; `monitors.planLimits(scope)` for modules that can't call billing), config change feed for probes | workspaces, billing, audit |
 | `maintenance` | maintenance_windows | Windows; "is this monitor in maintenance at time T" | monitors, audit |
 | `contacts` | contact_methods, notification_rules, chat_links | Users' contact methods, personal rules, chat account links | workspaces, audit |
 | `channels` | channels, slack_installations, telegram_chats, teams_installations, message_refs | Channel configs and adapters (send, update, health) | credits, audit |
@@ -555,7 +555,7 @@ Cross-module calls inside a transaction pass `tx` explicitly (for example, `dete
 **Event catalog** (payloads carry IDs and a short summary)
 | Event | Emitted by | Consumed by |
 |---|---|---|
-| `workspace.created` | workspaces | alerting (default alert policy), admin |
+| `workspace.created` | workspaces | alerting (default alert policy), billing (billing account, trial welcome email), admin |
 | `monitor.created`, `monitor.updated`, `monitor.deleted` | monitors | statuspages (component links), admin |
 | `monitor.state_changed` | detection | statuspages (component status, auto-incident timer, revalidation), admin |
 | `incident.triggered` | incidents | alerting (notify, start escalation), ai (explainer), statuspages, admin |
@@ -568,7 +568,8 @@ Cross-module calls inside a transaction pass `tx` explicitly (for example, `dete
 | `channel.health_changed` | channels | alerting (fallback notices to admins) |
 | `status_page.update_published` | statuspages | statuspages (subscriber fan-out, revalidation) |
 | `billing.plan_changed` | billing | monitors (pause or resume over-limit monitors), credits (grants), admin |
-| `billing.period_renewed` | billing | credits (monthly grant) |
+| `billing.period_renewed` | billing (once per billing period Paddle collected money for) | credits (monthly grant, upstream funding) |
+| `billing.credits_purchased` | billing (a paid credit pack) | credits (adds the credits, upstream funding) |
 | `import.completed` | imports | admin |
 | `email.requested` | any module | `infra/email` (sends through Resend) |
 
@@ -576,7 +577,7 @@ Cross-module calls inside a transaction pass `tx` explicitly (for example, `dete
 | Queue | Kind | Work | Job ID | Rebuilt on start from |
 |---|---|---|---|---|
 | `evaluate` | Technical | Evaluate one monitor after new results | `eval:{monitorId}:{lastResultId}` | `last_result_at > last_evaluated_at` |
-| `<module>-events` | Event handler | One event for one handler (`alerting-events`, `statuspages-events`, `ai-events`, `credits-events`, `monitors-events`, `admin-events`) | `evt:{eventId}:{handler}` | Undispatched outbox rows |
+| `<module>-events` | Event handler | One event for one handler (`alerting-events`, `statuspages-events`, `ai-events`, `credits-events`, `billing-events`, `monitors-events`, `admin-events`) | `evt:{eventId}:{handler}` | Undispatched outbox rows |
 | `notify` | Follow-up | Deliver one pending delivery | `notify:{eventId}:{destinationKey}` | Pending `notification_deliveries` |
 | `escalate` | Delayed | Next escalation step | `esc:{incidentId}:{round}:{step}` | Triggered incidents: `esc_round`, `esc_step` and the time of the last `triggered`/`escalated` timeline event |
 | `timers` | Delayed | Snooze wake-up, auto-incident delay, reminders (processed by the module that owns the state) | `timer:{kind}:{refId}:{dueAt}` | `snoozed_until`, `monitor_state.since`, last reminder event |
@@ -586,7 +587,7 @@ Cross-module calls inside a transaction pass `tx` explicitly (for example, `dete
 | `ai` | Follow-up | Explainer, drafts, digests (rate-limited) | `ai:{kind}:{refId}` | `ephemeral` (AI is optional) |
 | `reports` | Scheduled | SLA PDFs, digests | `report:{workspaceId}:{kind}:{period}` | Schedules |
 | `imports` | On demand | Dry run, apply | `import:{importId}:{stage}` | `imports.status` |
-| `billing` | Follow-up and scheduled | Process a stored Paddle event, nightly reconcile | `paddle:{eventId}` | Unprocessed `billing_events` |
+| `billing` | Follow-up | Process a stored Paddle event (the nightly reconcile, the billing clock and trial emails run on `sweeps`) | `paddle:{eventId}` | Unprocessed `billing_events` |
 | `emails` | Event handler | Send one transactional email | `email:{eventId}` | Undispatched outbox rows |
 
 Job data holds IDs only, never whole objects; processors reload from Postgres.
@@ -763,7 +764,7 @@ IDs are UUIDv7 generated in the app. Every tenant table has an indexed `workspac
 | Expiry | `domain_expiry_cache` (domain, expires_at, source, checked_at, error) · `expiry_notices` (monitor_id, kind, threshold, unique) |
 | Maintenance | `maintenance_windows` (starts_at, ends_at, rrule, timezone, scope jsonb, suppress_alerts, show_on_pages) |
 | Status pages | `status_pages` (slug, custom_domain, domain_verified_at, branding jsonb, visibility, password_hash, settings) · `status_components` · `status_incidents` · `status_updates` (ai_drafted) · `status_subscribers` (type, address, confirmed_at, unsub_token) |
-| Billing | `subscriptions` (Paddle IDs, status, plan_key, items jsonb, period_end, scheduled_change, last_event_at) · `billing_events` (event_id unique, type, payload, processed_at) · `credit_ledger` (delta, reason, ref_id, balance_after) · `usage_ledger` (provider, units, cost_micros, ref) |
+| Billing | `subscriptions` (Paddle IDs, status, plan_key, billing_interval, items jsonb, period_start/end, paid_period_start/end, scheduled_change, past_due_since, held_plan_key, held_until, discount_id, cancel_reason, last_event_at) · `subscription_payments` (paddle_subscription_id, transaction_id unique, period_start, period_end) · `billing_accounts` (workspace_id PK, effective_plan, next_check_at, paddle_customer_id, founding_number) · `billing_events` (event_id unique, type, occurred_at, payload, processed_at, outcome, attempts) · `trial_notices` (workspace_id, kind) · `credit_ledger` (delta, reason, ref_id, balance_after) · `usage_ledger` (provider, units, cost_micros, ref) |
 | Platform | `api_keys` (prefix, hash, scopes, last_used_at, expires_at) · `audit_logs` · `imports` · `reports` · `ai_generations` · `product_events` (activation analytics) |
 
 **Invariants enforced by the database**
@@ -771,7 +772,7 @@ IDs are UUIDv7 generated in the app. Every tenant table has an indexed `workspac
 - One open inbound incident per dedup key: unique partial index `incidents(workspace_id, dedup_key) WHERE status <> 'resolved'`.
 - Idempotent results: `INSERT … ON CONFLICT DO NOTHING` on `(checked_at, id)`.
 - Idempotent deliveries: unique `(event_id, destination_key)`.
-- Idempotent billing: unique `billing_events.event_id`; unique `credit_ledger(reason, ref_id)`.
+- Idempotent billing: unique `billing_events.event_id`; unique `subscription_payments.transaction_id`; one live subscription per workspace (unique partial index `subscriptions(workspace_id) WHERE status <> 'canceled'`); unique `credit_ledger(reason, ref_id)`.
 - Drizzle can't declare partitioned tables. Create `check_results` with a custom SQL migration (`drizzle-kit generate --custom`) and manage partitions in a job.
 
 ---
@@ -947,27 +948,29 @@ export interface ChannelAdapter<C> {
 ## 11. Billing with Paddle
 Keys and dashboard steps are in **ENV_SETUP.md** (sandbox first).
 
-**Catalog.** `backend/scripts/paddle-catalog.ts` creates products and prices idempotently, looking them up by `custom_data.key`: Starter, Pro, Business (monthly and annual), credit packs of 100 and 500 (one-time), +100 monitors, extra private probe, extra client workspace. Price IDs go in env (Appendix A); `config/plans.ts` maps each price ID to a plan key or add-on.
+**Catalog.** `pnpm --filter @app/api paddle:catalog` (`backend/scripts/paddle-catalog.ts`, logic in `infra/paddle/catalog.ts`) creates products and prices idempotently, looking them up by `custom_data.key`: Starter, Pro, Business (monthly and annual), credit packs of 100 and 500 (one-time), +100 monitors, extra private probe, extra client workspace, and the founding discount (30%, recurring for life). It prints the `PADDLE_PRICE_*` and `PADDLE_DISCOUNT_FOUNDING` lines for `.env` (Appendix A) and refuses the live catalog without `--live`. `config/plans.ts` maps each price ID to a plan key, credit pack or add-on.
 
-**Checkout.** Paddle.js overlay from `/w/[slug]/billing` with `items`, `customer.email` and `customData: { workspaceId, userId }`. After success the page polls `/api/billing/state` and shows "Activating…" until the webhook is processed.
+**Checkout.** Paddle.js overlay from `/w/[ws]/billing`. The page asks `POST /api/w/:id/billing/checkout` for the session: `items`, `customer.email`, the founding discount while slots remain, and `customData: { workspaceId, userId, sig }`. `sig` is an HMAC over the workspace and user made with the server's auth secret; the webhook refuses custom data it did not issue, so nobody can attach a subscription to someone else's workspace (D-056). After success the page polls `GET /api/w/:id/billing` and shows "Activating…" until the webhook is processed. The API hands the page the Paddle client token and environment, so the web build needs no Paddle variable.
+
+**Credit packs** are bought by subscribers (Starter and up) with the saved payment method: `POST /billing/credits` asks Paddle for a one-time charge on the subscription; the credits arrive with `transaction.completed`.
 
 **Webhooks.** `/api/webhooks/paddle` with raw body; signature verified with the SDK; stored in `billing_events` (unique `event_id`); processed by job `paddle:{eventId}`.
 
 | Event | Action |
 |---|---|
-| `subscription.created` / `activated` | Link to workspace via `customData`; set plan from price IDs; grant this period's credits (ref = subscription + period) |
+| `subscription.created` / `activated` | Link to workspace via signed `customData`; set plan from price IDs; a second live subscription for the same workspace is refused (`conflict`) |
 | `subscription.updated` | Recompute plan, add-ons and quantities; record scheduled changes |
 | `subscription.past_due` | Banner and emails; full features for a 7-day grace period |
 | `subscription.canceled` | At the effective date, move to Free and pause monitors over the limit (never delete) |
 | `subscription.paused` / `resumed` | Reflect status |
-| `transaction.completed` | Credit packs → add credits (ref = transaction ID); renewals → grant the new period's credits |
-| `transaction.payment_failed` | Notify the owner and billing members |
+| `transaction.completed` | Checkout and renewal payments → record the paid period in `subscription_payments` and emit `billing.period_renewed` once per period (this, not the subscription status, grants credits and funds upstream budgets). Credit packs → emit `billing.credits_purchased` (ref = transaction ID). Prorations and one-time charges are not period payments |
+| `transaction.payment_failed` | Email the owner, admins and billing members (subscription payments only) |
 
-Events can arrive out of order, so keep `last_event_at` per subscription and ignore older updates. A nightly job reconciles subscriptions with the Paddle API.
+Events can arrive out of order, so keep `last_event_at` per subscription and ignore older updates; a payment that arrives before its subscription is stored and announced when the subscription appears. Every event's outcome is stored (`applied`, `stale`, `ignored`, `unlinked`, `unknown_plan`, `conflict`, `invalid`). Stored events nobody processed are re-queued every minute. A nightly job reconciles subscriptions with the Paddle API.
 
-**Plan changes.** Upgrades apply immediately with prorated billing. Downgrades apply at the end of the period: store the pending change and apply it at renewal, or use Paddle's scheduled-change options (confirm current API behavior when building). Paddle customer portal sessions handle payment methods, invoices and cancellation.
+**Plan changes.** Upgrades apply immediately with prorated billing (`prorated_immediately`). Paddle's scheduled changes only cover cancel, pause and resume (checked 2026-10-01), so a downgrade changes the items now with `do_not_bill` (the next renewal charges the smaller price) and the previous plan is held locally until the paid period ends (`held_plan_key`, `held_until`). Annual → monthly is not offered in the app (portal or support). Cancel and pause take effect at the period end and can be undone until then; cancel asks for a reason. Paddle customer portal sessions handle payment methods and invoices (links are temporary and never stored).
 
-**Entitlements.** `config/plans.ts` is the single source of limits and feature flags. `entitlements.service` resolves the effective plan (trial, subscription, grace period, add-ons, founding discount); the `quota` middleware enforces it on every create and update; the UI reads `/api/w/:id/entitlements`.
+**Entitlements.** `config/plans.ts` is the single source of limits and feature flags. `billing.entitlements(scope)` resolves the effective plan with a pure function (`modules/billing/entitlements.ts`): live subscription (with the downgrade hold) → 7-day past-due grace → trial (at least Pro while it runs) → Free; add-ons apply when the subscription grants the plan. `billing_accounts` stores the plan last announced and the next moment it can change on its own; the minutely billing clock emits `billing.plan_changed` when it does. Counted limits (monitors, heartbeats, members) are enforced inside the owning service's transaction; the `quota` middleware (`requireFeature`) gates plan features; the UI reads `/api/w/:id/entitlements`, `/billing` and `/monitor-usage`. On `billing.plan_changed` the monitors module pauses the newest monitors over the limit (reason `plan_limit`, never deletes), slows checks faster than the plan allows, drops extra regions, and resumes plan-paused monitors when there is room again.
 
 **Going live.** Follow "Going live" in ENV_SETUP.md: live keys, webhook destination on the real domain, default payment link on the approved domain, `PADDLE_ENV=production`. The website must show pricing, terms, privacy and refund policy for domain approval (check Paddle's current requirements). Test with one real low-price purchase, then refund it.
 
@@ -1231,11 +1234,13 @@ Targets assume a start on Monday 2026-10-05 with one developer and a coding agen
 **Exit:** closed beta with 10–20 teams; merge; tag `v0.2.0`.
 
 ### Phase 3 — Monetization (`phase/3-monetization`)
-- [ ] **P3-T01 Plans and entitlements.** `config/plans.ts` (§5), entitlements service, quota middleware, upgrade prompts at the moments listed in §5.
+- [x] **P3-T01 Plans and entitlements.** `config/plans.ts` (§5), entitlements service, quota middleware, upgrade prompts at the moments listed in §5.
   *AC:* every limit enforced server-side with tests; downgrades pause (never delete) over-limit monitors.
-- [ ] **P3-T02 Paddle integration.** Catalog script, checkout with `customData`, webhook handling (§11), portal link, upgrades and downgrades, past-due grace, nightly reconcile.
-  *AC:* sandbox flows pass with the ENV_SETUP.md test cards, including the renewal-decline card; duplicate and out-of-order events handled.
-- [ ] **P3-T03 Card-less trial.** 14-day Pro trial, emails on days 1, 7, 12 and 14, drop to Free at the end.
+- [x] **P3-T02a Paddle integration (code and automated tests).** Catalog script, checkout with signed `customData`, webhook handling (§11), portal link, upgrades and downgrades, credit-pack charges, cancel/pause/resume, past-due grace, nightly reconcile.
+  *AC:* duplicate and out-of-order events handled; signatures verified with the real SDK; every flow tested against a fake Paddle API.
+- [ ] **P3-T02b 💰 Paddle sandbox run.** Needs the owner's sandbox keys in `.env` (Open decision #12): run `pnpm --filter @app/api paddle:catalog`, point a sandbox notification destination at `/api/webhooks/paddle`, then run the flows with the ENV_SETUP.md test cards, including the renewal-decline card. Confirm `do_not_bill` downgrades and that the first checkout transaction carries `billing_period`.
+  *AC:* sandbox flows pass; anything Paddle does differently from §11 is fixed and recorded in §20.
+- [x] **P3-T03 Card-less trial.** 14-day Pro trial, emails on days 1, 7, 12 and 14, drop to Free at the end.
   *AC:* trial expiry tested with a fake clock.
 - [ ] **P3-T04 Credits.** Ledger, monthly grants, packs, low-balance warnings, false-alarm refunds.
   *AC:* balances reconcile exactly in tests; refunds are idempotent.
@@ -1417,6 +1422,10 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | D-051 | 2026-10-01 | Deploy markers (P1-T26). New `deploys` module with no outgoing calls; `incidents` and `detection` read it. One deploy URL per workspace (`/api/deploys/<token>`, token stored as SHA-256, shown once, admins rotate it). GitHub `deployment_status` webhooks go to `<url>/github`, signed with a secret derived as HMAC(auth secret, token): only the server can compute it, nothing extra is stored, and rotating the auth secret means re-entering the GitHub secret. Only `success` states are recorded; GitHub retries dedupe on `github:<status id>`. Deploy URLs from callers must be http(s) (they become links). A deploy in the 30 minutes before a check-driven incident (not drills or expiry notices) becomes the first "check first" step in every alert channel and on the incident page, and deploys appear in "what changed". | Most outages follow a change, and the deploy is the change teams check first | A GitHub App (more setup, more permissions); storing a separate encrypted GitHub secret per workspace |
 | D-052 | 2026-10-01 | Review pass 2 (P1-T27), eight findings fixed: settings PATCH applied schema defaults to keys the caller didn't send (Zod 4 `.partial()` keeps defaults), silently resetting regions, tags and policies, so the validator now keeps only sent keys; "what changed" counts an address or certificate only when it cleanly replaced the earlier ones (rotating pools overlap); delivery recovery uses one job ID per attempt so the minutely sweep can't pile up duplicates; the monitor edit form offers to drop saved credentials when the target changes; deploy ingest has its own per-IP (120/min) and per-token (30/min) limits; error budgets page through all monitors (cap 5,000) and query one monitor's downtime directly; deploy URL rotation is an upsert; the probe refuses to resend a request body to another origin on 307/308. | An independent review catches what the author misses | — |
 | D-053 | 2026-10-01 | Alert tuning advisor (P1-T28). `suggestTuning` in `@app/shared` is a pure rule table over 30 days of check-driven incidents per monitor (false alarms, flapping, auto-resolved within 5 minutes): two or more blips on a one-region monitor → add a launch region and require 2; otherwise → require one more failing region (never more than the monitor has); two or more flapping incidents → one more recovery check than the effective default (capped at 3); short timeouts (< 10 s) with blips → double the timeout within the interval and 30 s. Each suggestion carries the exact settings patch; the UI applies it with a partial PATCH (safe since D-052). `/alert-tuning` lists the 10 noisiest monitors; the overview shows them only when there is advice. | Competitors report noise; we fix it with one click and explain why | Auto-applying changes (silent changes to paging behaviour); an LLM for advice |
+| D-054 | 2026-10-01 | PC-003 work happens in its own git worktree on `phase/3-monetization`, branched from `phase/1-core-monitoring`, with its own test database (`watchpost_billing`) and Redis database 1 | Several agent sessions were editing the Phase 1 checkout at the same time (one added migration 0017 while billing was being designed); sharing the directory would mix files, migrations and test data. Phase 1 stays releasable without billing | Work on the Phase 1 branch (collides with the other sessions); branch from `main` (lacks all Phase 1 code) |
+| D-055 | 2026-10-01 | Plans and entitlements (P3-T01). `config/plans.ts` holds every §5 limit, feature flag, add-on and display price; `@app/shared` holds the types the web app reads. The effective plan is a pure function (subscription with downgrade hold → 7-day grace → trial → Free), tested as a table. During the trial a workspace has at least Pro, so buying Starter on day 2 never removes features early. `billing_accounts` remembers the plan last announced; `billing.plan_changed` fires when it changes, from webhooks or from the minutely billing clock (trial end, grace end, downgrade date). On that event monitors over the limit are paused newest-first with reason `plan_limit`, fast checks are slowed to the plan minimum and extra regions dropped (settings are not restored on upgrade; plan-paused monitors are). Counted limits stay inside the owning service's transaction; the `quota` middleware gates features. Members are limited through Better Auth's `membershipLimit` with a late-bound hook. Chart ranges beyond the plan's history answer 402 | Limits must hold under concurrency, and a late sweep must never give or take features at the wrong time: reads compute the plan live, the event only drives side effects | Enforce counts in middleware (races with the insert); pause monitors that check too fast (stops alerting; slowing keeps it); clamp intervals at probe sync time (restores on upgrade but touches the probe feed) |
+| D-056 | 2026-10-01 | Paddle integration (P3-T02a), checked against Paddle's docs the same day. `@paddle/paddle-node-sdk` 3.10 lives behind `infra/paddle` (`PaddleApi`, `PaddleWebhooks`); tests inject a fake API while signatures are verified by the real SDK (HMAC over `ts:rawBody`, 5-second replay window). Webhooks are stored first (`billing_events`, unique event ID) and applied by a job; each event's outcome is kept. Checkout custom data is signed with the auth secret, and a workspace can have one live subscription (a second one is refused and logged for a refund). Credits and upstream funding follow collected payments (`subscription_payments`, `billing.period_renewed`), not subscription status, because Paddle rolls the period forward before the card is charged. Paddle has no scheduled item changes, so downgrades use `do_not_bill` plus a local hold of the old plan until the period ends; the hold is applied wherever a lower plan arrives (our API call, a webhook, the reconcile). Credit packs are one-time charges on the subscription. API results are ordered against webhooks by Paddle's `updated_at` | Money events arrive duplicated and out of order; state must be right whichever arrives first, and a forged or mistaken checkout must not change someone's plan | Trust `customData` (lets anyone attach a subscription to any workspace); grant credits on `subscription.updated` (grants for unpaid renewals); apply downgrades at renewal with a timer (a missed timer bills the old price) |
+| D-057 | 2026-10-01 | Trial (P3-T03). The trial date stays in `workspace_settings` (set at creation); the plan resolver ends the trial exactly on time and the billing clock announces it. Emails (welcome, day 7, day 12, ended) come from one pure calendar function; `trial_notices` makes each one-time; a workspace that already subscribed gets none; a late welcome or a long-past "ended" is recorded but not sent. One `billing` email template holds all billing wording (trial, payment failed, started, canceled, low credits) | Each email exactly once, even if a sweep is late or runs twice, and no confusing emails after a backfill | A timer job per workspace and day (lost timers need their own recovery; the hourly sweep is its own recovery) |
 
 ---
 
@@ -1426,6 +1435,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 *Format: `⏳ PC-### (date) — change — reason — impact on plan`. The owner replaces ⏳ with ✅ or ❌.*
 - ✅ PC-001 (2026-09-30, owner chose option c: defer) — Unblock or defer P0-T10b (local code index). Windows Application Control blocks PyTorch's DLLs, so `ccc index` can't run natively. Options: (a) run the official `cocoindex/cocoindex-code:full` Docker image (~5 GB, local embeddings, mount only this repo); (b) the owner allow-lists the uv tool folder in Application Control / Smart App Control; (c) defer P0-T10b to the P1 benchmark and drop CocoIndex if it can't run (D-013 already allows dropping). Never the slim cloud variant (code would leave the machine). — Reason: the only native path is blocked by a machine security policy the agent must not bypass. — Impact: Phase 0 exit waits on this unless (c); P0-T10a is done either way.
 - ✅ PC-002 (2026-10-01, owner direction) — Before deploying (P1-T20) or the code index (P1-T21): test and review the code, add features competitors don't have, and improve the UI and UX. — Reason: owner priority. — Impact: new tasks P1-T22 to P1-T24 run before P1-T20 and P1-T21; Phase 1 exit moves later.
+- ✅ PC-003 (2026-10-01, owner direction) — Build the billing section now, before Phase 2: plans and entitlements, Paddle, the trial, credits and the billing page (P3-T01 to P3-T04, P3-T06), and make every subscription payment automatically fund what it needs upstream (LLM budget, SMS credits) so the owner never buys provider credits in advance (new task P3-T09). — Reason: owner priority. — Impact: these Phase 3 tasks are done early on branch `phase/3-monetization`, stacked on `phase/1-core-monitoring` because Phase 1 is not merged yet and other agent sessions are working in the Phase 1 checkout (D-054); P3-T02 is split so the sandbox run waits for the owner's Paddle keys; P3-T05 (SMS and voice), P3-T07 (marketing site) and P3-T08 (go live) keep their place.
 
 ### 21.2 Improvement backlog (not scheduled)
 - **Request log:** record which missing channels or monitor types users ask for, with counts, to order P6-T06.
@@ -1452,6 +1462,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 9. **Launch timing and Opsgenie offer** (for example, 3 months free for teams migrating before April 5, 2027).
 10. **Owner action (from P0-T07): turn on the `main` branch ruleset** so failing CI blocks merges. Steps in `docs/ci.md` (needs repository admin; the agent has no GitHub token by design).
 11. **Owner action (from P1-T13): create the Slack app and the Telegram bot** and put their credentials in `.env` (steps in `docs/integrations/slack.md` and `telegram.md`), then run the owner checklists in `docs/integrations/` against real Slack, Teams, Discord, Telegram and a webhook bin. Until then Slack and Telegram channels are unavailable; the other channels work without server config.
+12. **Owner action (from P3-T02a): Paddle sandbox keys.** Put `PADDLE_API_KEY`, `PADDLE_WEBHOOK_SECRET` and `NEXT_PUBLIC_PADDLE_CLIENT_TOKEN` (sandbox) in `.env`, run `pnpm --filter @app/api paddle:catalog` and paste the price IDs it prints. Until then the billing page shows plans and limits but checkout is off. Replace the ENV_SETUP.md placeholder with the real guide.
 
 ---
 
@@ -1497,6 +1508,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | 2026-10-01 | §7.4, §17, §20, §21.2 | `deploys` module (tables deploy_hooks, deploys; incidents and detection may call it); D-051; next task P1-T27 | P1-T26 |
 | 2026-10-01 | §17, §20 | D-052 (review pass 2 fixes); new task P1-T28 (alert tuning advisor) | P1-T27 |
 | 2026-10-01 | §17, §20 | D-053 (alert tuning advisor); PC-002 tasks done, next task back to P1-T20 | P1-T28 |
+| 2026-10-01 | §7.4, §7.5, §8, §11, §17, §20, §21.1, §22, Appendix A | PC-003 ✅ (owner: billing now, upstream funding on purchase); `billing` module tables and responsibilities; events `billing.credits_purchased`, `workspace.created` → billing, queue `billing-events`; §11 rewritten where Paddle differs (signed custom data, paid periods, `do_not_bill` downgrades); P3-T02 split into a/b; Open decision #12; `PADDLE_DISCOUNT_FOUNDING`; D-054 to D-057 | P3-T01, P3-T02a, P3-T03 |
 
 ### Phase 0 retro (2026-09-30, `v0.0.1`)
 
@@ -1573,6 +1585,8 @@ AI_ENABLED=true
 AI_MONTHLY_BUDGET_USD_DEFAULT=5
 
 # Paddle price IDs (sandbox and live IDs differ)
+# Printed by `pnpm --filter @app/api paddle:catalog`; the founding discount is 30% for life (§5)
+PADDLE_DISCOUNT_FOUNDING=
 PADDLE_PRICE_STARTER_MONTHLY=
 PADDLE_PRICE_STARTER_ANNUAL=
 PADDLE_PRICE_PRO_MONTHLY=

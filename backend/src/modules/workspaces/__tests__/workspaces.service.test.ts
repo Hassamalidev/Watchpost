@@ -24,6 +24,8 @@ function setup(
         joinedAt: new Date("2026-01-01T00:00:00Z"),
       })),
     workspaceName: async () => "Acme",
+    countMembers: async () => (options.members ?? []).length,
+    trialsEndingBetween: async () => [],
     workspaceIds: async () => [],
     insertSettingsIfMissing: async (_tx, values) => {
       if (settings.has(values.workspaceId)) return false;
