@@ -92,8 +92,11 @@ export {
   CHANNEL_TYPES,
   alertPolicyBodySchema,
   alertPolicyRulesSchema,
+  STATE_SYNC_EVENTS,
   channelAccepts,
+  channelRulesPatchSchema,
   channelRulesSchema,
+  mergeChannelRules,
   TEAMS_WORKFLOW_HOST_SUFFIXES,
   createChannelSchema,
   discordChannelConfigSchema,
@@ -112,6 +115,7 @@ export {
   type AlertPolicyInput,
   type AlertPolicyRules,
   type ChannelRules,
+  type ChannelRulesPatch,
   type ChannelStatus,
   type ChannelType,
   type CreateChannelInput,
@@ -160,6 +164,7 @@ export {
   CHANNEL_LABELS,
   INTEGRATIONS,
   INTEGRATION_CATEGORIES,
+  INTEGRATION_IDS,
   findIntegration,
   integrationFields,
   integrationForChannel,
@@ -169,6 +174,7 @@ export {
   type FollowUpStyle,
   type IntegrationCategory,
   type IntegrationDefinition,
+  type IntegrationId,
 } from "./integrations/catalog.js";
 export { createAddressPolicy, embeddedIPv4, type AddressPolicy } from "./net/address-policy.js";
 export {

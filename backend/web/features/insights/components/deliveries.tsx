@@ -2,6 +2,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { CHANNEL_LABELS, type ChannelType } from "@app/shared";
 import { CircleCheck, CircleDashed, CircleMinus, CircleX, type LucideIcon } from "lucide-react";
 import { Loading } from "@/components/ui/skeleton";
 import { formatDateTime } from "@/lib/format";
@@ -44,7 +45,10 @@ export function DeliveryLog({
                 <span className="font-medium">
                   {d.channelName ?? t("deletedChannel")}
                   {d.channelType && (
-                    <span className="font-normal text-muted-foreground"> · {d.channelType}</span>
+                    <span className="font-normal text-muted-foreground">
+                      {" "}
+                      · {CHANNEL_LABELS[d.channelType as ChannelType] ?? d.channelType}
+                    </span>
                   )}
                 </span>
                 {" — "}

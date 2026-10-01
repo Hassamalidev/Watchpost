@@ -10,8 +10,10 @@ webhook. Messages appear as the Workflows bot. A two-way Teams app arrives in P6
 2. Name it, pick the team and channel, create it, and copy the URL it shows.
 3. In Watchpost: Integrations → Add channel → Microsoft Teams → paste the URL → **Send test**.
 
-The URL must be an https URL on a Power Automate / Logic Apps host (`*.logic.azure.com`,
-`*.powerplatform.com`, `*.powerautomate.com`).
+The URL must be an https URL on a Power Automate / Logic Apps host (`*.powerplatform.com`,
+`*.logic.azure.com`, `*.powerautomate.com`, and the US government and China cloud hosts). Old
+Office 365 connector URLs (`*.webhook.office.com`) are refused with a hint: Microsoft switched them
+off in May 2026. The URL is write-only: after saving, Watchpost shows only its host.
 
 ## Owner checklist
 

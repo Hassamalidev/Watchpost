@@ -1,178 +1,123 @@
 /*
- * Integrations: every channel with its health and last delivery, "Send test", and a form to add
- * email, webhook, Discord, Teams, Slack or Telegram channels. New channels join the default alert
- * policy so they receive alerts right away.
+ * Integrations: what is connected (health, last delivery, what each one accepts, "Send test") and the
+ * gallery of everything that can be added. Admins manage; everyone else sees names and health.
+ * A channel outside every alert policy gets no alerts, so the list says so and offers the fix.
  */
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { CircleCheck, CircleX, Send, Trash2 } from "lucide-react";
-import type { ChannelType } from "@app/shared";
+import { Pencil, Trash2, TriangleAlert } from "lucide-react";
+import { CHANNEL_LABELS, findIntegration, type ChannelType } from "@app/shared";
 import { can, useWorkspace } from "@/components/app/workspace-context";
 import { Alert, EmptyState } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field } from "@/components/ui/field";
-import { Input, Select } from "@/components/ui/input";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Loading } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/api";
 import { relativeTime } from "@/lib/format";
+import { workspaceHref } from "@/lib/navigation";
 import { DeployHookCard } from "@/features/insights/components/deploy-hook";
 import { DrillCard } from "@/features/insights/components/drill";
-import { addToDefaultPolicy, integrationsApi, type Channel } from "../api";
+import { addToDefaultPolicy, integrationKeys, integrationsApi, type Channel } from "../api";
+import { useChannelTypes } from "../hooks";
+import { IntegrationGallery } from "./integration-gallery";
+import { HealthBadge, IntegrationTile, RulesSummary, SendTestButton } from "./parts";
 
-const FORM_TYPES: ChannelType[] = ["email", "webhook", "discord", "teams", "slack", "telegram"];
-
-function SendTestButton({ ws, channel }: { ws: string; channel: Channel }) {
+function ChannelRow({
+  ws,
+  channel,
+  isAdmin,
+  routed,
+}: {
+  ws: string;
+  channel: Channel;
+  isAdmin: boolean;
+  /* False when no alert policy sends to this channel. */
+  routed: boolean;
+}) {
   const t = useTranslations("integrations");
   const client = useQueryClient();
-  const test = useMutation({
-    mutationFn: () => integrationsApi.sendTest(ws, channel.id),
-    onSettled: () => client.invalidateQueries({ queryKey: ["channels", ws] }),
+  const refresh = () =>
+    Promise.all([
+      client.invalidateQueries({ queryKey: integrationKeys.channels(ws) }),
+      client.invalidateQueries({ queryKey: integrationKeys.policies(ws) }),
+    ]);
+  const route = useMutation({
+    mutationFn: () => addToDefaultPolicy(ws, channel.id),
+    onSuccess: refresh,
   });
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Button size="sm" variant="outline" disabled={test.isPending} onClick={() => test.mutate()}>
-        <Send aria-hidden />
-        {t("sendTest")}
-      </Button>
-      <span aria-live="polite" className="text-xs">
-        {test.data?.ok === true && <span className="text-status-up">{t("testOk")}</span>}
-        {test.data?.ok === false && (
-          <span className="text-status-down">{t("testFailed", { error: test.data.error })}</span>
-        )}
-        {test.isError && (
-          <span className="text-status-down">
-            {t("testFailed", { error: errorMessage(test.error) })}
-          </span>
-        )}
-      </span>
-    </div>
-  );
-}
-
-function AddChannelForm({ ws, email }: { ws: string; email: string }) {
-  const t = useTranslations("integrations");
-  const client = useQueryClient();
-  const [type, setType] = React.useState<ChannelType>("email");
-  const [name, setName] = React.useState("");
-  const [value, setValue] = React.useState(email);
-  const [error, setError] = React.useState<string | null>(null);
-  const [telegramUrl, setTelegramUrl] = React.useState<string | null>(null);
-
-  const create = useMutation({
-    mutationFn: async () => {
-      if (type === "slack") {
-        window.location.assign((await integrationsApi.slackInstallUrl(ws)).url);
-        return;
-      }
-      const config =
-        type === "email"
-          ? {
-              to: value
-                .split(",")
-                .map((v) => v.trim())
-                .filter(Boolean),
-            }
-          : type === "telegram"
-            ? {}
-            : { url: value.trim() };
-      const channel = await integrationsApi.createChannel(ws, {
-        type,
-        name: name.trim() || t(`types.${type}`),
-        config,
-      });
-      await addToDefaultPolicy(ws, channel.id);
-      if (type === "telegram")
-        setTelegramUrl((await integrationsApi.telegramLink(ws, channel.id)).url);
-    },
-    onSuccess: () => {
-      setError(null);
-      setName("");
-      return client.invalidateQueries({ queryKey: ["channels", ws] });
-    },
-    onError: (err) => setError(errorMessage(err)),
+  const remove = useMutation({
+    mutationFn: () => integrationsApi.removeChannel(ws, channel.id),
+    onSuccess: refresh,
   });
 
-  const hint =
-    type === "teams"
-      ? t("teamsHint")
-      : type === "discord"
-        ? t("discordHint")
-        : type === "webhook"
-          ? t("webhookHint")
-          : type === "telegram"
-            ? t("telegramHint")
-            : type === "email"
-              ? t("emailsHint")
-              : undefined;
-
   return (
-    <form
-      className="grid max-w-xl gap-3"
-      onSubmit={(e) => {
-        e.preventDefault();
-        create.mutate();
-      }}
-    >
-      {error && <Alert tone="error">{error}</Alert>}
-      <Field label={t("type")} htmlFor="channel-type">
-        <Select
-          id="channel-type"
-          value={type}
-          onChange={(e) => {
-            const next = e.target.value as ChannelType;
-            setType(next);
-            setValue(next === "email" ? email : "");
-          }}
-        >
-          {FORM_TYPES.map((value) => (
-            <option key={value} value={value}>
-              {t(`types.${value}`)}
-            </option>
-          ))}
-        </Select>
-      </Field>
-      {type !== "slack" && (
-        <Field label={t("name")} htmlFor="channel-name">
-          <Input
-            id="channel-name"
-            value={name}
-            placeholder={t(`types.${type}`)}
-            onChange={(e) => setName(e.target.value)}
-          />
-        </Field>
-      )}
-      {(type === "email" || type === "webhook" || type === "discord" || type === "teams") && (
-        <Field
-          label={type === "email" ? t("emails") : t("url")}
-          htmlFor="channel-value"
-          hint={hint}
-        >
-          <Input
-            id="channel-value"
-            value={value}
-            inputMode={type === "email" ? "email" : "url"}
-            onChange={(e) => setValue(e.target.value)}
-          />
-        </Field>
-      )}
-      {type === "telegram" && <p className="text-sm text-muted-foreground">{hint}</p>}
-      {telegramUrl && (
-        <Alert tone="success">
-          <a href={telegramUrl} target="_blank" rel="noreferrer" className="underline">
-            {t("telegramLink")}
-          </a>
-        </Alert>
-      )}
-      <div>
-        <Button type="submit" disabled={create.isPending}>
-          {type === "slack" ? t("slackConnect") : t("add")}
-        </Button>
+    <li className="flex flex-wrap items-center gap-3 px-3 py-3">
+      <IntegrationTile id={channel.integration} />
+      <div className="min-w-0 flex-1 basis-48">
+        <p className="truncate font-medium">{channel.name}</p>
+        <p className="text-xs text-muted-foreground">
+          {findIntegration(channel.integration)?.name ?? CHANNEL_LABELS[channel.type]} ·{" "}
+          {channel.lastSuccessAt
+            ? `${t("lastSuccess")}: ${relativeTime(channel.lastSuccessAt)}`
+            : t("noDeliveriesYet")}{" "}
+          · <RulesSummary rules={channel.rules} />
+        </p>
+        {channel.status !== "healthy" && channel.lastError && (
+          <p className="mt-1 break-words text-xs text-status-down">{channel.lastError}</p>
+        )}
+        {(route.isError || remove.isError) && (
+          <p role="alert" className="mt-1 break-words text-xs text-status-down">
+            {errorMessage(route.error ?? remove.error)}
+          </p>
+        )}
+        {!routed && (
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-status-degraded">
+            <span className="inline-flex items-center gap-1">
+              <TriangleAlert aria-hidden className="size-3.5" />
+              {t("notInPolicy")}: {t("notInPolicyHint")}
+            </span>
+            {isAdmin && (
+              <button
+                type="button"
+                className="underline"
+                disabled={route.isPending}
+                onClick={() => route.mutate()}
+              >
+                {t("addToPolicy")}
+              </button>
+            )}
+          </p>
+        )}
       </div>
-    </form>
+      <HealthBadge channel={channel} />
+      {isAdmin && <SendTestButton ws={ws} channel={channel} />}
+      {isAdmin && (
+        <div className="flex gap-1">
+          <Link
+            href={workspaceHref(ws, `integrations/${channel.id}`)}
+            aria-label={t("editAria", { name: channel.name })}
+            className={buttonVariants({ size: "sm", variant: "ghost" })}
+          >
+            <Pencil aria-hidden />
+          </Link>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label={`${t("remove")} ${channel.name}`}
+            disabled={remove.isPending}
+            onClick={() => {
+              if (window.confirm(t("confirmRemove", { name: channel.name }))) remove.mutate();
+            }}
+          >
+            <Trash2 aria-hidden />
+          </Button>
+        </div>
+      )}
+    </li>
   );
 }
 
@@ -180,89 +125,63 @@ export function IntegrationsPage() {
   const t = useTranslations("integrations");
   const workspace = useWorkspace();
   const ws = workspace.id;
-  const client = useQueryClient();
+  const router = useRouter();
+  const search = useSearchParams();
+  const isAdmin = can(workspace.role, "admin");
   const channels = useQuery({
-    queryKey: ["channels", ws],
+    queryKey: integrationKeys.channels(ws),
     queryFn: async () => (await integrationsApi.channels(ws)).data,
   });
-  const isAdmin = can(workspace.role, "admin");
+  const policies = useQuery({
+    queryKey: integrationKeys.policies(ws),
+    queryFn: async () => (await integrationsApi.policies(ws)).data,
+  });
+  const types = useChannelTypes(ws);
+
+  /* Slack sends the browser back here after the install; the channel picker is the next step. */
+  const slack = search.get("slack");
+  React.useEffect(() => {
+    if (slack === "installed") router.replace(workspaceHref(ws, "integrations/new/slack"));
+  }, [slack, router, ws]);
+
+  const routedIds = new Set((policies.data ?? []).flatMap((p) => p.rules.channelIds));
+  const availability = types.data
+    ? new Map<ChannelType, boolean>(types.data.map((entry) => [entry.type, entry.available]))
+    : undefined;
+  const list = channels.data ?? [];
 
   return (
-    <div className="grid max-w-4xl gap-6">
+    <div className="grid max-w-5xl gap-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
-        <p className="mt-1 text-muted-foreground">{t("intro")}</p>
+        <p className="mt-1 max-w-2xl text-muted-foreground">{t("intro")}</p>
       </div>
       <section className="grid gap-2" aria-labelledby="channels-heading">
         <h2 id="channels-heading" className="text-base font-semibold">
-          {t("channels")}
+          {t("connected")}
         </h2>
         {channels.isPending ? (
           <Loading rows={2} />
-        ) : (channels.data ?? []).length === 0 ? (
-          <EmptyState title={t("empty")} />
+        ) : channels.isError ? (
+          <Alert tone="error">{errorMessage(channels.error)}</Alert>
+        ) : list.length === 0 ? (
+          <EmptyState title={t("empty")}>{isAdmin && <p>{t("emptyHint")}</p>}</EmptyState>
         ) : (
           <ul className="divide-y rounded-lg border">
-            {(channels.data ?? []).map((channel) => (
-              <li key={channel.id} className="flex flex-wrap items-center gap-3 px-3 py-3">
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium">{channel.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {t(`types.${channel.type}`)} ·{" "}
-                    {channel.lastSuccessAt
-                      ? `${t("lastSuccess")}: ${relativeTime(channel.lastSuccessAt)}`
-                      : t("noDeliveriesYet")}
-                  </p>
-                  {channel.status !== "healthy" && channel.lastError && (
-                    <p className="mt-1 break-words text-xs text-status-down">{channel.lastError}</p>
-                  )}
-                </div>
-                {channel.status === "healthy" ? (
-                  <span className="inline-flex items-center gap-1 text-xs text-status-up">
-                    <CircleCheck aria-hidden className="size-3.5" />
-                    {t("healthy")}
-                  </span>
-                ) : (
-                  <span
-                    className="inline-flex items-center gap-1 text-xs text-status-down"
-                    title={channel.lastError ?? undefined}
-                  >
-                    <CircleX aria-hidden className="size-3.5" />
-                    {t("failing")}
-                  </span>
-                )}
-                {isAdmin && <SendTestButton ws={ws} channel={channel} />}
-                {isAdmin && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    aria-label={`${t("remove")} ${channel.name}`}
-                    onClick={async () => {
-                      if (!window.confirm(t("confirmRemove", { name: channel.name }))) return;
-                      await integrationsApi.removeChannel(ws, channel.id);
-                      await client.invalidateQueries({ queryKey: ["channels", ws] });
-                    }}
-                  >
-                    <Trash2 aria-hidden />
-                  </Button>
-                )}
-              </li>
+            {list.map((channel) => (
+              <ChannelRow
+                key={channel.id}
+                ws={ws}
+                channel={channel}
+                isAdmin={isAdmin}
+                routed={policies.data === undefined || routedIds.has(channel.id)}
+              />
             ))}
           </ul>
         )}
       </section>
-      {isAdmin && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("add")}</CardTitle>
-            <CardDescription>{t("intro")}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <AddChannelForm ws={ws} email={workspace.user.email} />
-          </CardContent>
-        </Card>
-      )}
-      {isAdmin && (channels.data ?? []).length > 0 && <DrillCard ws={ws} />}
+      {isAdmin && <IntegrationGallery ws={ws} availability={availability} />}
+      {isAdmin && list.length > 0 && <DrillCard ws={ws} />}
       <DeployHookCard ws={ws} canManage={isAdmin} />
     </div>
   );

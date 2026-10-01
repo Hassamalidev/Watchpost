@@ -76,9 +76,16 @@ export function formConfig<C extends object>(
     async prepare(input: unknown, ctx: PrepareContext) {
       const next: Record<string, unknown> = { ...((input ?? {}) as Record<string, unknown>) };
       const previous = ctx.previous as Record<string, unknown> | undefined;
+      /*
+       * Any change to where secrets go counts, not just another host: two tenants of one hosted
+       * service share an origin and differ only by path.
+       */
+      const addressOf = (value: unknown) => String(value ?? "").replace(/\/+$/, "");
       const moved = () =>
         previous !== undefined &&
-        targets.some((t) => originOf(next[t.key] ?? t.defaultValue) !== originOf(previous[t.key]));
+        targets.some(
+          (t) => addressOf(next[t.key] || t.defaultValue) !== addressOf(previous[t.key]),
+        );
 
       for (const field of secrets) {
         const value = next[field.key];

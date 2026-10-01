@@ -20,7 +20,13 @@ const serverUrl = httpsUrl.refine((u) => {
 }, "must be the server address only, without a query string or credentials");
 
 const token = (min: number, max: number) =>
-  z.string().trim().min(min).max(max).regex(/^\S+$/, "must not contain spaces");
+  z
+    .string()
+    .trim()
+    .min(min)
+    .max(max)
+    /* Tokens travel in HTTP headers: printable ASCII only, so a pasted ellipsis is caught here. */
+    .regex(/^[\x21-\x7e]+$/, "must not contain spaces or special characters");
 
 /* Slack incoming webhook: posts to the one channel picked when the webhook was created. */
 export const slackWebhookChannelConfigSchema = z
@@ -185,7 +191,12 @@ export const NTFY_DEFAULT_SERVER = "https://ntfy.sh";
 
 export const ntfyChannelConfigSchema = z
   .object({
-    serverUrl: serverUrl.default(NTFY_DEFAULT_SERVER),
+    serverUrl: serverUrl
+      .refine(
+        (u) => new URL(u).hostname !== "ntfy.sh" || new URL(u).pathname === "/",
+        "must be the server address only; the topic goes in its own field",
+      )
+      .default(NTFY_DEFAULT_SERVER),
     topic: z
       .string()
       .trim()

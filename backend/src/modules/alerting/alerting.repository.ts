@@ -39,15 +39,18 @@ export function createAlertingRepository() {
       return rows[0];
     },
 
+    /* `lock` takes the row FOR UPDATE, for read-modify-write changes to its channel list. */
     async findDefaultPolicy(
       tx: DbOrTx,
       scope: WorkspaceScope,
+      lock = false,
     ): Promise<AlertPolicyRow | undefined> {
-      const rows = await tx
+      const query = tx
         .select()
         .from(alertPolicies)
         .where(tenantWhere(scope, alertPolicies, eq(alertPolicies.isDefault, true)))
         .limit(1);
+      const rows = lock ? await query.for("update") : await query;
       return rows[0];
     },
 

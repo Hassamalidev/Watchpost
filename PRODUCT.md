@@ -1,7 +1,7 @@
 # Watchpost — Product Spec and Build Plan (`PRODUCT.md`)
 
 > **Working name:** Watchpost. Replace it and `<domain>` everywhere once the final name and domain are chosen (Open decision #1).
-> **Status:** In progress · **Current phase:** 1 · **Next task:** `P1-T20` · **Last updated:** 2026-10-01 (PC-002 tasks P1-T22 to P1-T28 done; P1-T20 needs owner decisions #1 and #7, P1-T21 waits for the owner; owner action: branch ruleset in `docs/ci.md`)
+> **Status:** In progress · **Current phase:** 1 · **Next task:** `P1-T20` · **Last updated:** 2026-10-01 (PC-002 tasks P1-T22 to P1-T28 and PC-003 task P1-T29 done; P1-T20 needs owner decisions #1 and #7, P1-T21 waits for the owner; owner action: branch ruleset in `docs/ci.md`)
 > The build agent keeps this status block current.
 
 **Companion files**
@@ -295,13 +295,17 @@ Interval · timeout · regions · confirmation policy (minimum failing regions, 
 | Microsoft Teams | One-way via Workflows webhook (P1); two-way via Teams app and bot (P6) | Paste Workflows URL (guided) / install app | P1, P6 |
 | Discord | One-way, link buttons | Webhook URL | P1 |
 | Telegram | One-way in P1; inline buttons in P4 | Deep link to our bot | P1, P4 |
-| Webhook (outbound) | Signed JSON; custom body templates in P6 | URL + secret | P1 |
+| Webhook (outbound) | Signed JSON, custom request headers (P1-T29); custom body templates in P6. Also the Zapier, Make and n8n gallery entries | URL (+ headers) | P1 |
 | SMS | Two-way (reply codes) | Verified phone | P3 |
 | Voice call | Two-way (keypress) | Verified phone | P3 |
 | Web push (PWA) | Two-way (notification actions) | Install app, allow notifications | P4 |
 | WhatsApp | Template messages; quick-reply acknowledge later | Verified number, opt-in | P6 |
-| Google Chat, Mattermost, Rocket.Chat, Matrix, Pushover, ntfy, Gotify, Zulip, Home Assistant | One-way | URL or token | P6, by demand |
-| PagerDuty / Opsgenie (outbound) | Forward alerts during migrations | Integration key | P4 |
+| Slack incoming webhook, Google Chat, Mattermost, Rocket.Chat, Zulip, Matrix | One-way; Google Chat, Zulip and Matrix keep an incident in one thread | URL or token | P1 (P1-T29) |
+| Pushover, ntfy, Pushbullet, Gotify | One-way push; priority from severity; Pushover emergency mode repeats until acknowledged | Keys or token | P1 (P1-T29) |
+| Home Assistant, Signal, LINE and others | One-way | URL or token | P6, by demand |
+| PagerDuty, Opsgenie / Jira Service Management, Splunk On-Call (outbound) | One alert per incident: acknowledge and resolve here do the same there. Forwarding for parallel runs during migrations builds on it in P4 | Integration key or endpoint URL | P1 (P1-T29), P4 |
+
+**Every channel has** (P1-T29): a gallery entry with setup steps, "Send test" (automatic after setup, except tools that page people), its own rules (lowest severity it accepts and which events; the alert policy decides which channels are asked), write-only secrets, health with the provider's last error, and a warning when no alert policy sends to it. The catalog is `packages/shared/src/integrations/catalog.ts`.
 
 ### 6.5 On-call
 - **Schedules:** layers with daily, weekly or custom rotations; handoff day and time; participant order; restrictions (for example weekdays 09:00–18:00); overrides; IANA timezones (DST-safe); iCal feed per user; shift start/end notifications; "who's on call now and next".
@@ -867,6 +871,8 @@ event (triggered / acknowledged / resolved / degraded / reminder / flapping)
  → follow-ups (ack, resolve, AI summary) reply in the same thread and update
    the original message where the provider supports it
 ```
+Each policy channel is asked only if its own rules accept the event (`channelAccepts`: severity floor and event switches). Channels that mirror the incident in another tool (PagerDuty, Opsgenie, Splunk On-Call) always get the acknowledgement and recovery of incidents they were told about, so an alert there never stays open. "Send test" ignores the rules.
+
 Per-destination rate limits use a Redis token bucket (Slack about 1 message/s per channel, Telegram per-chat limits, Twilio per-number throughput).
 
 ```ts
@@ -928,9 +934,15 @@ export interface ChannelAdapter<C> {
 
 **Discord.** Webhook URL; embeds colored by state; link buttons only.
 
+**Chat webhooks added in P1-T29.** *Slack incoming webhook* (`hooks.slack.com/services/…`, same Block Kit as the app, no threading because Slack returns no message ID; Workflow Builder `triggers` URLs are a different contract and refused). *Google Chat* (`cardsV2` card; `thread.threadKey` per incident with `messageReplyOption=REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD`). *Mattermost* and *Rocket.Chat* (Slack-style attachments). *Zulip* (bot over the REST API, `type=stream` for old servers, one topic per monitor by default). *Matrix* (client-server API, the delivery ID as transaction ID so retries can't double-post, `m.thread` follow-ups, room IDs with or without a server part).
+
+**On-call tools (P1-T29).** One Watchpost incident is one alert, keyed `watchpost-<incident ID>`. *PagerDuty* Events API v2 (US and EU hosts): trigger / acknowledge / resolve; severity critical → `critical`, high → `error`, low → `warning`. *Opsgenie*: create / acknowledge / close by alias, priority P1 / P2 / P4; the same adapter serves *Jira Service Management* (`api.atlassian.com/jsm/ops/integration/v2/alerts`, same `GenieKey` header and fields), which is where Opsgenie customers land before the April 5, 2027 shutdown. *Splunk On-Call* REST endpoint: CRITICAL / WARNING / ACKNOWLEDGEMENT / RECOVERY on one `entity_id`. Retries run about 20 minutes. A test is a real alert there (opened and closed at once, INFO for Splunk), so the app asks first and never sends one automatically. New on-call channels start at high and critical only.
+
+**Push services (P1-T29).** *Pushover* with the customer's own application token (the quota is per Pushover account, so a shared token would pool every customer); every 4xx is final, as Pushover asks; optional emergency priority for critical incidents, cancelled by tag when the incident is acknowledged or resolved. *ntfy* (ntfy.sh or self-hosted; JSON publish to the server root; a sequence ID per incident so the notification is replaced; messages cut below 4,096 bytes; daily-quota 429 is final). *Pushbullet* (`guid` = delivery ID). *Gotify* (Markdown, click URL, priority from severity).
+
 **Telegram.** One bot. Users and groups link through `https://t.me/<Bot>?start=<token>`. `setWebhook` with a secret token that is checked on every update (`X-Telegram-Bot-Api-Secret-Token`). Inline keyboard callbacks (`ack:<incident#>:<nonce>`) are checked against linked users; `editMessageText` on state changes.
 
-**Webhook (outbound).** JSON envelope `{ id, type, createdAt, workspace, incident, monitor, evidence }`; headers `Watchpost-Event-Id` and `Watchpost-Signature: t=<ts>,v1=<hmac-sha256>`; 8 retries over about an hour; delivery log with replay; custom body templates in P6.
+**Webhook (outbound).** JSON envelope `{ id, type, createdAt, workspace, incident, monitor, evidence }`; headers `Watchpost-Event-Id` and `Watchpost-Signature: t=<ts>,v1=<hmac-sha256>`; 8 retries over about an hour; delivery log with replay; up to 10 custom request headers (write-only, never over our own headers; P1-T29); custom body templates in P6.
 
 **SMS and voice (Twilio behind a `MessagingProvider` interface).** The interface lets us add Telnyx, Plivo or a local gateway per country later, which is often cheaper and more reliable for local numbers. Phone verification by one-time code. SMS fits one segment, for example `Watchpost: DOWN API Prod (HTTP 502, 3/3 regions) #482. Reply 1=ack 2=resolve`. Voice uses text-to-speech and a one-digit gather (1 = acknowledge, 2 = escalate), with one retry if unanswered. Inbound SMS and voice webhooks validate `X-Twilio-Signature`. Budget time for sender registration rules (US A2P 10DLC or toll-free verification; sender-ID rules in some countries).
 
@@ -1201,6 +1213,8 @@ Targets assume a start on Monday 2026-10-05 with one developer and a coding agen
   *AC:* each confirmed finding fixed with a regression test, or recorded in §21.2 with the reason it waits.
 - [x] **P1-T28 Alert tuning advisor (PC-002).** Per monitor over 30 days: incidents, false alarms, flapping episodes and short self-resolving incidents, turned into concrete suggestions (confirm from more regions, require more recovery checks, raise the slow-response threshold, check less often) that apply with one click; an overview list of the noisiest monitors.
   *AC:* suggestions are a pure, unit-tested rule table; applying one changes only that setting; Playwright covers the advisor in light and dark with axe.
+- [x] **P1-T29 Integrations catalog and channels wave 2 (PC-003).** Competitors list 13 to 109 integrations; we had six. A shared catalog drives a searchable gallery with setup steps, one form for every integration and write-only secrets. New channels that need no server setup: Slack incoming webhook, Google Chat, Mattermost, Rocket.Chat, Zulip, Matrix, PagerDuty, Opsgenie and Jira Service Management, Splunk On-Call, Pushover, ntfy, Pushbullet, Gotify, plus Zapier, Make and n8n entries on the webhook (which gained custom headers). Per-channel rules (severity floor, events). Teams accepts the current Power Automate and sovereign-cloud hosts and explains retired connector URLs.
+  *AC:* every adapter tested against a mocked provider (request shape, threading or state sync, permanent vs transient failures); secrets never returned by the API and kept on update only while their destination is unchanged; rules filter planning; Playwright covers the gallery, setup, rules and secret handling in light and dark with axe; a setup guide and owner checklist per integration in `docs/integrations/`.
 
 **Exit:** internal alpha live; merge; tag `v0.1.0`.
 
@@ -1279,7 +1293,7 @@ Targets assume a start on Monday 2026-10-05 with one developer and a coding agen
 - [ ] **P6-T03 Terraform provider and YAML sync.** Go provider in a separate repo; GitHub Action for YAML.
 - [ ] **P6-T04 MCP server.** Read monitors and incidents, acknowledge, create maintenance; API-key auth.
 - [ ] **P6-T05 Teams app with bot.** Per §10.
-- [ ] **P6-T06 More channels.** WhatsApp, Google Chat, Mattermost, Rocket.Chat, Matrix, Pushover, ntfy, Gotify, ordered by the request log in §21.2.
+- [ ] **P6-T06 More channels.** WhatsApp, Home Assistant and others ordered by the request log in §21.2. (Google Chat, Mattermost, Rocket.Chat, Matrix, Pushover, ntfy, Gotify and Zulip shipped early in P1-T29.)
 - [ ] **P6-T07 Private probes.** Workspace registration tokens, one-line Docker install, health UI, upgrade notices.
 - [ ] **P6-T08 Private-probe monitor types.** Docker, databases, MQTT, Kafka, RabbitMQ, SNMP, RADIUS, gRPC, game servers, per-monitor proxy.
 - [ ] **P6-T09 Prometheus endpoint and status widget.**
@@ -1417,6 +1431,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | D-051 | 2026-10-01 | Deploy markers (P1-T26). New `deploys` module with no outgoing calls; `incidents` and `detection` read it. One deploy URL per workspace (`/api/deploys/<token>`, token stored as SHA-256, shown once, admins rotate it). GitHub `deployment_status` webhooks go to `<url>/github`, signed with a secret derived as HMAC(auth secret, token): only the server can compute it, nothing extra is stored, and rotating the auth secret means re-entering the GitHub secret. Only `success` states are recorded; GitHub retries dedupe on `github:<status id>`. Deploy URLs from callers must be http(s) (they become links). A deploy in the 30 minutes before a check-driven incident (not drills or expiry notices) becomes the first "check first" step in every alert channel and on the incident page, and deploys appear in "what changed". | Most outages follow a change, and the deploy is the change teams check first | A GitHub App (more setup, more permissions); storing a separate encrypted GitHub secret per workspace |
 | D-052 | 2026-10-01 | Review pass 2 (P1-T27), eight findings fixed: settings PATCH applied schema defaults to keys the caller didn't send (Zod 4 `.partial()` keeps defaults), silently resetting regions, tags and policies, so the validator now keeps only sent keys; "what changed" counts an address or certificate only when it cleanly replaced the earlier ones (rotating pools overlap); delivery recovery uses one job ID per attempt so the minutely sweep can't pile up duplicates; the monitor edit form offers to drop saved credentials when the target changes; deploy ingest has its own per-IP (120/min) and per-token (30/min) limits; error budgets page through all monitors (cap 5,000) and query one monitor's downtime directly; deploy URL rotation is an upsert; the probe refuses to resend a request body to another origin on 307/308. | An independent review catches what the author misses | — |
 | D-053 | 2026-10-01 | Alert tuning advisor (P1-T28). `suggestTuning` in `@app/shared` is a pure rule table over 30 days of check-driven incidents per monitor (false alarms, flapping, auto-resolved within 5 minutes): two or more blips on a one-region monitor → add a launch region and require 2; otherwise → require one more failing region (never more than the monitor has); two or more flapping incidents → one more recovery check than the effective default (capped at 3); short timeouts (< 10 s) with blips → double the timeout within the interval and 30 s. Each suggestion carries the exact settings patch; the UI applies it with a partial PATCH (safe since D-052). `/alert-tuning` lists the 10 noisiest monitors; the overview shows them only when there is advice. | Competitors report noise; we fix it with one click and explain why | Auto-applying changes (silent changes to paging behaviour); an LLM for advice |
+| D-054 | 2026-10-01 | Integrations catalog and channels wave 2 (P1-T29). Competitor check (vendor pages, 2026-10-01): UptimeRobot 21, Better Stack ~30 for uptime, Hyperping 17, StatusCake 13, Spike ~127 (mostly inbound), Uptime Kuma 109 notification providers; the outbound channels at three or more of them that we lacked were Google Chat, Mattermost, Pushover, Pushbullet, PagerDuty, Splunk On-Call and Opsgenie. One catalog in `@app/shared` (`CHANNEL_FIELDS`, `CHANNEL_CAPABILITIES`, `INTEGRATIONS`) describes every channel; the API derives secret handling from it (`adapters/config.ts` `formConfig`) and the web app derives the gallery and forms, so a new channel is a schema, an adapter and a catalog entry. Secrets are write-only: the API answers `********` (a secret URL shows only its origin); an empty or masked value on update keeps the stored one only while the address it is sent to is unchanged, compared as the whole URL because hosted services (Zapier, Make) separate tenants by path. Channel rules live in `channels.rules` (jsonb, `{}` = everything); PATCH merges partial rules without defaults (the D-052 lesson); state-sync channels always get acknowledged/resolved. `PUT /alert-policies/default/channels/:id` adds a channel to the default policy under a row lock (the old read-then-PATCH lost updates when two channels were added at once), and policies drop IDs of deleted channels instead of refusing every later edit. Gallery tiles are monograms, not vendor logos. Provider facts that shaped the code: Opsgenie ends April 5, 2027 and JSM's alert API is compatible; Pushover's quota is per account; ntfy turns messages over 4,096 bytes into attachments; Matrix room IDs may have no server part; Teams workflow URLs moved to `*.api.powerplatform.com`. An independent review found 11 issues, 10 fixed here (partial rules reset, kept webhook headers on a shared host, sync events that could be switched off, silent list errors, tokens with non-ASCII characters, a topic URL as ntfy server, mislabelled JSM channels) and one documented (Opsgenie may process a test's close before its create). | Beats competitors on what happens after the click (test on save, per-integration rules, state sync, health) rather than on logo count; no plan gating of integrations | A `channels.integration` column; provider SDKs; vendor logos; one hand-written form per integration |
 
 ---
 
@@ -1426,10 +1441,12 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 *Format: `⏳ PC-### (date) — change — reason — impact on plan`. The owner replaces ⏳ with ✅ or ❌.*
 - ✅ PC-001 (2026-09-30, owner chose option c: defer) — Unblock or defer P0-T10b (local code index). Windows Application Control blocks PyTorch's DLLs, so `ccc index` can't run natively. Options: (a) run the official `cocoindex/cocoindex-code:full` Docker image (~5 GB, local embeddings, mount only this repo); (b) the owner allow-lists the uv tool folder in Application Control / Smart App Control; (c) defer P0-T10b to the P1 benchmark and drop CocoIndex if it can't run (D-013 already allows dropping). Never the slim cloud variant (code would leave the machine). — Reason: the only native path is blocked by a machine security policy the agent must not bypass. — Impact: Phase 0 exit waits on this unless (c); P0-T10a is done either way.
 - ✅ PC-002 (2026-10-01, owner direction) — Before deploying (P1-T20) or the code index (P1-T21): test and review the code, add features competitors don't have, and improve the UI and UX. — Reason: owner priority. — Impact: new tasks P1-T22 to P1-T24 run before P1-T20 and P1-T21; Phase 1 exit moves later.
+- ✅ PC-003 (2026-10-01, owner direction) — Bring integrations up to and past competitors before deploying: check what competitors integrate with, build the missing ones, improve the Integrations section, test, review and push. — Reason: owner priority. — Impact: new task P1-T29; several P6-T06 channels and the outbound half of P4's PagerDuty/Opsgenie row ship in Phase 1; Phase 1 exit unchanged otherwise.
 
 ### 21.2 Improvement backlog (not scheduled)
 - **Request log:** record which missing channels or monitor types users ask for, with counts, to order P6-T06.
 - GitLab deployment events for deploy markers (GitHub and generic CI shipped in P1-T26); deploy markers on the latency chart.
+- **Integrations, from P1-T29:** a "request an integration" button feeding the request log; remember which gallery entry (Zapier, Make, n8n) created a webhook so it shows under that name; Pushover emergency mode should cancel repeats even when the channel's rules switch off acknowledged/resolved; Slack Workflow Builder webhooks (flat variables); incident.io, Squadcast, Rootly and FireHydrant alert endpoints (all have simple HTTP sources); Zulip `type=channel` once Zulip 8 and older are rare; per-destination rate limits (§9.4) for the new chat webhooks; self-hosted chat and push servers on private networks through private probes (P6-T07).
 - Auto-create a Slack incident channel (`#inc-482`) with responders invited (Business).
 - On-call hours report for compensation.
 - Public alert-accuracy statistics once we have 90 days of data.
@@ -1452,6 +1469,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 9. **Launch timing and Opsgenie offer** (for example, 3 months free for teams migrating before April 5, 2027).
 10. **Owner action (from P0-T07): turn on the `main` branch ruleset** so failing CI blocks merges. Steps in `docs/ci.md` (needs repository admin; the agent has no GitHub token by design).
 11. **Owner action (from P1-T13): create the Slack app and the Telegram bot** and put their credentials in `.env` (steps in `docs/integrations/slack.md` and `telegram.md`), then run the owner checklists in `docs/integrations/` against real Slack, Teams, Discord, Telegram and a webhook bin. Until then Slack and Telegram channels are unavailable; the other channels work without server config.
+12. **Owner action (from P1-T29): run the owner checklists for the new integrations** in `docs/integrations/` against real accounts (PagerDuty, Opsgenie or JSM, Splunk On-Call, Google Chat, Pushover, Pushbullet, Zapier, Make) or self-hosted test servers (Mattermost, Rocket.Chat, Zulip, Matrix, ntfy, Gotify, n8n). They are tested against mocked provider APIs only; nothing was sent to a real third party (§2.5).
 
 ---
 
@@ -1497,6 +1515,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | 2026-10-01 | §7.4, §17, §20, §21.2 | `deploys` module (tables deploy_hooks, deploys; incidents and detection may call it); D-051; next task P1-T27 | P1-T26 |
 | 2026-10-01 | §17, §20 | D-052 (review pass 2 fixes); new task P1-T28 (alert tuning advisor) | P1-T27 |
 | 2026-10-01 | §17, §20 | D-053 (alert tuning advisor); PC-002 tasks done, next task back to P1-T20 | P1-T28 |
+| 2026-10-01 | §6.4, §9.4, §10, §17, §20, §21, §22 | PC-003 ✅; P1-T29 (integrations catalog, 13 new channel types, channel rules, write-only secrets, webhook headers); D-054; `channels.rules` column (migration 0017); P6-T06 narrowed; owner action 12 | P1-T29 |
 
 ### Phase 0 retro (2026-09-30, `v0.0.1`)
 

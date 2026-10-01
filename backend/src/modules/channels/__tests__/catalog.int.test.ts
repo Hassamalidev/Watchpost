@@ -150,9 +150,17 @@ describe("a channel with secrets (PagerDuty)", () => {
       rules: { minSeverity: "critical" },
     });
     expect(rules.status, rules.text).toBe(200);
+    /* Only what was sent changes: reminders stay off. */
     expect(rules.body.rules).toMatchObject({
       minSeverity: "critical",
-      events: { reminder: true },
+      events: { triggered: true, reminder: false },
+    });
+    const events = await send(owner, "patch", `/api/w/${ws}/channels/${id}`, {
+      rules: { events: { flapping: false } },
+    });
+    expect(events.body.rules).toMatchObject({
+      minSeverity: "critical",
+      events: { reminder: false, flapping: false, resolved: true },
     });
     expect((await send(owner, "patch", `/api/w/${ws}/channels/${id}`, {})).status).toBe(400);
     expect(

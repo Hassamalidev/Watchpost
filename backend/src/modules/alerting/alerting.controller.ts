@@ -12,7 +12,7 @@ import type {
 } from "./validators/index.js";
 
 export type AlertingController = Record<
-  "list" | "create" | "update" | "remove" | "sendTest" | "deliveries",
+  "list" | "create" | "update" | "remove" | "routeToDefault" | "sendTest" | "deliveries",
   RequestHandler
 >;
 
@@ -35,6 +35,10 @@ export function createAlertingController(service: AlertingService): AlertingCont
     deliveries: async (req, res) => {
       const { params } = inputOf<{ params: typeof incidentIdParams }>(req, res);
       res.json({ data: await service.deliveryLog(scopeOf(req, res), params.incidentId) });
+    },
+    routeToDefault: async (req, res) => {
+      const { params } = inputOf<{ params: typeof channelIdParams }>(req, res);
+      res.json(await service.routeToDefault(scopeOf(req, res), params.channelId));
     },
     sendTest: async (req, res) => {
       const { params } = inputOf<{ params: typeof channelIdParams }>(req, res);

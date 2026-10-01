@@ -159,15 +159,54 @@ export const channelRulesSchema = z
   .strict();
 export type ChannelRules = z.infer<typeof channelRulesSchema>;
 
+/*
+ * A change to a channel's rules: only what is sent changes. No defaults here, or a PATCH with just
+ * `minSeverity` would quietly switch every event back on (the D-052 class of bug).
+ */
+export const channelRulesPatchSchema = z
+  .object({
+    events: z
+      .object(
+        Object.fromEntries(ALERT_EVENT_KINDS.map((k) => [k, z.boolean().optional()])) as Record<
+          AlertEventKind,
+          z.ZodOptional<z.ZodBoolean>
+        >,
+      )
+      .strict()
+      .optional(),
+    minSeverity: z.enum(SEVERITIES).optional(),
+  })
+  .strict();
+export type ChannelRulesPatch = z.infer<typeof channelRulesPatchSchema>;
+
+export function mergeChannelRules(current: ChannelRules, patch: ChannelRulesPatch): ChannelRules {
+  const events = { ...current.events };
+  for (const kind of ALERT_EVENT_KINDS) {
+    const value = patch.events?.[kind];
+    if (value !== undefined) events[kind] = value;
+  }
+  return { events, minSeverity: patch.minSeverity ?? current.minSeverity };
+}
+
 const SEVERITY_RANK: Record<Severity, number> = { low: 0, high: 1, critical: 2 };
 
-/* True if a channel with these rules should get this event of an incident with this severity. */
+/* Events that close an alert in a tool that mirrors the incident's state (PagerDuty, Opsgenie). */
+export const STATE_SYNC_EVENTS: readonly AlertEventKind[] = ["acknowledged", "resolved"];
+
+/*
+ * True if a channel with these rules should get this event of an incident with this severity.
+ * `syncsState` channels always get acknowledgements and recoveries for incidents they were told
+ * about: switching those off would leave the alert open in the other tool forever.
+ */
 export function channelAccepts(
   rules: ChannelRules,
   kind: AlertEventKind,
   severity: Severity,
+  syncsState = false,
 ): boolean {
-  return rules.events[kind] && SEVERITY_RANK[severity] >= SEVERITY_RANK[rules.minSeverity];
+  if (SEVERITY_RANK[severity] < SEVERITY_RANK[rules.minSeverity]) return false;
+  if (syncsState && STATE_SYNC_EVENTS.includes(kind)) return rules.events.triggered;
+  return rules.events[kind];
 }
 
 const channelName = z.string().trim().min(1).max(100);
@@ -187,7 +226,7 @@ export const updateChannelSchema = z
   .object({
     name: channelName.optional(),
     config: z.record(z.string(), z.unknown()).optional(),
-    rules: channelRulesSchema.optional(),
+    rules: channelRulesPatchSchema.optional(),
   })
   .strict()
   .refine(

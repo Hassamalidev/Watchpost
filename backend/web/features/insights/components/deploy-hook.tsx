@@ -5,44 +5,19 @@
  */
 "use client";
 
-import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { Copy, Rocket } from "lucide-react";
+import { Rocket } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { CopyField } from "@/components/ui/copy-field";
 import { api, errorMessage, wsPath } from "@/lib/api";
 
 interface NewHook {
   url: string;
   githubUrl: string;
   githubSecret: string;
-}
-
-function CopyField({ label, value }: { label: string; value: string }) {
-  const tc = useTranslations("common");
-  const [copied, setCopied] = React.useState(false);
-  return (
-    <div className="grid gap-1">
-      <span className="text-xs font-medium">{label}</span>
-      <div className="flex gap-2">
-        <Input readOnly value={value} aria-label={label} className="font-mono text-xs" />
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={async () => {
-            await navigator.clipboard.writeText(value);
-            setCopied(true);
-          }}
-        >
-          <Copy aria-hidden />
-          {copied ? tc("copied") : tc("copy")}
-        </Button>
-      </div>
-    </div>
-  );
 }
 
 export function DeployHookCard({ ws, canManage }: { ws: string; canManage: boolean }) {

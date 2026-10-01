@@ -8,7 +8,11 @@
 import {
   CHANNEL_TYPES,
   channelRulesSchema,
+  integrationForChannel,
+  mergeChannelRules,
   type ChannelRules,
+  type ChannelRulesPatch,
+  type IntegrationId,
   type ChannelType,
   type CreateChannelInput,
 } from "@app/shared";
@@ -28,6 +32,8 @@ export interface ChannelView {
   type: ChannelRow["type"];
   name: string;
   status: ChannelRow["status"];
+  /* The gallery entry it shows as (an Opsgenie channel on the JSM host is Jira Service Management). */
+  integration: IntegrationId;
   /* Which events and severities the channel accepts. */
   rules: ChannelRules;
   lastSuccessAt: string | null;
@@ -62,7 +68,7 @@ export interface ChannelsService {
     input: {
       name?: string | undefined;
       config?: Record<string, unknown> | undefined;
-      rules?: ChannelRules | undefined;
+      rules?: ChannelRulesPatch | undefined;
     },
   ): Promise<ChannelDetail>;
   delete(scope: WorkspaceScope, id: string): Promise<void>;
@@ -109,11 +115,21 @@ export function createChannelsService(deps: {
     return adapter;
   };
 
+  /* A config that can't be read still lists; it shows as its type's plain entry. */
+  const integrationOf = (row: ChannelRow): IntegrationId => {
+    try {
+      return integrationForChannel(row.type, configOf(row) as Record<string, unknown>).id;
+    } catch {
+      return integrationForChannel(row.type).id;
+    }
+  };
+
   const toView = (row: ChannelRow): ChannelView => ({
     id: row.id,
     type: row.type,
     name: row.name,
     status: row.status,
+    integration: integrationOf(row),
     rules: rulesOf(row),
     lastSuccessAt: iso(row.lastSuccessAt),
     lastFailureAt: iso(row.lastFailureAt),
@@ -202,7 +218,7 @@ export function createChannelsService(deps: {
       const row = await mustFind(scope, id);
       const patch: Partial<Pick<ChannelRow, "name" | "configEnc" | "rules">> = {};
       if (input.name !== undefined) patch.name = input.name;
-      if (input.rules !== undefined) patch.rules = input.rules;
+      if (input.rules !== undefined) patch.rules = mergeChannelRules(rulesOf(row), input.rules);
       if (input.config !== undefined) {
         const config = await prepare(
           adapterFor(row.type),

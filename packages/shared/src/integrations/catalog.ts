@@ -180,9 +180,36 @@ export const CHANNEL_LABELS: Record<ChannelType, string> = {
   gotify: "Gotify",
 };
 
+/* Stable IDs: the gallery URL (`/integrations/new/<id>`), the docs file and the copy's key. */
+export const INTEGRATION_IDS = [
+  "slack",
+  "slack-webhook",
+  "teams",
+  "discord",
+  "telegram",
+  "google-chat",
+  "mattermost",
+  "rocketchat",
+  "zulip",
+  "matrix",
+  "pagerduty",
+  "opsgenie",
+  "jira-service-management",
+  "splunk-on-call",
+  "pushover",
+  "ntfy",
+  "pushbullet",
+  "gotify",
+  "email",
+  "webhook",
+  "zapier",
+  "make",
+  "n8n",
+] as const;
+export type IntegrationId = (typeof INTEGRATION_IDS)[number];
+
 export interface IntegrationDefinition {
-  /* Stable ID: the gallery URL (`/integrations/new/<id>`) and the docs file name. */
-  id: string;
+  id: IntegrationId;
   name: string;
   /* The channel type it creates; several entries can share one (Zapier is a webhook). */
   type: ChannelType;
@@ -194,7 +221,7 @@ export interface IntegrationDefinition {
 }
 
 const entry = (
-  id: string,
+  id: IntegrationId,
   type: ChannelType,
   category: IntegrationCategory,
   keywords: readonly string[] = [],

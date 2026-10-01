@@ -2,8 +2,15 @@
 
 ## Setup (workspace admin)
 
-Integrations → Add channel → Webhook → your endpoint URL. Leave the secret empty to get a generated
-one (`whsec_…`); it is shown to admins on the channel page. Changing the URL keeps the secret.
+Integrations → Webhook → your endpoint URL. A signing secret (`whsec_…`) is generated and shown to
+admins on the integration's page. Changing the URL keeps the secret.
+
+**Request headers (optional):** up to 10 headers sent with every request, one per line as
+`Name: value` (for example `Authorization: Bearer …`). Values are write-only: the page shows
+`Name: ********`, and a masked value is kept unless you change it. Moving the URL to another server
+means entering the values again. `Content-Type`, `Host`, `User-Agent` and `Watchpost-*` can't be set.
+
+For Zapier, Make and n8n see [automation.md](automation.md).
 
 ## What we send
 

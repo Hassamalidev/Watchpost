@@ -230,6 +230,10 @@ describe("planning", () => {
     expect(await plan("reminder", critical.id)).toBe(1);
     expect(await plan("resolved", critical.id)).toBe(2);
 
+    /* Reminders stay off after a change to something else. */
+    const kept = await channels.service.update(scope, pager.id, { rules: { minSeverity: "high" } });
+    expect(kept.rules.events.reminder).toBe(false);
+
     /* "Send test" is the admin asking; the rules don't apply. */
     expect(await service.sendTest(scope, pager.id)).toEqual({ ok: true });
 
@@ -257,6 +261,66 @@ describe("planning", () => {
     });
     const planned = await service.deliveriesFor(incident.id);
     expect(planned.map((d) => d.channelId)).toEqual([own]);
+  });
+});
+
+describe("routing a channel to the default policy", () => {
+  const put = (path: string) => owner.put(path).set("Origin", WEB_ORIGIN).send({});
+  const defaultIds = async () =>
+    (await service.listPolicies(scope)).find((p) => p.isDefault)?.rules.channelIds ?? [];
+
+  it("is idempotent, and concurrent calls all end up routed", async () => {
+    await useChannels([]);
+    const ids = await Promise.all(
+      ["Route A", "Route B", "Route C", "Route D", "Route E"].map((name) => channel(name)),
+    );
+    await Promise.all(ids.map((id) => service.routeToDefault(scope, id)));
+    expect([...(await defaultIds())].sort()).toEqual([...ids].sort());
+    await service.routeToDefault(scope, ids[0] ?? "");
+    expect(await defaultIds()).toHaveLength(ids.length);
+  });
+
+  it("works through the API for admins and refuses unknown channels", async () => {
+    await useChannels([]);
+    const id = await channel("Route API");
+    const res = await put(`/api/w/${ws}/alert-policies/default/channels/${id}`);
+    expect(res.status, res.text).toBe(200);
+    expect(res.body).toMatchObject({ isDefault: true, rules: { channelIds: [id] } });
+    expect((await put(`/api/w/${ws}/alert-policies/default/channels/${newId()}`)).status).toBe(404);
+  });
+
+  it("a policy that outlived one of its channels can still be changed", async () => {
+    const [gone, kept] = [await channel("Route gone"), await channel("Route kept")];
+    await useChannels([gone, kept]);
+    await channels.service.delete(scope, gone);
+
+    /* Adding a channel drops the deleted one instead of failing on it. */
+    const added = await channel("Route added");
+    const routed = await service.routeToDefault(scope, added);
+    expect(routed.rules.channelIds).toEqual([kept, added]);
+
+    /* The same holds for an edit that sends the old list back, but a made-up ID is still refused. */
+    const [policy] = await service.listPolicies(scope);
+    const edited = await service.updatePolicy(scope, policy?.id ?? "", {
+      rules: { channelIds: [kept, added], events: policy?.rules.events },
+    });
+    expect(edited.rules.channelIds).toEqual([kept, added]);
+    await expect(
+      service.updatePolicy(scope, policy?.id ?? "", {
+        rules: { channelIds: [kept, newId()], events: policy?.rules.events },
+      }),
+    ).rejects.toThrow(/Unknown channels/);
+  });
+
+  it("an edit made before a channel was deleted still saves", async () => {
+    const [gone, kept] = [await channel("Stale gone"), await channel("Stale kept")];
+    await useChannels([gone, kept]);
+    const [policy] = await service.listPolicies(scope);
+    await channels.service.delete(scope, gone);
+    const saved = await service.updatePolicy(scope, policy?.id ?? "", {
+      rules: { channelIds: [gone, kept], events: policy?.rules.events },
+    });
+    expect(saved.rules.channelIds).toEqual([kept]);
   });
 });
 

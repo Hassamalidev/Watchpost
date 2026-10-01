@@ -6,7 +6,7 @@
  *
  * Custom headers (an Authorization header for Zapier, n8n or an internal endpoint) are write-only:
  * the API shows their names with masked values, and a masked value sent back keeps the stored one
- * while the URL's origin stays the same.
+ * while the URL stays the same.
  */
 import { createHmac, randomBytes } from "node:crypto";
 import { SECRET_MASK, webhookChannelConfigSchema } from "@app/shared";
@@ -31,7 +31,6 @@ export function signWebhook(secret: string, timestamp: number, body: string): st
 
 const newSecret = () => `whsec_${randomBytes(24).toString("base64url")}`;
 const parse = (input: unknown) => parseConfigWith(webhookChannelConfigSchema, input, "Webhook");
-const originOf = (url: string | undefined) => (url === undefined ? undefined : new URL(url).origin);
 
 /* Replaces masked header values with the stored ones (matched by name, whatever its case). */
 function restoreHeaders(
@@ -43,7 +42,8 @@ function restoreHeaders(
   const stored = new Map(
     Object.entries(previous.headers ?? {}).map(([name, value]) => [name.toLowerCase(), value]),
   );
-  const sameOrigin = originOf(previous.url) === originOf(url);
+  /* The whole URL: on a shared host (Zapier, Make) the path is what tells receivers apart. */
+  const sameOrigin = previous.url === url;
   return Object.fromEntries(
     Object.entries(headers).map(([name, value]) => {
       if (value !== SECRET_MASK) return [name, value];
@@ -54,7 +54,7 @@ function restoreHeaders(
             path: "body.config.headers",
             message: sameOrigin
               ? `Enter a value for ${name}.`
-              : `Enter the value of ${name} again: the URL's server changed.`,
+              : `Enter the value of ${name} again: the URL changed.`,
           },
         ]);
       }

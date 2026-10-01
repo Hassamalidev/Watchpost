@@ -6,6 +6,7 @@ import {
   CHANNEL_LABELS,
   INTEGRATIONS,
   INTEGRATION_CATEGORIES,
+  INTEGRATION_IDS,
   findIntegration,
   integrationFields,
   integrationForChannel,
@@ -13,7 +14,9 @@ import {
 import {
   CHANNEL_TYPES,
   channelAccepts,
+  channelRulesPatchSchema,
   channelRulesSchema,
+  mergeChannelRules,
   createChannelSchema,
   discordChannelConfigSchema,
   emailChannelConfigSchema,
@@ -71,7 +74,7 @@ describe("integration catalog", () => {
 
   it("every type has a gallery entry without a preset, and IDs are unique URL slugs", () => {
     const ids = INTEGRATIONS.map((i) => i.id);
-    expect(new Set(ids).size).toBe(ids.length);
+    expect([...ids].sort()).toEqual([...INTEGRATION_IDS].sort());
     for (const id of ids) expect(id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
     for (const type of CHANNEL_TYPES) {
       expect(
@@ -167,6 +170,35 @@ describe("channel rules", () => {
     expect(channelAccepts(pager, "reminder", "critical")).toBe(false);
     const criticalOnly = channelRulesSchema.parse({ minSeverity: "critical" });
     expect(channelAccepts(criticalOnly, "triggered", "high")).toBe(false);
+  });
+
+  it("tools that mirror the incident always get its acknowledgement and recovery", () => {
+    const quiet = channelRulesSchema.parse({
+      minSeverity: "high",
+      events: { acknowledged: false, resolved: false },
+    });
+    expect(channelAccepts(quiet, "resolved", "critical")).toBe(false);
+    expect(channelAccepts(quiet, "resolved", "critical", true)).toBe(true);
+    expect(channelAccepts(quiet, "acknowledged", "high", true)).toBe(true);
+    /* Not for incidents it never heard about, and other events keep their switches. */
+    expect(channelAccepts(quiet, "resolved", "low", true)).toBe(false);
+    const muted = channelRulesSchema.parse({ events: { triggered: false, reminder: false } });
+    expect(channelAccepts(muted, "resolved", "critical", true)).toBe(false);
+    expect(channelAccepts(muted, "reminder", "critical", true)).toBe(false);
+  });
+
+  it("a partial change keeps everything it doesn't mention", () => {
+    const current = channelRulesSchema.parse({ minSeverity: "high", events: { reminder: false } });
+    expect(
+      mergeChannelRules(current, channelRulesPatchSchema.parse({ minSeverity: "critical" })),
+    ).toEqual({ ...current, minSeverity: "critical" });
+    const merged = mergeChannelRules(
+      current,
+      channelRulesPatchSchema.parse({ events: { flapping: false } }),
+    );
+    expect(merged.minSeverity).toBe("high");
+    expect(merged.events).toMatchObject({ reminder: false, flapping: false, triggered: true });
+    expect(mergeChannelRules(current, {})).toEqual(current);
   });
 
   it("are part of the create and update bodies, and rules alone are an update", () => {

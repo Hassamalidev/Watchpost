@@ -706,6 +706,13 @@ describe("ntfy", () => {
     expect(provider.body(0).title.length).toBeLessThanOrEqual(200);
     expect(Buffer.byteLength(provider.body(0).message)).toBeLessThanOrEqual(3_800);
     expect(() => adapter.parseConfig({ topic: "has spaces" })).toThrow();
+    /* A topic URL pasted as the server would publish raw JSON to that topic. */
+    expect(() =>
+      adapter.parseConfig({ serverUrl: "https://ntfy.sh/mytopic", topic: "ops" }),
+    ).toThrow(/topic goes in its own field/);
+    expect(() => adapter.parseConfig({ topic: "ops", accessToken: "tk_abc\u2026defgh" })).toThrow(
+      /special characters/,
+    );
     expect(() =>
       adapter.parseConfig({ serverUrl: "http://ntfy.example.com", topic: "ops" }),
     ).toThrow(/https/);
@@ -880,9 +887,15 @@ describe("write-only secrets", () => {
     await expect(moved).rejects.toMatchObject({
       fieldErrors: [{ path: "body.config.appToken" }],
     });
-    /* The same server on another path is still the same server. */
+    /* Another path on the same host counts too: hosted services tell tenants apart by path. */
+    await expect(
+      adapter.prepare!(
+        { serverUrl: "https://gotify.example.com/other-tenant", appToken: "" },
+        { workspaceId: "w", previous: stored },
+      ),
+    ).rejects.toThrow(/enter appToken again/);
     const samePlace = await adapter.prepare!(
-      { serverUrl: "https://gotify.example.com/v2", appToken: "" },
+      { serverUrl: "https://gotify.example.com/", appToken: "" },
       { workspaceId: "w", previous: stored },
     );
     expect(samePlace.appToken).toBe("AbCdEf123456");
@@ -969,21 +982,21 @@ describe("webhook custom headers", () => {
     });
 
     const kept = await adapter.prepare!(
-      {
-        url: "https://hooks.example.com/v2",
-        headers: { authorization: SECRET_MASK, "X-New": "1" },
-      },
+      { ...base, headers: { authorization: SECRET_MASK, "X-New": "1" } },
       { workspaceId: "w", previous: stored },
     );
     expect(kept.headers).toEqual({ authorization: "Bearer zap-token", "X-New": "1" });
     expect(kept.secret).toBe(stored.secret);
 
-    await expect(
-      adapter.prepare!(
-        { url: "https://collector.example.net/in", headers: { Authorization: SECRET_MASK } },
-        { workspaceId: "w", previous: stored },
-      ),
-    ).rejects.toThrow(/Authorization header again/);
+    /* Another server, or another receiver on the same shared host (a different Zap). */
+    for (const url of ["https://collector.example.net/in", "https://hooks.example.com/other"]) {
+      await expect(
+        adapter.prepare!(
+          { url, headers: { Authorization: SECRET_MASK } },
+          { workspaceId: "w", previous: stored },
+        ),
+      ).rejects.toThrow(/Authorization header again/);
+    }
     const cleared = await adapter.prepare!(base, { workspaceId: "w", previous: stored });
     expect(cleared.headers).toBeUndefined();
   });
