@@ -211,7 +211,12 @@
     "edit": "Edit",
     "secretsRetarget": "This monitor has saved credentials (a password, token or secret header). They were entered for the old target and won't be sent to the new one.",
     "secretsDrop": "Remove the saved credentials and save",
-    "secretsRetargetRequired": "The target changed: confirm removing the saved credentials, or keep the old target."
+    "secretsRetargetRequired": "The target changed: confirm removing the saved credentials, or keep the old target.",
+    "confirmRegions": "Open an incident when it fails from",
+    "confirmRegionsHint": "A failure in one region is rechecked from the others first. Fewer regions alert sooner; more regions mean fewer false alarms.",
+    "confirmRegionsOption": "{count, plural, one {# region} other {# regions}}",
+    "alertRegional": "Also alert on regional issues",
+    "alertRegionalHint": "When it fails from fewer regions than that and the others are healthy, open a low-severity incident instead of only showing the monitor as degraded."
   },
   "incidents": {
     "title": "Incidents",

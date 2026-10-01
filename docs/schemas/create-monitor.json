@@ -53,6 +53,10 @@
           "minimum": 1,
           "maximum": 9
         },
+        "alertOnRegionalIssue": {
+          "default": false,
+          "type": "boolean"
+        },
         "recoverySuccesses": {
           "default": 0,
           "type": "integer",

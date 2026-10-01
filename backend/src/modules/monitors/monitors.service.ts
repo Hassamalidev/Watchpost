@@ -42,6 +42,7 @@ export interface MonitorView {
   timeoutMs: number;
   regions: string[];
   minFailingRegions: number;
+  alertOnRegionalIssue: boolean;
   recoverySuccesses: number;
   degradedLatencyMs: number | null;
   degradedAfterChecks: number;
@@ -187,6 +188,7 @@ function settingsOf(row: MonitorRow, tags: string[]): MonitorSettings {
     timeoutMs: row.timeoutMs,
     regions: row.regions as MonitorSettings["regions"],
     minFailingRegions: row.policies.minFailingRegions,
+    alertOnRegionalIssue: row.policies.alertOnRegionalIssue ?? false,
     recoverySuccesses: row.policies.recoverySuccesses,
     degradedLatencyMs: row.policies.degradedLatencyMs,
     degradedAfterChecks: row.policies.degradedAfterChecks,
@@ -214,6 +216,7 @@ function toView(row: MonitorRow, tags: string[]): MonitorView {
     timeoutMs: row.timeoutMs,
     regions: row.regions,
     minFailingRegions: row.policies.minFailingRegions,
+    alertOnRegionalIssue: row.policies.alertOnRegionalIssue ?? false,
     recoverySuccesses: row.policies.recoverySuccesses,
     degradedLatencyMs: row.policies.degradedLatencyMs ?? null,
     degradedAfterChecks: row.policies.degradedAfterChecks,
@@ -243,6 +246,7 @@ function columnsFrom(settings: MonitorSettings) {
     regions: settings.regions,
     policies: {
       minFailingRegions: settings.minFailingRegions,
+      alertOnRegionalIssue: settings.alertOnRegionalIssue,
       recoverySuccesses: settings.recoverySuccesses,
       degradedLatencyMs: settings.degradedLatencyMs,
       degradedAfterChecks: settings.degradedAfterChecks,

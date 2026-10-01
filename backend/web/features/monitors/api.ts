@@ -11,6 +11,8 @@ export interface Monitor {
   regions: string[];
   severity: "critical" | "high" | "low";
   sloTarget: number;
+  minFailingRegions: number;
+  alertOnRegionalIssue: boolean;
   paused: boolean;
   createdAt: string;
 }
@@ -73,6 +75,8 @@ export interface CreateMonitorBody {
     regions?: string[];
     severity?: "critical" | "high" | "low";
     sloTarget?: number;
+    minFailingRegions?: number;
+    alertOnRegionalIssue?: boolean;
   };
   config: MonitorConfigInput;
 }

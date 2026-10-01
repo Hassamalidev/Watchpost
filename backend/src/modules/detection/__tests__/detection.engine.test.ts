@@ -36,6 +36,7 @@ const fail = (s: number, errorCode = "connect_refused"): EngineResult => ({
 
 const EU = "eu-central";
 const US = "us-east";
+const AP = "ap-southeast";
 
 interface Scenario {
   name: string;
@@ -53,6 +54,7 @@ function run(s: Omit<Scenario, "name" | "expect">): Decision {
   const monitor: EngineMonitor = {
     regions: [EU],
     minFailingRegions: 2,
+    alertOnRegionalIssue: false,
     recoverySuccesses: 1,
     degradedAfterChecks: 3,
     upsideDown: false,
@@ -82,6 +84,9 @@ function run(s: Omit<Scenario, "name" | "expect">): Decision {
 }
 
 const MULTI = { regions: [EU, US], minFailingRegions: 2 };
+/* P2-T02: three regions, an incident needs two of them. */
+const THREE = { regions: [EU, US, AP], minFailingRegions: 2 };
+const VERIFIED = { status: "verifying" as const, verifyRequestedAt: at(590) };
 
 const scenarios: Scenario[] = [
   {
@@ -217,6 +222,111 @@ const scenarios: Scenario[] = [
     monitor: { regions: [EU, US], minFailingRegions: 1 },
     results: { [EU]: [fail(590)], [US]: [ok(580)] },
     expect: { status: "down", openIncident: true },
+  },
+  {
+    name: "three regions, 1 of 3 failing: the other two are asked to verify",
+    monitor: THREE,
+    results: { [EU]: [fail(590)], [US]: [ok(580)], [AP]: [ok(585)] },
+    expect: {
+      status: "verifying",
+      verifyRegions: [US, AP],
+      sameRegion: false,
+      openIncident: false,
+    },
+  },
+  {
+    name: "three regions, 1 of 3 failing: verified healthy elsewhere is a regional issue, no incident",
+    monitor: THREE,
+    state: VERIFIED,
+    results: { [EU]: [fail(588)], [US]: [ok(594)], [AP]: [ok(596)] },
+    expect: {
+      status: "degraded",
+      reason: "Regional issue: eu-central only",
+      regionalIssue: true,
+      openIncident: false,
+      failingRegions: [EU],
+    },
+  },
+  {
+    name: "three regions, 1 of 3 failing: waits until every other region has answered",
+    monitor: THREE,
+    state: VERIFIED,
+    results: { [EU]: [fail(588)], [US]: [ok(594)], [AP]: [ok(580)] },
+    expect: { status: "verifying", openIncident: false, verify: null },
+  },
+  {
+    name: "three regions, 2 of 3 failing: confirmed, one incident naming both regions",
+    monitor: THREE,
+    state: VERIFIED,
+    results: { [EU]: [fail(588)], [US]: [fail(594, "connect_timeout")], [AP]: [ok(596)] },
+    expect: {
+      status: "down",
+      openIncident: true,
+      regionalIssue: false,
+      failingRegions: [EU, US],
+      downtime: "outage",
+    },
+  },
+  {
+    name: "three regions, 2 of 3 failing in the same round: down without waiting for verification",
+    monitor: THREE,
+    results: { [EU]: [fail(590)], [US]: [fail(592)], [AP]: [ok(585)] },
+    expect: { status: "down", openIncident: true, verify: null, failingRegions: [EU, US] },
+  },
+  {
+    name: "three regions, 3 of 3 failing: down in every region",
+    monitor: THREE,
+    state: VERIFIED,
+    results: { [EU]: [fail(588)], [US]: [fail(594)], [AP]: [fail(596)] },
+    expect: { status: "down", openIncident: true, failingRegions: [EU, US, AP] },
+  },
+  {
+    name: "three regions requiring all three: 2 of 3 failing is a regional issue, not an outage",
+    monitor: { ...THREE, minFailingRegions: 3 },
+    state: VERIFIED,
+    results: { [EU]: [fail(588)], [US]: [fail(594)], [AP]: [ok(596)] },
+    expect: {
+      status: "degraded",
+      reason: "Regional issue: eu-central, us-east only",
+      openIncident: false,
+      failingRegions: [EU, US],
+    },
+  },
+  {
+    name: "three regions with one probe unavailable: the two that remain can still confirm",
+    monitor: THREE,
+    available: [EU, US],
+    state: VERIFIED,
+    results: { [EU]: [fail(588)], [US]: [fail(594)], [AP]: [ok(400)] },
+    expect: { status: "down", openIncident: true, failingRegions: [EU, US] },
+  },
+  {
+    name: "regional issue with the alert policy on opens an incident",
+    monitor: { ...THREE, alertOnRegionalIssue: true },
+    state: VERIFIED,
+    results: { [EU]: [fail(588)], [US]: [ok(594)], [AP]: [ok(596)] },
+    expect: { status: "degraded", regionalIssue: true, openIncident: true, failingRegions: [EU] },
+  },
+  {
+    name: "an alerted regional issue keeps its incident while the region still fails",
+    monitor: { ...THREE, alertOnRegionalIssue: true },
+    state: { status: "degraded", verifyRequestedAt: at(500), hasOpenIncident: true },
+    results: { [EU]: [fail(520), fail(588)], [US]: [ok(594)], [AP]: [ok(596)] },
+    expect: { status: "degraded", openIncident: false, resolveIncident: false },
+  },
+  {
+    name: "an alerted regional issue resolves its incident when the region recovers",
+    monitor: { ...THREE, alertOnRegionalIssue: true },
+    state: { status: "degraded", verifyRequestedAt: at(500), hasOpenIncident: true },
+    results: { [EU]: [fail(520), ok(588)], [US]: [ok(594)], [AP]: [ok(596)] },
+    expect: { status: "up", resolveIncident: true },
+  },
+  {
+    name: "an outage that shrinks to one region resolves unless regional issues are alerted",
+    monitor: THREE,
+    state: { status: "degraded", verifyRequestedAt: at(500), hasOpenIncident: true },
+    results: { [EU]: [fail(520), fail(588)], [US]: [ok(594)], [AP]: [ok(596)] },
+    expect: { status: "degraded", resolveIncident: true },
   },
   {
     name: "a region without a healthy probe is ignored and the other verifies itself",

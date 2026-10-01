@@ -23,6 +23,8 @@ import { organization } from "../../../infra/auth/schema.js";
 
 export interface MonitorPolicies {
   minFailingRegions: number;
+  /* Older rows don't have it; readers default to false. */
+  alertOnRegionalIssue?: boolean | undefined;
   recoverySuccesses: number;
   degradedLatencyMs?: number | undefined;
   degradedAfterChecks: number;

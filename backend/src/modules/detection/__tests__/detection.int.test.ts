@@ -44,7 +44,7 @@ async function report(
   entries: Array<{
     ok: boolean;
     secondsAgo: number;
-    region?: "eu-central" | "us-east";
+    region?: "eu-central" | "us-east" | "ap-southeast";
     code?: string;
   }>,
 ) {
@@ -102,8 +102,8 @@ beforeAll(async () => {
   detection = find<DetectionModule>("detection");
   results = find<ResultsModule>("results");
   const probes = find<ProbesModule>("probes");
-  /* Healthy probes in both regions (seen just now). */
-  for (const region of ["eu-central", "us-east"] as const) {
+  /* Healthy probes in three regions (seen just now). */
+  for (const region of ["eu-central", "us-east", "ap-southeast"] as const) {
     const creds = await probes.service.register({
       name: `detect-${region}-${randomBytes(3).toString("hex")}`,
       region,
@@ -252,6 +252,106 @@ describe("multi-region verification", () => {
       ["outage", true],
     ]);
   });
+});
+
+describe("three regions (P2-T02)", () => {
+  const THREE = ["eu-central", "us-east", "ap-southeast"] as const;
+  const healthy = (monitorId: string, secondsAgo: number) =>
+    report(
+      monitorId,
+      THREE.map((region) => ({ ok: true, secondsAgo, region })),
+    );
+
+  it("1 of 3 failing is a regional issue and pages nobody", async () => {
+    const monitorId = await createMonitor("Three A", { regions: THREE, minFailingRegions: 2 });
+    await healthy(monitorId, 60);
+    await report(monitorId, [{ ok: false, secondsAgo: 5 }]);
+    const first = await detection.service.evaluateMonitor(monitorId);
+    expect(first?.decision.verify?.regions).toEqual(["us-east", "ap-southeast"]);
+    await report(monitorId, [
+      { ok: true, secondsAgo: -1, region: "us-east" },
+      { ok: true, secondsAgo: -1, region: "ap-southeast" },
+    ]);
+    const second = await detection.service.evaluateMonitor(monitorId);
+    expect(second?.decision).toMatchObject({ status: "degraded", regionalIssue: true });
+    expect(await incidentsFor(monitorId)).toHaveLength(0);
+  });
+
+  it("1 of 3 failing opens a low-severity incident when regional issues are alerted", async () => {
+    const monitorId = await createMonitor("Three B", {
+      regions: THREE,
+      minFailingRegions: 2,
+      alertOnRegionalIssue: true,
+      severity: "critical",
+    });
+    await healthy(monitorId, 60);
+    await report(monitorId, [{ ok: false, secondsAgo: 5 }]);
+    await detection.service.evaluateMonitor(monitorId);
+    await report(monitorId, [
+      { ok: true, secondsAgo: -1, region: "us-east" },
+      { ok: true, secondsAgo: -1, region: "ap-southeast" },
+    ]);
+    await detection.service.evaluateMonitor(monitorId);
+    const incidents = await rows<{ title: string; severity: string; status: string }>(
+      sql`select title, severity, status from incidents where monitor_id = ${monitorId}`,
+    );
+    expect(incidents).toEqual([
+      { title: "Three B is failing from eu-central", severity: "low", status: "triggered" },
+    ]);
+
+    /* The region recovers: the incident resolves on its own. */
+    await report(monitorId, [
+      { ok: true, secondsAgo: -2 },
+      { ok: true, secondsAgo: -3 },
+    ]);
+    const recovered = await detection.service.evaluateMonitor(monitorId);
+    expect(recovered?.decision.status).toBe("up");
+    expect((await incidentsFor(monitorId)).map((i) => i.status)).toEqual(["resolved"]);
+  });
+
+  it("2 of 3 and 3 of 3 failing open one incident with the failing regions", async () => {
+    for (const failing of [2, 3]) {
+      const monitorId = await createMonitor(`Three ${failing}`, {
+        regions: THREE,
+        minFailingRegions: 2,
+      });
+      await healthy(monitorId, 60);
+      await report(
+        monitorId,
+        THREE.slice(0, failing).map((region) => ({ ok: false, secondsAgo: 2, region })),
+      );
+      const outcome = await detection.service.evaluateMonitor(monitorId);
+      expect(outcome?.decision.status).toBe("down");
+      expect(outcome?.decision.failingRegions).toEqual(THREE.slice(0, failing));
+      expect(await incidentsFor(monitorId)).toHaveLength(1);
+    }
+  });
+
+  it("measures the time from the confirming result to the open incident", async () => {
+    const samples: number[] = [];
+    for (let i = 0; i < 15; i += 1) {
+      const monitorId = await createMonitor(`Latency ${i}`, {
+        regions: THREE,
+        minFailingRegions: 2,
+      });
+      await healthy(monitorId, 60);
+      await report(monitorId, [{ ok: false, secondsAgo: 3 }]);
+      await detection.service.evaluateMonitor(monitorId);
+      const started = performance.now();
+      await report(monitorId, [{ ok: false, secondsAgo: 0, region: "us-east" }]);
+      const outcome = await detection.service.evaluateMonitor(monitorId);
+      samples.push(performance.now() - started);
+      expect(outcome?.decision.openIncident).toBe(true);
+    }
+    samples.sort((a, b) => a - b);
+    const median = samples[Math.floor(samples.length / 2)] ?? 0;
+    process.stdout.write(
+      `detection latency (ingest + evaluate, ms): median ${median.toFixed(0)}, max ${(samples.at(-1) ?? 0).toFixed(0)}
+`,
+    );
+    /* The pipeline's share of the §9.2 budget (verification 3–8 s, notification ≤ 5 s). */
+    expect(median).toBeLessThan(2_000);
+  }, 60_000);
 });
 
 describe("concurrency", () => {

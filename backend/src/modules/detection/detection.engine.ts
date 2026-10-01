@@ -17,6 +17,8 @@ export const RESULTS_PER_REGION = 20;
 export interface EngineMonitor {
   regions: string[];
   minFailingRegions: number;
+  /* Open an incident for a failure confirmed in fewer regions than that (a regional issue). */
+  alertOnRegionalIssue: boolean;
   /* Already resolved through effectiveRecoverySuccesses. */
   recoverySuccesses: number;
   degradedLatencyMs?: number | undefined;
@@ -65,6 +67,8 @@ export interface Decision {
   /* The newest failing result, kept as incident evidence. */
   evidence: EngineResult | null;
   openIncident: boolean;
+  /* Failing in fewer regions than required while the others were verified healthy. */
+  regionalIssue: boolean;
   resolveIncident: boolean;
   /* Regions to verify in; "same" means re-check the failing region after a short delay. */
   verify: { regions: string[]; sameRegion: boolean } | null;
@@ -184,6 +188,8 @@ export function evaluate(input: EngineInput): Decision {
   let verify: Decision["verify"] = null;
   let verifyRequestedAt = state.verifyRequestedAt;
   let evidence: Classified | null = null;
+  /* Failing in some regions while verification found the others healthy. */
+  let regionalIssue = false;
 
   if (monitor.paused) {
     status = "paused";
@@ -221,6 +227,7 @@ export function evaluate(input: EngineInput): Decision {
     if (requestedAt !== null && others.length > 0 && (answered || timedOut)) {
       /* Verification is done and the other regions are healthy: a regional issue. */
       status = "degraded";
+      regionalIssue = true;
       reason = `Regional issue: ${failedOnce.join(", ")} only`;
       evidence = newestFailure();
       transitionAt = state.status === "degraded" ? state.since : now;
@@ -274,11 +281,13 @@ export function evaluate(input: EngineInput): Decision {
   if (flappingEnded) stateChanges = [];
 
   /* Incidents: open when down; while flapping keep the one incident open until stable. */
-  const openIncident = status === "down" && !state.hasOpenIncident;
+  const alertRegional = regionalIssue && monitor.alertOnRegionalIssue;
+  const openIncident = (status === "down" || alertRegional) && !state.hasOpenIncident;
+  /* An alerted regional issue keeps its incident (or the outage's) open until the region recovers. */
   const resolveIncident =
     state.hasOpenIncident &&
     !flapping &&
-    (status === "up" || status === "paused" || status === "degraded");
+    (status === "up" || status === "paused" || (status === "degraded" && !alertRegional));
 
   const downtime: DowntimeKind | null =
     status === "down"
@@ -298,6 +307,7 @@ export function evaluate(input: EngineInput): Decision {
     evidence: evidence === null ? null : stripOutcome(evidence),
     openIncident,
     resolveIncident,
+    regionalIssue,
     verify,
     verifyRequestedAt,
     downtime,

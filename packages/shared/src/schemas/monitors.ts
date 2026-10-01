@@ -217,6 +217,11 @@ export const monitorSettingsObject = z.object({
   regions: z.array(z.enum(REGIONS)).min(1).max(REGIONS.length).default(["eu-central", "us-east"]),
   /* Failing regions needed before an incident opens (default 2; 1 in single-region setups). */
   minFailingRegions: z.number().int().min(1).max(REGIONS.length).default(2),
+  /*
+   * A failure confirmed in fewer regions than that is a regional issue: shown as degraded, and
+   * alerted (as a low-severity incident) only when this is on.
+   */
+  alertOnRegionalIssue: z.boolean().default(false),
   /* Consecutive successes needed to recover; 0 means "pick by interval" (§6.2). */
   recoverySuccesses: z.number().int().min(0).max(10).default(0),
   degradedLatencyMs: z.number().int().min(1).max(60_000).optional(),

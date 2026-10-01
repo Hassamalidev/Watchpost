@@ -35,6 +35,8 @@ interface Values {
   recordType: (typeof DNS_RECORD_TYPES)[number];
   intervalSeconds: string;
   regions: string[];
+  minFailingRegions: string;
+  alertOnRegionalIssue: boolean;
   severity: (typeof SEVERITIES)[number];
   sloTarget: string;
 }
@@ -64,6 +66,9 @@ function toBody(v: Values): CreateMonitorBody {
     name: v.name.trim(),
     intervalSeconds: Number(v.intervalSeconds),
     regions: v.regions,
+    /* Never more regions than are checked. */
+    minFailingRegions: Math.max(1, Math.min(Number(v.minFailingRegions), v.regions.length)),
+    alertOnRegionalIssue: v.regions.length > 1 && v.alertOnRegionalIssue,
     severity: v.severity,
     sloTarget: Number(v.sloTarget),
   };
@@ -125,6 +130,8 @@ const DEFAULTS: Values = {
   recordType: "A",
   intervalSeconds: "300",
   regions: ["eu-central", "us-east"],
+  minFailingRegions: "2",
+  alertOnRegionalIssue: false,
   severity: "high",
   sloTarget: "99.9",
 };
@@ -149,6 +156,8 @@ function valuesOf(monitor: Monitor): Values {
       : "A",
     intervalSeconds: String(monitor.intervalSeconds),
     regions: monitor.regions,
+    minFailingRegions: String(monitor.minFailingRegions ?? 2),
+    alertOnRegionalIssue: monitor.alertOnRegionalIssue ?? false,
     severity: monitor.severity,
     sloTarget: String(monitor.sloTarget ?? 99.9),
   };
@@ -165,6 +174,7 @@ export function MonitorForm({ ws, monitor }: { ws: string; monitor?: Monitor }) 
   const form = useForm<Values>({ defaultValues: monitor ? valuesOf(monitor) : DEFAULTS });
   const type = form.watch("type");
   const errors = form.formState.errors;
+  const regionCount = form.watch("regions").length;
   const usesUrl = type === "http" || type === "keyword";
   const usesPort = type === "tcp" || type === "ssl";
   /* Saved credentials stay with the target they were entered for (the API enforces it too). */
@@ -306,6 +316,30 @@ export function MonitorForm({ ws, monitor }: { ws: string; monitor?: Monitor }) 
           </p>
         )}
       </fieldset>
+      {regionCount > 1 && (
+        <>
+          <Field
+            label={t("confirmRegions")}
+            htmlFor="monitor-confirm-regions"
+            hint={t("confirmRegionsHint")}
+          >
+            <Select id="monitor-confirm-regions" {...form.register("minFailingRegions")}>
+              {Array.from({ length: regionCount }, (_, index) => (
+                <option key={index + 1} value={String(index + 1)}>
+                  {t("confirmRegionsOption", { count: index + 1 })}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-0.5" {...form.register("alertOnRegionalIssue")} />
+            <span>
+              {t("alertRegional")}
+              <span className="block text-xs text-muted-foreground">{t("alertRegionalHint")}</span>
+            </span>
+          </label>
+        </>
+      )}
       <Field label={t("severity")} htmlFor="monitor-severity">
         <Select id="monitor-severity" {...form.register("severity")}>
           {SEVERITIES.map((s) => (

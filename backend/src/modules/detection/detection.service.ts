@@ -139,6 +139,7 @@ export function engineMonitor(m: MonitorForDetection): EngineMonitor {
   return {
     regions: m.regions,
     minFailingRegions: m.policies.minFailingRegions,
+    alertOnRegionalIssue: m.policies.alertOnRegionalIssue ?? false,
     recoverySuccesses: effectiveRecoverySuccesses({
       recoverySuccesses: m.policies.recoverySuccesses,
       intervalSeconds: m.intervalSeconds,
@@ -300,8 +301,11 @@ export function createDetectionService(deps: DetectionServiceDeps): DetectionSer
           const opened = await deps.incidents.openForMonitor(tx, {
             workspaceId: monitor.workspaceId,
             monitorId,
-            title: `${monitor.name} is down`,
-            severity: monitor.severity,
+            /* A regional issue is worth knowing about, not worth waking anyone for. */
+            title: decision.regionalIssue
+              ? `${monitor.name} is failing from ${decision.failingRegions.join(", ")}`
+              : `${monitor.name} is down`,
+            severity: decision.regionalIssue ? "low" : monitor.severity,
             causeCode: decision.causeCode,
             failingRegions: decision.failingRegions,
             ...(decision.evidence
