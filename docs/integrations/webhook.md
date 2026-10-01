@@ -29,9 +29,20 @@ one (`whsec_…`); it is shown to admins on the channel page. Changing the URL k
     "url": "https://app…/w/…/incidents/482"
   },
   "monitor": { "name": "Checkout API" },
-  "actor": null
+  "actor": null,
+  "explanation": {
+    "headline": "Server error (HTTP 500)",
+    "detail": "api.example.com is reachable but the application fails while handling the request.",
+    "nextSteps": [
+      "Deploy 9f8e7d6 to production went out 3 min before this started; roll it back if the timing fits.",
+      "Check the application's error logs or error tracker for the start time."
+    ]
+  }
 }
 ```
+
+`explanation` is the likely cause and what to check first, in plain language (the same text the app
+and other channels show). It is `null` for acknowledged and resolved events and when we can't say.
 
 `type` is one of `incident.triggered`, `incident.acknowledged`, `incident.resolved`,
 `incident.reminder`, `incident.flapping`, `incident.test`.

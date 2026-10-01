@@ -14,6 +14,7 @@ import type { Logger } from "../../infra/logger.js";
 import type { Outbox } from "../../infra/outbox/index.js";
 import { buildJobId, type EnqueueOptions } from "../../infra/queues/index.js";
 import type { AuthenticatedProbe } from "../../middleware/probe-auth.js";
+import type { DeploysService } from "../deploys/index.js";
 import type { IncidentsService } from "../incidents/index.js";
 import type { MonitorForDetection, MonitorsService } from "../monitors/index.js";
 import type { ProbesService } from "../probes/index.js";
@@ -112,6 +113,7 @@ export interface DetectionServiceDeps {
     MonitorsService,
     "getForProbes" | "getForDetection" | "get" | "changeTimes" | "list"
   >;
+  deploys: Pick<DeploysService, "list">;
   results: Pick<
     ResultsService,
     "ingest" | "recent" | "ipHistory" | "tlsHistory" | "latencyAverage"
@@ -439,12 +441,13 @@ export function createDetectionService(deps: DetectionServiceDeps): DetectionSer
       const monitor = await deps.monitors.get(scope, monitorId);
       const from = new Date(before.getTime() - hours * 3_600_000);
       const hourBefore = new Date(before.getTime() - 3_600_000);
-      const [ips, certificates, configChanges, recent, baseline] = await Promise.all([
+      const [ips, certificates, configChanges, recent, baseline, deploys] = await Promise.all([
         deps.results.ipHistory(monitorId, from, before),
         deps.results.tlsHistory(monitorId, from, before),
         deps.monitors.changeTimes(scope, monitorId, from, before),
         deps.results.latencyAverage(monitorId, hourBefore, before),
         deps.results.latencyAverage(monitorId, from, hourBefore),
+        deps.deploys.list(scope, from, before),
       ]);
       return buildChanges({
         before,
@@ -453,6 +456,7 @@ export function createDetectionService(deps: DetectionServiceDeps): DetectionSer
         certificates,
         configChanges,
         latency: { recent, baseline },
+        deploys: deploys.map((d) => ({ ...d, deployedAt: new Date(d.deployedAt) })),
       });
     },
 

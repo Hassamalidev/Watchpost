@@ -7,6 +7,7 @@ import { probeOf } from "../../middleware/probe-auth.js";
 import { requireRole } from "../../middleware/roles.js";
 import { inputOf, validate } from "../../middleware/validate.js";
 import { scopeOf } from "../../middleware/workspace.js";
+import type { DeploysService } from "../deploys/index.js";
 import type { IncidentsService } from "../incidents/index.js";
 import type { MonitorsService } from "../monitors/index.js";
 import type { ProbesService } from "../probes/index.js";
@@ -37,6 +38,7 @@ export interface DetectionModuleDeps {
   results: ResultsService;
   probes: ProbesService;
   incidents: IncidentsService;
+  deploys: DeploysService;
   guards: { session: RequestHandler; workspace: RequestHandler };
 }
 
@@ -147,6 +149,7 @@ export function createDetectionModule(deps: DetectionModuleDeps): DetectionModul
     results: deps.results,
     probes: deps.probes,
     incidents: deps.incidents,
+    deploys: deps.deploys,
     outbox: deps.infra.outbox,
     clock: deps.infra.clock,
     logger: deps.infra.logger.child({ module: "detection" }),

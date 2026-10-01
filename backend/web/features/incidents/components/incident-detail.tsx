@@ -149,6 +149,16 @@ export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
       )}
       {action.isError && <Alert tone="error">{errorMessage(action.error)}</Alert>}
 
+      {data.recentDeploy && !data.explanation && (
+        <Alert tone="info">
+          {tInsights("deploySuspect", {
+            version: data.recentDeploy.service
+              ? `${data.recentDeploy.service} ${data.recentDeploy.version}`
+              : data.recentDeploy.version,
+            minutes: data.recentDeploy.minutesBefore,
+          })}
+        </Alert>
+      )}
       {data.explanation && open && (
         <ExplanationCard
           explanation={data.explanation}

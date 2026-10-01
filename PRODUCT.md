@@ -1,7 +1,7 @@
 # Watchpost — Product Spec and Build Plan (`PRODUCT.md`)
 
 > **Working name:** Watchpost. Replace it and `<domain>` everywhere once the final name and domain are chosen (Open decision #1).
-> **Status:** In progress · **Current phase:** 1 · **Next task:** `P1-T26` · **Last updated:** 2026-10-01 (P1-T25 done; P1-T20 and P1-T21 deferred by the owner, PC-002; owner action: branch ruleset in `docs/ci.md`)
+> **Status:** In progress · **Current phase:** 1 · **Next task:** `P1-T27` · **Last updated:** 2026-10-01 (P1-T26 done; P1-T20 and P1-T21 deferred by the owner, PC-002; owner action: branch ruleset in `docs/ci.md`)
 > The build agent keeps this status block current.
 
 **Companion files**
@@ -526,8 +526,9 @@ Better Auth's tables are managed by Better Auth through `infra/auth`; modules re
 | `channels` | channels, slack_installations, telegram_chats, teams_installations, message_refs | Channel configs and adapters (send, update, health) | credits, audit |
 | `results` | check_results, check_events, rollups_5m, rollups_1h, rollups_1d | Result storage, partitions, rollups, retention, chart queries | monitors |
 | `probes` | probes, probe_tasks | Probe registry and auth, assignments, tasks, probe health, "Test now" | monitors, results |
-| `incidents` | incidents, incident_events, incident_comments, postmortems | Incident lifecycle and timeline | monitors, workspaces, audit |
-| `detection` | monitor_state, monitor_region_state, downtimes | Result ingest (`POST /api/probe/v1/results`), fast path, evaluation engine (§9.2), uptime math | monitors, results, probes, maintenance, incidents |
+| `deploys` | deploy_hooks, deploys | Deploy markers: per-workspace deploy URL, GitHub `deployment_status` receiver, deploy log (P1-T26) | — |
+| `incidents` | incidents, incident_events, incident_comments, postmortems | Incident lifecycle and timeline; names a deploy shortly before an incident | monitors, workspaces, audit, deploys |
+| `detection` | monitor_state, monitor_region_state, downtimes | Result ingest (`POST /api/probe/v1/results`), fast path, evaluation engine (§9.2), uptime math, error budgets, "what changed" | monitors, results, probes, maintenance, incidents, deploys |
 | `heartbeats` | heartbeat_state, heartbeat_pings, platform_gaps | Heartbeat ingest, missed-ping sweeper, platform tick and gap guard | monitors, maintenance, incidents |
 | `expiry` | domain_expiry_cache, expiry_notices, rdap_bootstrap, ssl_state | SSL and domain sweeps; opens or updates one low-severity incident per expiring item, resolves it on renewal | monitors, results, incidents |
 | `inbound` | inbound_sources | Parse inbound alerts, dedupe, route | incidents, workspaces |
@@ -1194,8 +1195,10 @@ Targets assume a start on Monday 2026-10-05 with one developer and a coding agen
   *AC:* Playwright covers the new views in light and dark with axe; no accessibility regressions.
 - [x] **P1-T25 UX pass 2 (PC-002).** Status-page and reports placeholders replaced by a clear "coming in Phase N" with what to use meanwhile; monitor edit form (settings, SLO target, re-entering secrets after a target change); incident list filters by monitor and severity; keyboard shortcuts for acknowledge/resolve on the incident page; a separate local e2e database so leftover integration-test monitors don't slow the e2e probe.
   *AC:* Playwright covers monitor edit and the shortcuts in light and dark with axe.
-- [ ] **P1-T26 Deploy markers (PC-002, from §21.2).** A per-workspace deploy webhook (signed token URL, like heartbeats) and a GitHub `deployment_status` receiver record deploys (service, version/commit, environment, URL, time). Deploys join the "what changed" timeline, alerts say "started N minutes after deploy abc123 to production", and monitor pages mark deploys on the latency chart.
+- [x] **P1-T26 Deploy markers (PC-002, from §21.2).** A per-workspace deploy webhook (signed token URL, like heartbeats) and a GitHub `deployment_status` receiver record deploys (service, version/commit, environment, URL, time). Deploys join the "what changed" timeline, alerts say "started N minutes after deploy abc123 to production", and monitor pages mark deploys on the latency chart.
   *AC:* deploy recorded from a curl one-liner and from a GitHub webhook (signature verified); the change timeline and the alert explanation mention a deploy within 30 minutes before the incident; tests for both receivers and the timeline join.
+- [ ] **P1-T27 Review pass 2 (PC-002).** Independent review of everything added in P1-T22 to P1-T26 (insights, review fixes, UI, deploy markers) for security, tenancy, correctness and performance; fix what it finds.
+  *AC:* each confirmed finding fixed with a regression test, or recorded in §21.2 with the reason it waits.
 
 **Exit:** internal alpha live; merge; tag `v0.1.0`.
 
@@ -1409,6 +1412,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | D-048 | 2026-10-01 | Review fixes (P1-T23). Change-feed appends take a transaction-level advisory lock, so `seq` order is commit order and probe cursors can't pass an uncommitted row (a gap-tolerant cursor or snapshot filter was rejected: xid order isn't seq order). User headers on probe checks go only to the configured origin; a cross-origin redirect gets the default headers only (curl drops just Authorization/Cookie, but our users put keys in any header). Outbound HTTP callers that need the whole body set `maxBodyBytes` and get `too_large` instead of a cut body; alert sends keep the quiet 64 KiB cap. Stored monitor secrets are reused only while the target origin (or host:port) stays the same. Paused heartbeats keep moving their deadline. Delivery recovery waits out each delivery's own backoff, re-queues stuck sends in the same pass, and also runs every minute on the sweeps queue, not just at worker start. Test now refuses paused monitors. `/invite/[id]` accepts or declines Better Auth invitations, and sign-up from an invitation returns to it. | Each closes a real failure: missed config changes, leaked credentials, broken RDAP, secret exfiltration by a member, false alerts, duplicate alerts, dead invite links, a stuck button | — |
 | D-049 | 2026-10-01 | UI for the insight features (P1-T24). Overview: four health tiles (monitors up, alert accuracy over 30 days, mean time to acknowledge/resolve, error budgets) and an error-budget list; monitor page: likely cause while failing (the same `explainFailure` rules, computed from the newest failed check), error budget meter (`role=meter`, status in words), recent changes; incident page: drill banner, monitor link, likely cause with "confirmed from N of M regions", what changed in the 24 h before, who was notified (delivery log, polling while open); Integrations: Run alert drill (admins, confirm first), remove-channel confirmation, last error shown inline; monitor form: availability target with the monthly downtime each option allows. Loading states are skeletons with one screen-reader label. Local e2e flakiness came from ~3,000 leftover integration-test monitors in the shared dev database (the e2e probe checks them all); CI uses a fresh database. | Insights only help if people see them where they already look; skeletons and spelled-out statuses keep the UI calm and accessible | A separate "Insights" page (one more place to look) |
 | D-050 | 2026-10-01 | UX pass 2 (P1-T25). Monitors are edited in place (`/monitors/[id]/edit`, type fixed, config the form doesn't show is kept, so masked secrets round-trip; the API asks for them again if the target changes, D-048). Incident pages take A/R shortcuts (`aria-keyshortcuts`, ignored while typing). Incident filters (status, severity, monitor) live in the URL. Later-phase sections say which phase builds them and link to what helps today. Local e2e runs use their own `watchpost_e2e` database, recreated per run by `e2e/prepare-db.mjs` (it only ever drops a database whose name ends in `_e2e`; CI's database is just migrated). | Fewer dead ends and faster incident handling; reliable local e2e | Sharing the dev database with e2e (2,950 leftover monitors slowed the e2e probe) |
+| D-051 | 2026-10-01 | Deploy markers (P1-T26). New `deploys` module with no outgoing calls; `incidents` and `detection` read it. One deploy URL per workspace (`/api/deploys/<token>`, token stored as SHA-256, shown once, admins rotate it). GitHub `deployment_status` webhooks go to `<url>/github`, signed with a secret derived as HMAC(auth secret, token): only the server can compute it, nothing extra is stored, and rotating the auth secret means re-entering the GitHub secret. Only `success` states are recorded; GitHub retries dedupe on `github:<status id>`. Deploy URLs from callers must be http(s) (they become links). A deploy in the 30 minutes before a check-driven incident (not drills or expiry notices) becomes the first "check first" step in every alert channel and on the incident page, and deploys appear in "what changed". | Most outages follow a change, and the deploy is the change teams check first | A GitHub App (more setup, more permissions); storing a separate encrypted GitHub secret per workspace |
 
 ---
 
@@ -1421,7 +1425,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 
 ### 21.2 Improvement backlog (not scheduled)
 - **Request log:** record which missing channels or monitor types users ask for, with counts, to order P6-T06.
-- Deploy markers from GitHub/GitLab so alerts can say "outage started 2 minutes after deploy abc123" (strong AI context).
+- GitLab deployment events for deploy markers (GitHub and generic CI shipped in P1-T26); deploy markers on the latency chart.
 - Auto-create a Slack incident channel (`#inc-482`) with responders invited (Business).
 - On-call hours report for compensation.
 - Public alert-accuracy statistics once we have 90 days of data.
@@ -1486,6 +1490,7 @@ Events are written to `product_events` and shown on `/admin/metrics`.
 | 2026-10-01 | §17, §20 | D-048 (review fixes: change feed order, redirect headers, body limits, secret retargeting, paused heartbeats, delivery recovery, invite page, Test now on paused) | P1-T23 |
 | 2026-10-01 | §17, §20 | D-049 (insight UI, skeleton loading, SLO target field); new task P1-T25 | P1-T24 |
 | 2026-10-01 | §17, §20 | D-050 (monitor edit, incident shortcuts and filters, phase placeholders, separate e2e database); new task P1-T26 (deploy markers) | P1-T25 |
+| 2026-10-01 | §7.4, §17, §20, §21.2 | `deploys` module (tables deploy_hooks, deploys; incidents and detection may call it); D-051; next task P1-T27 | P1-T26 |
 
 ### Phase 0 retro (2026-09-30, `v0.0.1`)
 

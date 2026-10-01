@@ -13,6 +13,8 @@ APIs; these checklists cover what mocks can't — the real provider accepting an
 | Telegram        | Open our bot's link           | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET` | [telegram.md](telegram.md) |
 | Webhook         | URL (+ optional secret)       | none                                                                     | [webhook.md](webhook.md)   |
 
+Inbound: [deploys.md](deploys.md) records deploys from CI or GitHub so incidents can name a recent deploy.
+
 ## Owner release checklist
 
 Use a staging workspace. For each channel, tick every line and note the date and the build.

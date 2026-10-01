@@ -2,6 +2,7 @@
 import type { RequestHandler } from "express";
 import type { AppModule, Infra } from "../../composition/types.js";
 import { newId } from "../../infra/ids.js";
+import type { DeploysService } from "../deploys/index.js";
 import type { MonitorsService } from "../monitors/index.js";
 import type { WorkspacesService } from "../workspaces/index.js";
 import { createIncidentsController } from "./incidents.controller.js";
@@ -17,6 +18,7 @@ export type {
   IncidentSummary,
   IncidentDetail,
   IncidentMonitor,
+  RecentDeploy,
   IncidentView,
   IncidentsService,
   OpenForMonitorInput,
@@ -34,6 +36,7 @@ export interface IncidentsModuleDeps {
   infra: Pick<Infra, "db" | "clock" | "outbox">;
   workspaces: Pick<WorkspacesService, "nextIncidentNumber">;
   monitors: Pick<MonitorsService, "get" | "getForDetection">;
+  deploys: Pick<DeploysService, "latestBefore">;
   guards: { session: RequestHandler; workspace: RequestHandler };
 }
 
@@ -47,6 +50,7 @@ export function createIncidentsModule(deps: IncidentsModuleDeps): IncidentsModul
     repository: createIncidentsRepository(),
     workspaces: deps.workspaces,
     monitors: deps.monitors,
+    deploys: deps.deploys,
     outbox: deps.infra.outbox,
     clock: deps.infra.clock,
     newId,

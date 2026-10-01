@@ -6,7 +6,7 @@
  * Pure: the service loads the inputs.
  */
 
-export type ChangeKind = "address" | "certificate" | "config" | "latency";
+export type ChangeKind = "deploy" | "address" | "certificate" | "config" | "latency";
 
 export interface ChangeEvent {
   at: string;
@@ -28,6 +28,14 @@ export interface ChangeInputs {
     firstSeen: Date;
   }>;
   configChanges: Date[];
+  /* Deploys recorded for the workspace (P1-T26). */
+  deploys?: Array<{
+    version: string;
+    service: string | null;
+    environment: string | null;
+    description: string | null;
+    deployedAt: Date;
+  }>;
   latency: {
     /* The hour before `before`, and the hours before that. */
     recent: { averageMs: number | null; count: number };
@@ -87,6 +95,17 @@ export function buildChanges(input: ChangeInputs): ChangeEvent[] {
       title: "TLS certificate changed",
       detail: `Now ${issuer}${until}.`,
       regions: change.regions.sort(),
+    });
+  }
+
+  for (const deploy of input.deploys ?? []) {
+    const what = deploy.service ? `${deploy.service} ${deploy.version}` : deploy.version;
+    events.push({
+      at: deploy.deployedAt.toISOString(),
+      kind: "deploy",
+      title: `Deployed ${what}${deploy.environment ? ` to ${deploy.environment}` : ""}`,
+      detail: deploy.description,
+      regions: [],
     });
   }
 

@@ -37,6 +37,14 @@ export interface IncidentDetail extends Incident {
   comments: Array<{ id: string; authorId: string; body: string; createdAt: string }>;
   monitor: { id: string; name: string; target: string | null; regionCount: number } | null;
   explanation: Explanation | null;
+  recentDeploy: {
+    version: string;
+    service: string | null;
+    environment: string | null;
+    url: string | null;
+    deployedAt: string;
+    minutesBefore: number;
+  } | null;
 }
 
 export interface IncidentQuery {

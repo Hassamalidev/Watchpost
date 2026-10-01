@@ -19,6 +19,7 @@ import { Input, Select } from "@/components/ui/input";
 import { Loading } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/api";
 import { relativeTime } from "@/lib/format";
+import { DeployHookCard } from "@/features/insights/components/deploy-hook";
 import { DrillCard } from "@/features/insights/components/drill";
 import { addToDefaultPolicy, integrationsApi, type Channel } from "../api";
 
@@ -262,6 +263,7 @@ export function IntegrationsPage() {
         </Card>
       )}
       {isAdmin && (channels.data ?? []).length > 0 && <DrillCard ws={ws} />}
+      <DeployHookCard ws={ws} canManage={isAdmin} />
     </div>
   );
 }

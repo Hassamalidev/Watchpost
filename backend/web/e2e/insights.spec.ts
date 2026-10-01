@@ -60,3 +60,15 @@ test("an alert drill is labelled and shows who was notified", async ({ page }) =
   await page.getByRole("button", { name: "Resolve" }).click();
   await expect(page.getByText("Resolved").first()).toBeVisible();
 });
+
+test("admins create a deploy URL and see it once", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "light", "creating the URL twice would rotate it mid-run");
+  await page.goto(path("integrations"));
+  await expect(page.getByRole("heading", { name: "Deploy markers" })).toBeVisible();
+  /* Rotating asks first (native confirm); creating doesn't. Accept either way. */
+  page.on("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: /deploy URL/ }).click();
+  await expect(page.getByLabel("Deploy URL")).toHaveValue(/\/api\/deploys\/[A-Za-z0-9_-]+$/);
+  await expect(page.getByLabel("Secret")).not.toHaveValue("");
+  await noAxeViolations(page);
+});

@@ -2,12 +2,13 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { Gauge, Network, Settings2, ShieldCheck, type LucideIcon } from "lucide-react";
+import { Gauge, Network, Rocket, Settings2, ShieldCheck, type LucideIcon } from "lucide-react";
 import { Loading } from "@/components/ui/skeleton";
 import { formatDateTime } from "@/lib/format";
 import { useChanges, type ChangeEvent } from "../api";
 
 const ICONS: Record<ChangeEvent["kind"], LucideIcon> = {
+  deploy: Rocket,
   address: Network,
   certificate: ShieldCheck,
   config: Settings2,

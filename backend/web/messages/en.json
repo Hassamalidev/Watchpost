@@ -459,6 +459,21 @@
     "budgetsTitle": "Error budgets",
     "monitorLink": "Monitor: {name}",
     "tileBudgetsNone": "Budgets start with your first monitor.",
-    "tileMonitorsWaiting": "{count, plural, one {# monitor is} other {# monitors are}} waiting for the first check."
+    "tileMonitorsWaiting": "{count, plural, one {# monitor is} other {# monitors are}} waiting for the first check.",
+    "deployTitle": "Deploy markers",
+    "deployIntro": "Tell Watchpost when you deploy, and incidents will say \"started 2 minutes after deploy abc123\". Deploys also appear in each monitor's recent changes.",
+    "deployNotConfigured": "No deploy URL yet.",
+    "deployConfigured": "A deploy URL is set up. For security it is only shown when created; rotate it to see a new one.",
+    "deployCreate": "Create deploy URL",
+    "deployRotate": "Rotate deploy URL",
+    "deployRotateConfirm": "Rotate the deploy URL? The current URL and GitHub secret stop working right away.",
+    "deployOnce": "Copy these now: the URL and secret are shown only once.",
+    "deployUrl": "Deploy URL",
+    "deployCurl": "From CI (any provider)",
+    "deployGithubTitle": "Or from GitHub",
+    "deployGithubSteps": "In your repository: Settings → Webhooks → Add webhook. Use the URL and secret below, content type application/json, and pick only the \"Deployment statuses\" event.",
+    "deployGithubUrl": "Payload URL",
+    "deployGithubSecret": "Secret",
+    "deploySuspect": "Deploy {version} went out {minutes, plural, =0 {less than a minute} one {# minute} other {# minutes}} before this started."
   }
 }

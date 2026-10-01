@@ -219,6 +219,7 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
     const e = explainIncident(
       incident,
       ctx.monitor ? { target: ctx.monitor.target, regionCount: ctx.monitor.regionCount } : null,
+      ctx.recentDeploy,
     );
     if (e === null) return null;
     return { headline: e.headline, detail: e.detail, nextSteps: e.nextSteps.slice(0, 3) };

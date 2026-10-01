@@ -40,7 +40,7 @@ export interface MonitorBudget extends ErrorBudget {
 
 export interface ChangeEvent {
   at: string;
-  kind: "address" | "certificate" | "config" | "latency";
+  kind: "deploy" | "address" | "certificate" | "config" | "latency";
   title: string;
   detail: string | null;
   regions: string[];

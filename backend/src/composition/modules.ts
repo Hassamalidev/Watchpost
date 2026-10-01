@@ -15,6 +15,7 @@ import { createHeartbeatsModule } from "../modules/heartbeats/index.js";
 import { createExpiryModule } from "../modules/expiry/index.js";
 import { createActionsModule } from "../modules/actions/index.js";
 import { createReportsModule } from "../modules/reports/index.js";
+import { createDeploysModule } from "../modules/deploys/index.js";
 /* new-module:imports */
 
 export function createModules(infra: Infra): AppModule[] {
@@ -35,10 +36,13 @@ export function createModules(infra: Infra): AppModule[] {
     guards: workspaces.guards,
   });
   modules.push(probes);
+  const deploys = createDeploysModule({ infra, guards: workspaces.guards });
+  modules.push(deploys);
   const incidents = createIncidentsModule({
     infra,
     workspaces: workspaces.service,
     monitors: monitors.service,
+    deploys: deploys.service,
     guards: workspaces.guards,
   });
   modules.push(incidents);
@@ -48,6 +52,7 @@ export function createModules(infra: Infra): AppModule[] {
     results: results.service,
     probes: probes.service,
     incidents: incidents.service,
+    deploys: deploys.service,
     guards: workspaces.guards,
   });
   modules.push(detection);

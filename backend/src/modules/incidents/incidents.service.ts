@@ -10,6 +10,7 @@ import { ConflictError, NotFoundError } from "../../core/errors.js";
 import { createWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
 import type { Db, DbOrTx, Tx } from "../../infra/db/index.js";
 import type { Outbox } from "../../infra/outbox/index.js";
+import { DEPLOY_SUSPECT_MINUTES, type DeploysService } from "../deploys/index.js";
 import type { MonitorsService } from "../monitors/index.js";
 import type { WorkspacesService } from "../workspaces/index.js";
 import type { IncidentFilters, IncidentRef, IncidentsRepository } from "./incidents.repository.js";
@@ -83,12 +84,14 @@ export interface IncidentDetail extends IncidentView {
   monitor: IncidentMonitor | null;
   /* The likely cause and first checks, as alerts show them; null when we can't say. */
   explanation: Explanation | null;
+  recentDeploy: RecentDeploy | null;
 }
 
 /* One explanation for alerts and the incident page (§4 pillar 2). */
 export function explainIncident(
   incident: Pick<IncidentView, "causeCode" | "evidence" | "failingRegions">,
   monitor: Pick<IncidentMonitor, "target" | "regionCount"> | null,
+  deploy: RecentDeploy | null = null,
 ): Explanation | null {
   if (incident.causeCode === null) return null;
   const evidence = incident.evidence ?? {};
@@ -99,7 +102,19 @@ export function explainIncident(
     totalRegions: monitor?.regionCount,
     target: monitor?.target,
   });
-  return explanation.category === "unknown" ? null : explanation;
+  if (explanation.category === "unknown") return null;
+  if (deploy === null) return explanation;
+  /* A fresh deploy is the most likely culprit for almost any failure: check it first. */
+  const where = deploy.environment ? ` to ${deploy.environment}` : "";
+  const what = deploy.service ? `${deploy.service} ${deploy.version}` : deploy.version;
+  const when = deploy.minutesBefore < 1 ? "less than a minute" : `${deploy.minutesBefore} min`;
+  return {
+    ...explanation,
+    nextSteps: [
+      `Deploy ${what}${where} went out ${when} before this started; roll it back if the timing fits.`,
+      ...explanation.nextSteps,
+    ],
+  };
 }
 
 /* Everything alerting needs to route and render an incident's notifications. */
@@ -115,6 +130,17 @@ export interface AlertContext {
     target: string | null;
     regionCount: number;
   } | null;
+  recentDeploy: RecentDeploy | null;
+}
+
+/* A deploy shortly before the incident started: the first suspect. */
+export interface RecentDeploy {
+  version: string;
+  service: string | null;
+  environment: string | null;
+  url: string | null;
+  deployedAt: string;
+  minutesBefore: number;
 }
 
 export interface ExpiryIncidentInput {
@@ -227,6 +253,7 @@ export interface IncidentsServiceDeps {
   repository: IncidentsRepository;
   workspaces: Pick<WorkspacesService, "nextIncidentNumber">;
   monitors: Pick<MonitorsService, "get" | "getForDetection">;
+  deploys: Pick<DeploysService, "latestBefore">;
   outbox: Outbox;
   clock: Clock;
   newId: () => string;
@@ -239,6 +266,25 @@ const iso = (d: Date | null) => (d === null ? null : d.toISOString());
 
 export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsService {
   const { repository: repo, clock } = deps;
+
+  /* The newest deploy in the half hour before a check-driven incident started. */
+  async function recentDeployFor(row: IncidentRow): Promise<RecentDeploy | null> {
+    if (row.source === "drill" || row.source === "expiry") return null;
+    const deploy = await deps.deploys.latestBefore(
+      createWorkspaceScope({ workspaceId: row.workspaceId }),
+      row.startedAt,
+      DEPLOY_SUSPECT_MINUTES,
+    );
+    if (deploy === undefined) return null;
+    return {
+      version: deploy.version,
+      service: deploy.service,
+      environment: deploy.environment,
+      url: deploy.url,
+      deployedAt: deploy.deployedAt,
+      minutesBefore: Math.floor((row.startedAt.getTime() - Date.parse(deploy.deployedAt)) / 60_000),
+    };
+  }
 
   const toView = (row: IncidentRow): IncidentView => {
     const end = row.resolvedAt ?? clock.now();
@@ -416,6 +462,7 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
         row.monitorId === null ? [] : await deps.monitors.getForDetection([row.monitorId]);
       return {
         workspaceId: row.workspaceId,
+        recentDeploy: await recentDeployFor(row),
         incident: toView(row),
         monitor:
           monitor === undefined
@@ -558,12 +605,14 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
               regionCount: found.regions.length,
             };
       const view = toView(row);
+      const recentDeploy = await recentDeployFor(row);
       return {
         ...view,
         timeline: events.map(toEntry),
         comments: comments.map(toComment),
         monitor,
-        explanation: explainIncident(view, monitor),
+        explanation: explainIncident(view, monitor, recentDeploy),
+        recentDeploy,
       };
     },
 
