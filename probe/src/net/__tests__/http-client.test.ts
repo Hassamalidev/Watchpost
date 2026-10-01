@@ -55,6 +55,10 @@ function handler(req: http.IncomingMessage, res: http.ServerResponse) {
     case "/method":
       res.end(req.method);
       return;
+    case "/temporary":
+      res.writeHead(307, { location: url.searchParams.get("to") ?? "/method" });
+      res.end();
+      return;
     case "/secrets":
       res.end(`${req.headers.authorization ?? "-"} ${req.headers["x-api-key"] ?? "-"}`);
       return;
@@ -156,6 +160,25 @@ describe("pinned connections", () => {
       headers,
     });
     expect(elsewhere.body.toString()).toBe("- -");
+  });
+
+  it("won't resend a request body to another origin on a 307", async () => {
+    const elsewhere = `http://other.test:${port}/method`;
+    expect(
+      await codeOf(
+        request({
+          url: `http://target.test:${port}/temporary?to=${encodeURIComponent(elsewhere)}`,
+          method: "POST",
+          body: "token=s3cret",
+        }),
+      ),
+    ).toBe("http_redirect_blocked");
+    const same = await request({
+      url: `http://target.test:${port}/temporary?to=/method`,
+      method: "POST",
+      body: "token=s3cret",
+    });
+    expect(same.body.toString()).toBe("POST");
   });
 
   it("re-validates every redirect hop, so a rebinding second answer is blocked", async () => {

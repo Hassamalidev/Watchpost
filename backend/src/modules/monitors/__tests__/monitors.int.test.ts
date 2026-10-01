@@ -224,6 +224,47 @@ describe("change sequence (probe sync feed)", () => {
   });
 });
 
+describe("partial updates", () => {
+  it("change only the settings sent; the rest keep their stored values", async () => {
+    const created = await createMonitor(
+      owner,
+      ws,
+      {
+        name: "Keep me",
+        regions: ["eu-central"],
+        intervalSeconds: 600,
+        timeoutMs: 5_000,
+        upsideDown: true,
+        sloTarget: 99.5,
+        tags: ["prod"],
+      },
+      { type: "tcp", host: "keep.example.com", port: 443 },
+    );
+    expect(created.status, created.text).toBe(201);
+    const id = created.body.id as string;
+
+    const renamed = await patch(owner, `/api/w/${ws}/monitors/${id}`, {
+      settings: { name: "Kept" },
+    });
+    expect(renamed.status, renamed.text).toBe(200);
+    expect(renamed.body).toMatchObject({
+      name: "Kept",
+      regions: ["eu-central"],
+      intervalSeconds: 600,
+      timeoutMs: 5_000,
+      upsideDown: true,
+      sloTarget: 99.5,
+      tags: ["prod"],
+    });
+
+    const invalid = await patch(owner, `/api/w/${ws}/monitors/${id}`, {
+      settings: { intervalSeconds: 1 },
+    });
+    expect(invalid.status).toBe(400);
+    expect(invalid.text).toContain("settings.intervalSeconds");
+  });
+});
+
 describe("secrets", () => {
   it("never returns or stores credentials in plain text, and keeps them when the mask comes back", async () => {
     const created = await createMonitor(

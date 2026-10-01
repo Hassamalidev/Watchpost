@@ -522,8 +522,12 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
         new Date(clock.now().getTime() - STALE_DELIVERY_MS),
         SWEEP_BATCH,
       );
-      /* A new job ID: the lost job's ID may still be taken by its failed record. */
-      for (const d of stale) await notifyJob(d, `r${clock.now().getTime()}`);
+      /*
+       * One recovery job ID per attempt: while a recovery job is still queued (a backlog, not a loss),
+       * BullMQ ignores the duplicate add, so the minutely sweep can't pile up jobs. A job that ran and
+       * failed raised `attempts`, so the next recovery gets a fresh ID.
+       */
+      for (const d of stale) await notifyJob(d, `r${d.attempts}`);
       return stale.length;
     },
 

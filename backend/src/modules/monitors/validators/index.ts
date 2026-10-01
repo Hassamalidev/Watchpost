@@ -20,10 +20,28 @@ export const listMonitorsQuery = z.object({
 
 export const createMonitorBody = createMonitorSchema;
 
+/*
+ * A settings PATCH keeps only the keys the caller sent. (`.partial()` still fills in defaults for
+ * missing keys, which would silently reset regions, tags and policies on every edit.)
+ */
+const settingsPatchSchema = monitorSettingsObject.partial().strict();
+const settingsPatch = z.record(z.string(), z.unknown()).transform((raw, ctx) => {
+  const parsed = settingsPatchSchema.safeParse(raw);
+  if (!parsed.success) {
+    for (const issue of parsed.error.issues) {
+      ctx.addIssue({ code: "custom", message: issue.message, path: issue.path });
+    }
+    return z.NEVER;
+  }
+  return Object.fromEntries(
+    Object.entries(parsed.data).filter(([key]) => Object.hasOwn(raw, key)),
+  ) as Partial<z.output<typeof settingsPatchSchema>>;
+});
+
 /* Partial settings are merged with the stored ones and then validated as a whole by the service. */
 export const updateMonitorBody = z
   .object({
-    settings: monitorSettingsObject.partial().strict().optional(),
+    settings: settingsPatch.optional(),
     config: z.record(z.string(), z.unknown()).optional(),
   })
   .strict()

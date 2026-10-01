@@ -155,6 +155,7 @@ export function createDetectionRepository() {
       from: Date,
       to: Date,
       limit: number,
+      monitorId?: string,
     ): Promise<Array<{ monitorId: string; seconds: number }>> {
       const fromIso = from.toISOString();
       const toIso = to.toISOString();
@@ -164,6 +165,7 @@ export function createDetectionRepository() {
           - greatest(${downtimes.startedAt}, ${fromIso}::timestamptz))) as seconds
         from ${downtimes}
         where ${downtimes.workspaceId} = ${workspaceId} and ${downtimes.kind} = 'outage'
+          ${monitorId === undefined ? sql`` : sql`and ${downtimes.monitorId} = ${monitorId}`}
           and ${downtimes.startedAt} < ${toIso}::timestamptz
           and (${downtimes.endedAt} is null or ${downtimes.endedAt} > ${fromIso}::timestamptz)
         group by monitor_id

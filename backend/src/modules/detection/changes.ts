@@ -19,13 +19,14 @@ export interface ChangeEvent {
 export interface ChangeInputs {
   before: Date;
   createdAt: Date;
-  ips: Array<{ region: string; ip: string; firstSeen: Date }>;
+  ips: Array<{ region: string; ip: string; firstSeen: Date; lastSeen: Date }>;
   certificates: Array<{
     region: string;
     fingerprint: string;
     issuer: string | null;
     validTo: string | null;
     firstSeen: Date;
+    lastSeen: Date;
   }>;
   configChanges: Date[];
   /* Deploys recorded for the workspace (P1-T26). */
@@ -43,8 +44,12 @@ export interface ChangeInputs {
   };
 }
 
-/* Values that appear in a region after an earlier value there; merged across regions. */
-function regionalChanges<T extends { region: string; firstSeen: Date }>(
+/*
+ * Values that replaced the earlier ones in a region, merged across regions. A value counts only when
+ * every earlier value had stopped being seen by the time it appeared: round-robin DNS and CDN edges
+ * rotate through several addresses and certificates at once, which is not a change.
+ */
+function regionalChanges<T extends { region: string; firstSeen: Date; lastSeen: Date }>(
   rows: T[],
   key: (row: T) => string,
 ): Array<{ value: T; previous: T; regions: string[]; at: Date }> {
@@ -55,6 +60,8 @@ function regionalChanges<T extends { region: string; firstSeen: Date }>(
     const ordered = [...list].sort((a, b) => a.firstSeen.getTime() - b.firstSeen.getTime());
     for (let i = 1; i < ordered.length; i += 1) {
       const value = ordered[i]!;
+      const earlier = ordered.slice(0, i);
+      if (earlier.some((e) => e.lastSeen >= value.firstSeen)) continue;
       const id = key(value);
       const existing = merged.get(id);
       if (existing) {
@@ -63,7 +70,7 @@ function regionalChanges<T extends { region: string; firstSeen: Date }>(
       } else {
         merged.set(id, {
           value,
-          previous: ordered[i - 1]!,
+          previous: earlier.reduce((a, b) => (b.lastSeen > a.lastSeen ? b : a)),
           regions: [region],
           at: value.firstSeen,
         });

@@ -375,6 +375,12 @@ describe("delivery", () => {
     expect(await service.recoverDeliveries()).toBeGreaterThanOrEqual(1);
     const requeued = notifyJobs.slice(before).find((j) => j.deliveryId === delivery?.id);
     expect(requeued?.options.jobId).toMatch(new RegExp(`^notify\\.${delivery?.id}\\.r\\d+$`));
+
+    /* A second sweep before anything ran reuses the ID, so the queue drops the duplicate. */
+    const again = notifyJobs.length;
+    await service.recoverDeliveries();
+    const second = notifyJobs.slice(again).find((j) => j.deliveryId === delivery?.id);
+    expect(second?.options.jobId).toBe(requeued?.options.jobId);
   });
 
   it("leaves retries waiting out their backoff alone, and picks up stuck sends at once", async () => {

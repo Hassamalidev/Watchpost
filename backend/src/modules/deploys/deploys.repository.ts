@@ -1,5 +1,5 @@
 /* Drizzle queries for deploy_hooks and deploys. Tenant reads and writes go through tenantWhere. */
-import { and, desc, eq, gte, lte } from "drizzle-orm";
+import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import type { WorkspaceScope } from "../../core/workspace-scope.js";
 import type { DbOrTx } from "../../infra/db/index.js";
 import { tenantWhere, withWorkspace } from "../../infra/db/tenancy.js";
@@ -14,14 +14,19 @@ export function createDeploysRepository() {
       return row;
     },
 
-    /* Replaces the workspace's hook (one per workspace). */
+    /* Replaces the workspace's hook (one per workspace); concurrent rotations both succeed, last wins. */
     async replaceHook(
       db: DbOrTx,
       scope: WorkspaceScope,
       values: { id: string; tokenHash: string; createdBy: string | null },
     ) {
-      await db.delete(deployHooks).where(tenantWhere(scope, deployHooks));
-      await db.insert(deployHooks).values(withWorkspace(scope, values));
+      await db
+        .insert(deployHooks)
+        .values(withWorkspace(scope, values))
+        .onConflictDoUpdate({
+          target: deployHooks.workspaceId,
+          set: { tokenHash: values.tokenHash, createdBy: values.createdBy, createdAt: sql`now()` },
+        });
     },
 
     /* System-level lookup for the token URL: which workspace owns this token. */

@@ -141,13 +141,11 @@ export function createDeploysService(deps: {
 
     async rotateHook(scope) {
       const token = randomBytes(24).toString("base64url");
-      await deps.db.transaction((tx) =>
-        repo.replaceHook(tx, scope, {
-          id: deps.newId(),
-          tokenHash: hashToken(token),
-          createdBy: scope.actorUserId ?? null,
-        }),
-      );
+      await repo.replaceHook(deps.db, scope, {
+        id: deps.newId(),
+        tokenHash: hashToken(token),
+        createdBy: scope.actorUserId ?? null,
+      });
       const url = `${deps.publicOrigin}/api/deploys/${token}`;
       return { url, githubUrl: `${url}/github`, githubSecret: githubSecretFor(token) };
     },

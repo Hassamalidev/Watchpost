@@ -99,6 +99,18 @@ describe("deploy URL", () => {
     });
   });
 
+  it("throttles a flood of posts to one URL", async () => {
+    const statuses: number[] = [];
+    for (let i = 0; i < 32; i += 1) {
+      statuses.push(
+        (await request(ctx.app).post("/api/deploys/flood-token-0000000000").send({})).status,
+      );
+      if (statuses.at(-1) === 429) break;
+    }
+    expect(statuses.at(-1)).toBe(429);
+    expect(statuses.length).toBeLessThanOrEqual(31);
+  });
+
   it("refuses unknown tokens and bad input", async () => {
     expect(
       (await request(ctx.app).post("/api/deploys/not-a-real-token-123456").send({ version: "x" }))
@@ -147,7 +159,12 @@ describe("GitHub deployments", () => {
     ).toEqual({ outcome: "ignored" });
   });
 
-  it("rotating the URL retires the old token", async () => {
+  it("rotating the URL retires the old token, even when two admins rotate at once", async () => {
+    const both = await Promise.all([
+      post(owner, `/api/w/${ws}/deploy-hook`),
+      post(owner, `/api/w/${ws}/deploy-hook`),
+    ]);
+    expect(both.map((r) => r.status)).toEqual([201, 201]);
     const old = hook;
     hook = (await post(owner, `/api/w/${ws}/deploy-hook`)).body;
     expect((await request(ctx.app).post(pathOf(old.url)).send({ version: "x" })).status).toBe(404);

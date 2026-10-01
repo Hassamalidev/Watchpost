@@ -43,6 +43,29 @@ test("a monitor can be edited, keeping its type", async ({ page }, testInfo) => 
   await expect(page.getByText("Target: 99.95% availability.")).toBeVisible();
 });
 
+test("pointing a monitor with saved credentials elsewhere asks to drop them", async ({
+  page,
+}, testInfo) => {
+  const created = await post(page, "/monitors", {
+    settings: { name: `Private ${testInfo.project.name}`, regions: ["eu-central"] },
+    config: {
+      type: "http",
+      url: "https://api.example.com/health",
+      auth: { kind: "bearer", token: "s3cret-token" },
+    },
+  });
+  const { id } = (await created.json()) as { id: string };
+  await page.goto(path(`monitors/${id}/edit`));
+  await page.getByLabel("URL").fill("https://status.example.net/health");
+  await expect(page.getByText("This monitor has saved credentials")).toBeVisible();
+  await noAxeViolations(page);
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("The target changed: confirm removing")).toBeVisible();
+  await page.getByLabel("Remove the saved credentials and save").check();
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("status.example.net/health")).toBeVisible();
+});
+
 test("A acknowledges and R resolves an incident from the keyboard", async ({ page }) => {
   const drill = await post(page, "/incidents/drill", {});
   const { number } = (await drill.json()) as { number: number };

@@ -206,7 +206,10 @@
     "noChecksYet": "No checks yet. The first results arrive within one interval, or use Test now.",
     "noChecksPaused": "No checks while paused.",
     "editTitle": "Edit monitor",
-    "edit": "Edit"
+    "edit": "Edit",
+    "secretsRetarget": "This monitor has saved credentials (a password, token or secret header). They were entered for the old target and won't be sent to the new one.",
+    "secretsDrop": "Remove the saved credentials and save",
+    "secretsRetargetRequired": "The target changed: confirm removing the saved credentials, or keep the old target."
   },
   "incidents": {
     "title": "Incidents",

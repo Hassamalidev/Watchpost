@@ -313,6 +313,14 @@ export async function httpRequest(options: HttpRequestOptions): Promise<HttpResp
         method = "GET";
         body = undefined;
       }
+      /* 307/308 resend the body; like the headers, it may carry secrets meant for this origin only. */
+      if (body !== undefined && next.origin !== trustedOrigin) {
+        throw new CheckError(
+          "http_redirect_blocked",
+          `redirect to ${next.origin} would resend the request body to another origin`,
+          { redirects },
+        );
+      }
       url = next;
       continue;
     }

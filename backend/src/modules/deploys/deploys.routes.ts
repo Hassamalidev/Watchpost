@@ -5,6 +5,8 @@
  * raw body).
  */
 import express, { Router, type RequestHandler } from "express";
+import type { RedisClient } from "../../infra/redis.js";
+import { createRateLimiter } from "../../middleware/rate-limit.js";
 import { requireRole } from "../../middleware/roles.js";
 import { inputOf, validate } from "../../middleware/validate.js";
 import { scopeOf } from "../../middleware/workspace.js";
@@ -40,9 +42,23 @@ export function createDeploysRouter(
   return router;
 }
 
-/* Raw-body router mounted at /api/deploys (before the JSON parser). */
-export function createDeployIngestRouter(service: DeploysService): Router {
+/*
+ * Raw-body router mounted at /api/deploys (before the JSON parser, so before the global per-IP limit).
+ * Its own limits: per IP against token guessing, per token against a leaked URL flooding the log.
+ */
+export function createDeployIngestRouter(service: DeploysService, redis: RedisClient): Router {
   const router = Router();
+  router.use(createRateLimiter({ redis, name: "deploys-ip", windowMs: 60_000, limit: 120 }));
+  router.use(
+    "/:token",
+    createRateLimiter({
+      redis,
+      name: "deploys-token",
+      windowMs: 60_000,
+      limit: 30,
+      keyOf: (req) => String(req.params.token ?? ""),
+    }),
+  );
   const notFound = (res: express.Response) => res.status(404).json({ error: "not_found" });
 
   router.post(

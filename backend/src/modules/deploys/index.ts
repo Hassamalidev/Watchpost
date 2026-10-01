@@ -12,7 +12,7 @@ export type { DeployView, DeploysService } from "./deploys.service.js";
 export const DEPLOY_SUSPECT_MINUTES = 30;
 
 export interface DeploysModuleDeps {
-  infra: Pick<Infra, "db" | "clock" | "logger" | "config">;
+  infra: Pick<Infra, "db" | "clock" | "logger" | "config" | "redis">;
   guards: { session: RequestHandler; workspace: RequestHandler };
 }
 
@@ -35,6 +35,8 @@ export function createDeploysModule(deps: DeploysModuleDeps): DeploysModule {
     name: "deploys",
     service,
     routers: [{ path: "/api/w/:workspaceId", router: createDeploysRouter(service, deps.guards) }],
-    rawBodyRouters: [{ path: "/api/deploys", router: createDeployIngestRouter(service) }],
+    rawBodyRouters: [
+      { path: "/api/deploys", router: createDeployIngestRouter(service, infra.redis) },
+    ],
   };
 }

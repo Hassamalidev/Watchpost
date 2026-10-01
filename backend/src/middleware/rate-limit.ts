@@ -2,7 +2,7 @@
  * Redis-backed rate limiting. If Redis is down the limiter lets requests through
  * (PRODUCT.md §13: the UI and ingest keep working without Redis).
  */
-import type { RequestHandler } from "express";
+import type { Request, RequestHandler } from "express";
 import { rateLimit } from "express-rate-limit";
 import { RedisStore, type RedisReply } from "rate-limit-redis";
 import type { RedisClient } from "../infra/redis.js";
@@ -15,6 +15,8 @@ export interface RateLimitOptions {
   windowMs: number;
   limit: number;
   skip?: (path: string) => boolean;
+  /* What to count by; the client IP when omitted. */
+  keyOf?: (req: Request) => string;
 }
 
 export function createRateLimiter(options: RateLimitOptions): RequestHandler {
@@ -25,6 +27,7 @@ export function createRateLimiter(options: RateLimitOptions): RequestHandler {
     legacyHeaders: false,
     passOnStoreError: true,
     skip: (req) => options.skip?.(req.path) ?? false,
+    ...(options.keyOf ? { keyGenerator: options.keyOf } : {}),
     store: new RedisStore({
       prefix: `rl:${options.name}:`,
       sendCommand: (command: string, ...args: string[]) =>

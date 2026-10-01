@@ -221,7 +221,7 @@ export function createResultsRepository(db: DbOrTx) {
       }));
     },
 
-    /* Certificates each region saw in [from, to), by fingerprint, with first time seen. */
+    /* Certificates each region saw in [from, to), by fingerprint, with first and last time seen. */
     async tlsHistory(monitorId: string, from: Date, to: Date) {
       const result = await db.execute<{
         region: string;
@@ -229,9 +229,10 @@ export function createResultsRepository(db: DbOrTx) {
         issuer: string | null;
         valid_to: string | null;
         first_seen: string;
+        last_seen: string;
       }>(sql`
         select region, tls->>'fingerprint256' as fingerprint, min(tls->>'issuer') as issuer,
-          max(tls->>'validTo') as valid_to, min(checked_at) as first_seen
+          max(tls->>'validTo') as valid_to, min(checked_at) as first_seen, max(checked_at) as last_seen
         from ${checkResults}
         where monitor_id = ${monitorId} and tls is not null
           and checked_at >= ${from.toISOString()}::timestamptz and checked_at < ${to.toISOString()}::timestamptz
@@ -243,6 +244,7 @@ export function createResultsRepository(db: DbOrTx) {
         issuer: r.issuer,
         validTo: r.valid_to,
         firstSeen: new Date(r.first_seen),
+        lastSeen: new Date(r.last_seen),
       }));
     },
 

@@ -106,6 +106,9 @@ export interface DetectionService {
   ): Promise<UptimeDay[]>;
 }
 
+/* Error-budget lists stop here; larger workspaces get reports instead (Phase 5). */
+const MAX_BUDGET_MONITORS = 5_000;
+
 export interface DetectionServiceDeps {
   db: Db;
   repository: DetectionRepository;
@@ -465,9 +468,14 @@ export function createDetectionService(deps: DetectionServiceDeps): DetectionSer
       const [monitor] = await deps.monitors.getForDetection([monitorId]);
       const now = clock.now();
       const { start } = monthOf(now);
-      const [used] = (
-        await repo.downtimeByMonitor(deps.db, scope.workspaceId, start, now, 10_000)
-      ).filter((d) => d.monitorId === monitorId);
+      const [used] = await repo.downtimeByMonitor(
+        deps.db,
+        scope.workspaceId,
+        start,
+        now,
+        1,
+        monitorId,
+      );
       return errorBudget({
         target: monitor?.policies.sloTarget ?? 99.9,
         usedSeconds: used?.seconds ?? 0,
@@ -478,9 +486,18 @@ export function createDetectionService(deps: DetectionServiceDeps): DetectionSer
     async errorBudgets(scope) {
       const now = clock.now();
       const { start } = monthOf(now);
-      const monitors = (await deps.monitors.list(scope, { limit: 200 })).data.filter(
-        (m) => m.type !== "heartbeat",
-      );
+      /* Every monitor, a page at a time (bounded so a huge workspace can't stall the request). */
+      const all: Array<{ id: string; name: string; type: string }> = [];
+      let cursor: string | undefined;
+      do {
+        const page = await deps.monitors.list(scope, {
+          limit: 200,
+          ...(cursor === undefined ? {} : { cursor }),
+        });
+        all.push(...page.data);
+        cursor = page.nextCursor ?? undefined;
+      } while (cursor !== undefined && all.length < MAX_BUDGET_MONITORS);
+      const monitors = all.filter((m) => m.type !== "heartbeat");
       const targets = new Map(
         (await deps.monitors.getForDetection(monitors.map((m) => m.id))).map((m) => [
           m.id,

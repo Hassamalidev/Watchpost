@@ -90,6 +90,30 @@ function toBody(v: Values): CreateMonitorBody {
   }
 }
 
+/* How the API shows a saved credential (basic password, bearer token, secret header). */
+const MASKED = "********";
+
+/* Where requests go: a URL's origin, or host and port. */
+function targetKey(v: Pick<Values, "url" | "host" | "port">, usesUrl: boolean): string {
+  if (!usesUrl) return `${v.host.trim().toLowerCase()}:${v.port}`;
+  try {
+    return new URL(v.url.trim()).origin;
+  } catch {
+    return v.url.trim();
+  }
+}
+
+/* The config without its saved credentials, for pointing the monitor somewhere new. */
+function withoutSavedSecrets(config: Record<string, unknown>): Record<string, unknown> {
+  const copy = { ...config };
+  const auth = copy.auth as Record<string, unknown> | undefined;
+  if (auth && Object.values(auth).includes(MASKED)) delete copy.auth;
+  if (Array.isArray(copy.headers)) {
+    copy.headers = (copy.headers as Array<{ value: string }>).filter((h) => h.value !== MASKED);
+  }
+  return copy;
+}
+
 const DEFAULTS: Values = {
   type: "http",
   name: "",
@@ -137,11 +161,21 @@ export function MonitorForm({ ws, monitor }: { ws: string; monitor?: Monitor }) 
   const create = useCreateMonitor(ws);
   const client = useQueryClient();
   const [formError, setFormError] = React.useState<string | null>(null);
+  const [dropSecrets, setDropSecrets] = React.useState(false);
   const form = useForm<Values>({ defaultValues: monitor ? valuesOf(monitor) : DEFAULTS });
   const type = form.watch("type");
   const errors = form.formState.errors;
   const usesUrl = type === "http" || type === "keyword";
   const usesPort = type === "tcp" || type === "ssl";
+  /* Saved credentials stay with the target they were entered for (the API enforces it too). */
+  const hasSavedSecrets = monitor !== undefined && JSON.stringify(monitor.config).includes(MASKED);
+  const retargeted =
+    monitor !== undefined &&
+    targetKey(
+      { url: form.watch("url"), host: form.watch("host"), port: form.watch("port") },
+      usesUrl,
+    ) !== targetKey(valuesOf(monitor), usesUrl);
+  const needsSecretChoice = hasSavedSecrets && retargeted;
 
   const onSubmit = form.handleSubmit(async (values) => {
     setFormError(null);
@@ -157,9 +191,14 @@ export function MonitorForm({ ws, monitor }: { ws: string; monitor?: Monitor }) 
     }
     try {
       if (monitor) {
+        if (needsSecretChoice && !dropSecrets) {
+          setFormError(t("secretsRetargetRequired"));
+          return;
+        }
+        const merged = { ...monitor.config, ...body.config };
         await monitorsApi.update(ws, monitor.id, {
           settings: body.settings,
-          config: { ...monitor.config, ...body.config },
+          config: needsSecretChoice ? withoutSavedSecrets(merged) : merged,
         });
         await client.invalidateQueries({ queryKey: monitorKeys.all(ws) });
         await client.invalidateQueries({ queryKey: ["error-budget", ws, monitor.id] });
@@ -276,6 +315,19 @@ export function MonitorForm({ ws, monitor }: { ws: string; monitor?: Monitor }) 
           ))}
         </Select>
       </Field>
+      {needsSecretChoice && (
+        <div className="grid gap-2 rounded-md border border-status-degraded/40 bg-status-degraded/10 p-3 text-sm">
+          <p>{t("secretsRetarget")}</p>
+          <label className="flex items-center gap-2 font-medium">
+            <input
+              type="checkbox"
+              checked={dropSecrets}
+              onChange={(e) => setDropSecrets(e.target.checked)}
+            />
+            {t("secretsDrop")}
+          </label>
+        </div>
+      )}
       <Field label={t("sloTarget")} htmlFor="monitor-slo" hint={t("sloHint")}>
         <Select id="monitor-slo" {...form.register("sloTarget")}>
           {SLO_TARGETS.map((target) => (
