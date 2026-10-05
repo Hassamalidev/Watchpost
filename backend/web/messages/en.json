@@ -18,6 +18,7 @@
     "incidents": "Incidents",
     "onCall": "On-call",
     "statusPages": "Status pages",
+    "maintenance": "Maintenance",
     "integrations": "Integrations",
     "reports": "Reports",
     "team": "Team",
@@ -1240,5 +1241,44 @@
     "tuningApplied": "Applied. The new settings take effect on the next check.",
     "noisyTitle": "Noisy monitors",
     "noisySummary": "{noisy} of {incidents} alerts were noise"
+  },
+  "maintenance": {
+    "title": "Maintenance",
+    "intro": "Plan work on your systems. During a window the chosen monitors are still checked, but failures open no incident and send no alert. When it ends, anything still failing alerts as usual.",
+    "planned": "Windows",
+    "empty": "No maintenance windows.",
+    "emptyHint": "Plan one below before your next deploy or upgrade.",
+    "activeUntil": "In effect until {time}",
+    "nextStart": "Starts {time}",
+    "over": "Over",
+    "new": "Plan a window",
+    "name": "What is happening",
+    "namePlaceholder": "Database upgrade",
+    "start": "Starts",
+    "end": "Ends",
+    "timesHint": "In your browser's time zone.",
+    "repeat": "Repeats",
+    "repeats": {
+      "none": "Does not repeat",
+      "daily": "Every day",
+      "weekly": "Every week",
+      "monthly": "Every month"
+    },
+    "timezone": "Time zone for the repeat",
+    "timezoneHint": "The window keeps its local start time when clocks change. For example Europe/Berlin.",
+    "monitors": "Monitors",
+    "allMonitors": "All monitors",
+    "someMonitors": "Only these",
+    "noMonitors": "There are no monitors yet.",
+    "monitorCount": "{count, plural, one {# monitor} other {# monitors}}",
+    "create": "Plan window",
+    "delete": "Delete",
+    "confirmDelete": "Delete “{name}”? Monitors it covers will alert again at once.",
+    "invalid": {
+      "name": "Say what is happening.",
+      "start": "Choose when it starts.",
+      "end": "Choose an end after the start.",
+      "monitors": "Choose at least one monitor, or all monitors."
+    }
   }
 }
