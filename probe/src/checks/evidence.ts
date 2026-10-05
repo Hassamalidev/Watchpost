@@ -15,8 +15,17 @@ import type { HttpResponse } from "../net/http-client.js";
 /* Content types whose first characters a person can read. */
 const TEXT_TYPE =
   /^(text\/|application\/(json|xml|xhtml\+xml|javascript|problem\+json|ld\+json|x-www-form-urlencoded)|[\w.-]+\/[\w.-]+\+(json|xml))/i;
-/* Control characters that would garble a log line or a terminal; newlines and tabs stay. */
-const CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g;
+/* Drops control characters that would garble a log line or a terminal; newlines and tabs stay. */
+function withoutControls(text: string): string {
+  let out = "";
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0;
+    const control =
+      (code < 0x20 && code !== 0x09 && code !== 0x0a && code !== 0x0d) || code === 0x7f;
+    if (!control) out += char;
+  }
+  return out;
+}
 
 function looksLikeText(sample: Buffer): boolean {
   /* A NUL byte or invalid UTF-8 near the start means binary. */
@@ -40,7 +49,8 @@ export function evidenceOf(res: HttpResponse): CheckEvidence {
       : TEXT_TYPE.test(contentType);
   if (!isText) return evidence;
 
-  const text = sample.toString("utf8").replace(CONTROL, "");
+  /* Cutting the sample can split a character; the replacement mark it leaves is dropped. */
+  const text = withoutControls(sample.toString("utf8")).replace(/�+$/, "");
   const snippet = text.slice(0, EVIDENCE_BODY_MAX_CHARS);
   return {
     ...evidence,
