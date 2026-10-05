@@ -2,7 +2,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Explanation } from "@app/shared";
+import type { Explanation, IncidentEvidenceItem } from "@app/shared";
 import { api, wsPath } from "@/lib/api";
 
 export type IncidentStatus = "triggered" | "acknowledged" | "snoozed" | "resolved";
@@ -37,6 +37,8 @@ export interface IncidentDetail extends Incident {
   comments: Array<{ id: string; authorId: string; body: string; createdAt: string }>;
   monitor: { id: string; name: string; target: string | null; regionCount: number } | null;
   explanation: Explanation | null;
+  /* How long the first failing check took and where the time went. */
+  timing?: string | null;
   recentDeploy: {
     version: string;
     service: string | null;
@@ -62,6 +64,8 @@ export const incidentsApi = {
     return api<{ data: Incident[] }>(wsPath(ws, `/incidents?${params.toString()}`));
   },
   get: (ws: string, ref: string) => api<IncidentDetail>(wsPath(ws, `/incidents/${ref}`)),
+  evidence: (ws: string, ref: string) =>
+    api<{ data: IncidentEvidenceItem[] }>(wsPath(ws, `/incidents/${ref}/evidence`)),
   act: (ws: string, id: string, action: "acknowledge" | "resolve") =>
     api<Incident>(wsPath(ws, `/incidents/${id}/${action}`), { method: "POST", body: {} }),
   comment: (ws: string, id: string, body: string) =>

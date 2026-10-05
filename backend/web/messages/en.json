@@ -264,7 +264,27 @@
     "filterMonitor": "Filter by monitor",
     "allSeverities": "All severities",
     "allMonitors": "All monitors",
-    "emptyFiltered": "No incidents match these filters."
+    "emptyFiltered": "No incidents match these filters.",
+    "timing": "Timing",
+    "evidence": {
+      "title": "What the failing check saw",
+      "answered": "The server answered with HTTP {status}",
+      "noResponse": "No response from the server",
+      "ip": "Address checked: {ip}",
+      "timings": "Where the time went ({total} in all)",
+      "phase": {
+        "dns": "DNS lookup",
+        "connect": "Connecting",
+        "tls": "TLS handshake",
+        "ttfb": "Waiting for first byte",
+        "download": "Downloading"
+      },
+      "headers": "Response headers (a fixed list; cookies and tokens are never kept)",
+      "body": "Response body",
+      "bodyStart": "Start of the response body",
+      "expired": "The stored evidence for this region is no longer available. It is kept for 30 days.",
+      "note": "Recorded when the incident opened and kept privately for 30 days."
+    }
   },
   "integrations": {
     "title": "Integrations",

@@ -23,6 +23,7 @@ import { ChangeTimeline } from "@/features/insights/components/changes";
 import { DeliveryLog } from "@/features/insights/components/deliveries";
 import { ExplanationCard } from "@/features/insights/components/explanation";
 import { incidentsApi, useIncident, useIncidentAction } from "../api";
+import { EvidencePanel } from "./evidence-panel";
 import { IncidentStatusLabel } from "./incident-list";
 
 export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
@@ -191,9 +192,17 @@ export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
                 )}
               </p>
             </div>
+            {data.timing && (
+              <div className="sm:col-span-2">
+                <p className="text-muted-foreground">{t("timing")}</p>
+                <p className="font-medium">{data.timing}</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
+
+      <EvidencePanel ws={ws} incidentRef={incidentRef} />
 
       <div className="grid gap-4 md:grid-cols-2">
         {data.monitor && (
