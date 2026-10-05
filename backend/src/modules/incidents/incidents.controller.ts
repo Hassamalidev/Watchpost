@@ -16,6 +16,7 @@ import type {
 type Handlers =
   | "list"
   | "get"
+  | "evidence"
   | "create"
   | "acknowledge"
   | "resolve"
@@ -39,6 +40,9 @@ export function createIncidentsController(service: IncidentsService): IncidentsC
     },
     get: async (req, res) => {
       res.json(await service.get(scopeOf(req, res), refOf(req, res)));
+    },
+    evidence: async (req, res) => {
+      res.json({ data: await service.evidence(scopeOf(req, res), refOf(req, res)) });
     },
     create: async (req, res) => {
       const { body } = inputOf<{ body: typeof createIncidentBody }>(req, res);

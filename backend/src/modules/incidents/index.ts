@@ -33,7 +33,7 @@ export type {
 } from "./schema/incidents.js";
 
 export interface IncidentsModuleDeps {
-  infra: Pick<Infra, "db" | "clock" | "outbox">;
+  infra: Pick<Infra, "db" | "clock" | "outbox" | "objects">;
   workspaces: Pick<WorkspacesService, "nextIncidentNumber">;
   monitors: Pick<MonitorsService, "get" | "getForDetection">;
   deploys: Pick<DeploysService, "latestBefore">;
@@ -54,6 +54,7 @@ export function createIncidentsModule(deps: IncidentsModuleDeps): IncidentsModul
     outbox: deps.infra.outbox,
     clock: deps.infra.clock,
     newId,
+    objects: deps.infra.objects,
   });
   return {
     name: "incidents",

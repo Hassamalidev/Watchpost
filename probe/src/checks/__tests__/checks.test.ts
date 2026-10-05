@@ -80,12 +80,19 @@ describe("HTTP", () => {
     const outcome = await run(runHttp, { type: "http", url: `${httpBase()}/ok` });
     expect(outcome).toMatchObject({ ok: true, httpStatus: 200, ip: "127.0.0.1" });
     expect(outcome.timings?.total).toBeGreaterThanOrEqual(0);
+    expect(outcome.evidence).toBeUndefined();
   });
 
   it("fails on an unexpected status, unless it is accepted", async () => {
     const failed = await run(runHttp, { type: "http", url: `${httpBase()}/fail?status=502` });
     expectFailure(failed, "http_status_unexpected");
     expect(failed.httpStatus).toBe(502);
+    /* A failure carries what the server said; a success carries nothing extra (P2-T04). */
+    expect(failed.evidence).toMatchObject({
+      headers: { "content-type": "text/plain; charset=utf-8" },
+      bodySnippet: "Simulated failure",
+      bodyTruncated: false,
+    });
     const accepted = await run(runHttp, {
       type: "http",
       url: `${httpBase()}/fail`,

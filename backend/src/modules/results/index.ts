@@ -19,6 +19,7 @@ export type {
   RollupsService,
 } from "./rollups.service.js";
 export {
+  MAX_EVIDENCE_PER_BATCH,
   MAX_FUTURE_SKEW_MS,
   MAX_RESULT_AGE_MS,
   PARTITIONS_AHEAD_DAYS,
@@ -26,7 +27,7 @@ export {
 } from "./results.service.js";
 
 export interface ResultsModuleDeps {
-  infra: Pick<Infra, "db" | "clock">;
+  infra: Pick<Infra, "db" | "clock" | "objects" | "logger">;
   monitors: Pick<MonitorsService, "get" | "planLimits">;
   guards: { session: RequestHandler; workspace: RequestHandler };
 }
@@ -43,6 +44,8 @@ export function createResultsModule(deps: ResultsModuleDeps): ResultsModule {
     repository,
     clock: deps.infra.clock,
     newId,
+    objects: deps.infra.objects,
+    logger: deps.infra.logger.child({ module: "results" }),
   });
   const rollups = createRollupsService({
     repository,

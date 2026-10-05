@@ -5,7 +5,12 @@
  * monitor's state row, runs the pure engine (detection.engine.ts) and applies its decision in the
  * same transaction: status, incident, downtime, verification tasks and outbox events.
  */
-import { effectiveRecoverySuccesses, resultsBatchSchema, type CheckResult } from "@app/shared";
+import {
+  effectiveRecoverySuccesses,
+  resultsBatchSchema,
+  type CheckResult,
+  type EvidenceRef,
+} from "@app/shared";
 import type { Clock } from "../../core/clock.js";
 import { ValidationError } from "../../core/errors.js";
 import type { WorkspaceScope } from "../../core/workspace-scope.js";
@@ -18,7 +23,7 @@ import type { DeploysService } from "../deploys/index.js";
 import type { IncidentsService } from "../incidents/index.js";
 import type { MonitorForDetection, MonitorsService } from "../monitors/index.js";
 import type { ProbesService } from "../probes/index.js";
-import type { ResultsService } from "../results/index.js";
+import type { CheckResultRow, ResultsService } from "../results/index.js";
 import type { DetectionRepository } from "./detection.repository.js";
 import {
   classify,
@@ -289,18 +294,19 @@ export function createDetectionService(deps: DetectionServiceDeps): DetectionSer
 
         /* Read results after taking the lock, so a later evaluation always sees at least as much. */
         const results: Record<string, EngineResult[]> = {};
+        const rows: Record<string, CheckResultRow[]> = {};
         for (const region of available) {
-          results[region] = (await deps.results.recent(monitorId, region, RESULTS_PER_REGION)).map(
-            (r) => ({
-              id: r.id,
-              ok: r.ok,
-              errorCode: r.errorCode,
-              latencyMs: r.latencyMs,
-              checkedAt: r.checkedAt,
-              httpStatus: r.httpStatus,
-              message: r.message,
-            }),
-          );
+          const recent = await deps.results.recent(monitorId, region, RESULTS_PER_REGION);
+          rows[region] = recent;
+          results[region] = recent.map((r) => ({
+            id: r.id,
+            ok: r.ok,
+            errorCode: r.errorCode,
+            latencyMs: r.latencyMs,
+            checkedAt: r.checkedAt,
+            httpStatus: r.httpStatus,
+            message: r.message,
+          }));
         }
         const now = clock.now();
         const open = await deps.incidents.findOpenForMonitor(tx, monitorId);
@@ -341,6 +347,7 @@ export function createDetectionService(deps: DetectionServiceDeps): DetectionSer
                     errorCode: decision.evidence.errorCode,
                     httpStatus: decision.evidence.httpStatus ?? null,
                     message: decision.evidence.message ?? null,
+                    ...failureFacts(decision.evidence.id, decision.failingRegions, rows),
                   },
                 }
               : {}),
@@ -607,6 +614,38 @@ export function createDetectionService(deps: DetectionServiceDeps): DetectionSer
   }
 
   return service;
+}
+
+/*
+ * What an incident keeps beyond the failing result's ID (P2-T04): where and how long that check took,
+ * for the timing line in alerts, and per failing region the newest stored evidence bundle. Raw
+ * results are gone after 48 hours; the incident's copy of these keys is how the bundles are found.
+ */
+function failureFacts(
+  resultId: string,
+  failingRegions: string[],
+  rows: Record<string, CheckResultRow[]>,
+): Record<string, unknown> {
+  let facts: Record<string, unknown> = {};
+  for (const [region, list] of Object.entries(rows)) {
+    const row = list.find((r) => r.id === resultId);
+    if (row !== undefined) {
+      facts = { region, latencyMs: row.latencyMs, timings: row.timings ?? null };
+    }
+  }
+  const bundles: EvidenceRef[] = [];
+  for (const region of failingRegions) {
+    /* Newest first. */
+    const row = (rows[region] ?? []).find((r) => !r.ok && r.evidenceKey !== null);
+    if (row === undefined || row.evidenceKey === null) continue;
+    bundles.push({
+      region,
+      resultId: row.id,
+      checkedAt: row.checkedAt.toISOString(),
+      key: row.evidenceKey,
+    });
+  }
+  return { ...facts, bundles };
 }
 
 function toEngineResult(r: CheckResult): EngineResult {

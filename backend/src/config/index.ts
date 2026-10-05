@@ -43,6 +43,16 @@ export interface AppConfig {
   prices: PriceIds;
   /* Upstream funding: the AI kill switch and the monthly cap on platform-paid AI, in micro-USD. */
   funding: { aiEnabled: boolean; unfundedAiCapMicros: number; opsEmail: string | undefined };
+  /* Private object storage; without it production keeps no evidence bundles. */
+  r2:
+    | {
+        accountId: string;
+        accessKeyId: string;
+        secretAccessKey: string;
+        bucket: string;
+        endpoint: string | undefined;
+      }
+    | undefined;
   twilio:
     | {
         accountSid: string;
@@ -137,6 +147,16 @@ export function toAppConfig(env: Env): AppConfig {
       unfundedAiCapMicros: Math.round(env.UNFUNDED_AI_MONTHLY_CAP_USD * 1_000_000),
       opsEmail: env.OPS_EMAIL,
     },
+    r2:
+      env.R2_ACCOUNT_ID && env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY && env.R2_BUCKET
+        ? {
+            accountId: env.R2_ACCOUNT_ID,
+            accessKeyId: env.R2_ACCESS_KEY_ID,
+            secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+            bucket: env.R2_BUCKET,
+            endpoint: env.R2_ENDPOINT,
+          }
+        : undefined,
     twilio:
       env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN
         ? {

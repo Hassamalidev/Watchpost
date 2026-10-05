@@ -220,7 +220,9 @@ export const phoneNumberSchema = z
   .string()
   .trim()
   .transform((value) => value.replace(/[\s().-]/g, ""))
-  .pipe(z.string().regex(/^\+[1-9]\d{7,14}$/, "must be in international format, like +14155550123"));
+  .pipe(
+    z.string().regex(/^\+[1-9]\d{7,14}$/, "must be in international format, like +14155550123"),
+  );
 
 /* SMS and voice share one shape: the verified number alerts go to. */
 export const phoneChannelConfigSchema = z.object({ phone: phoneNumberSchema }).strict();
@@ -238,7 +240,13 @@ export interface PhoneCost {
 
 export const phoneVerificationSchema = z.object({ phone: phoneNumberSchema }).strict();
 export const phoneConfirmationSchema = z
-  .object({ phone: phoneNumberSchema, code: z.string().trim().regex(/^\d{6}$/, "is 6 digits") })
+  .object({
+    phone: phoneNumberSchema,
+    code: z
+      .string()
+      .trim()
+      .regex(/^\d{6}$/, "is 6 digits"),
+  })
   .strict();
 
 /* Extra request headers for outbound webhooks (an Authorization header, a routing header). */

@@ -51,6 +51,7 @@ export function renderPlain(event: AlertEvent): RenderedMessage {
   if (incident.failingRegions.length > 0) {
     lines.push(`Failing regions: ${incident.failingRegions.join(", ")}`);
   }
+  if (incident.timing) lines.push(`Timing: ${incident.timing}`);
   lines.push(`Started: ${incident.startedAt}`);
   if (event.explanation) {
     lines.push("", `Likely cause: ${event.explanation.headline}`);
@@ -109,6 +110,7 @@ export function alertFacts(event: AlertEvent): Array<{ label: string; value: str
     ...(incident.failingRegions.length > 0
       ? [{ label: "Failing regions", value: incident.failingRegions.join(", ") }]
       : []),
+    ...(incident.timing ? [{ label: "Timing", value: incident.timing }] : []),
     { label: "Started", value: incident.startedAt },
     ...(event.actor ? [{ label: "By", value: event.actor }] : []),
   ];
@@ -126,6 +128,7 @@ export function plainDetails(event: AlertEvent, message: RenderedMessage): strin
       ? [`Failing regions: ${incident.failingRegions.join(", ")}`]
       : []),
     ...(incident.causeCode ? [`Cause: ${incident.causeCode}`] : []),
+    ...(incident.timing ? [`Timing: ${incident.timing}`] : []),
     ...explanationLines(event),
   ];
   return lines.length > 0 ? lines.join("\n") : `#${incident.number} ${incident.title}`;

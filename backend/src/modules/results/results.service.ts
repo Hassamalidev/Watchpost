@@ -3,9 +3,11 @@
  * failed result (kept for the history period), and partition maintenance (3 days ahead; raw results
  * dropped after 48 h).
  */
-import type { CheckResult } from "@app/shared";
+import { evidenceKey, type CheckResult, type EvidenceBundle } from "@app/shared";
 import type { Clock } from "../../core/clock.js";
 import type { Db } from "../../infra/db/index.js";
+import type { Logger } from "../../infra/logger.js";
+import type { ObjectStore } from "../../infra/storage/index.js";
 import { partitionDay, partitionName, type ResultsRepository } from "./results.repository.js";
 import type { CheckResultRow } from "./schema/partitioned/check-results.js";
 
@@ -15,6 +17,32 @@ export const RAW_RETENTION_MS = 48 * 3_600_000;
 export const MAX_RESULT_AGE_MS = 24 * 3_600_000;
 /* Probe clocks may drift a little; results far in the future are refused. */
 export const MAX_FUTURE_SKEW_MS = 5 * 60_000;
+/* Evidence uploads per batch and at a time: a mass outage must not slow ingest to a crawl. */
+export const MAX_EVIDENCE_PER_BATCH = 100;
+const EVIDENCE_CONCURRENCY = 8;
+
+/* The stored bundle: the failed result's facts plus what the probe kept of the response. */
+export function toEvidenceBundle(r: StoredResult): EvidenceBundle {
+  return {
+    version: 1,
+    resultId: r.id,
+    monitorId: r.monitorId,
+    region: r.region,
+    checkedAt: r.checkedAt,
+    errorCode: r.errorCode ?? null,
+    message: r.message ?? null,
+    httpStatus: r.httpStatus ?? null,
+    latencyMs: Math.round(r.latencyMs),
+    timings: r.timings ?? null,
+    ip: r.ip ?? null,
+    tls: r.tls ?? null,
+    details: r.details ?? null,
+    headers: r.evidence?.headers ?? {},
+    bodySnippet: r.evidence?.bodySnippet ?? null,
+    bodyBytes: r.evidence?.bodyBytes ?? null,
+    bodyTruncated: r.evidence?.bodyTruncated ?? false,
+  };
+}
 
 export interface StoredResult extends CheckResult {
   workspaceId: string;
@@ -64,8 +92,39 @@ export function createResultsService(deps: {
   repository: ResultsRepository;
   clock: Clock;
   newId: () => string;
+  /* Where evidence bundles go; without it results are stored without evidence. */
+  objects?: ObjectStore | undefined;
+  logger?: Logger | undefined;
 }): ResultsService {
   const { repository: repo, clock } = deps;
+
+  /*
+   * Stores the evidence of failed results and answers their keys. Best effort: a result whose bundle
+   * can't be stored is kept without one, because losing the result would lose the outage.
+   */
+  async function storeEvidence(results: StoredResult[]): Promise<Map<string, string>> {
+    const keys = new Map<string, string>();
+    const { objects } = deps;
+    if (objects === undefined) return keys;
+    const queue = results
+      .filter((r) => !r.ok && r.evidence !== undefined)
+      .slice(0, MAX_EVIDENCE_PER_BATCH);
+    const worker = async () => {
+      for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
+        const key = evidenceKey(next.workspaceId, next.checkedAt, next.id);
+        try {
+          await objects.put(key, JSON.stringify(toEvidenceBundle(next)), {
+            contentType: "application/json",
+          });
+          keys.set(next.id, key);
+        } catch (err) {
+          deps.logger?.warn({ err, resultId: next.id }, "evidence bundle not stored");
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: EVIDENCE_CONCURRENCY }, worker));
+    return keys;
+  }
 
   return {
     async ingest(results) {
@@ -74,6 +133,7 @@ export function createResultsService(deps: {
         const at = Date.parse(r.checkedAt);
         return at >= now - MAX_RESULT_AGE_MS && at <= now + MAX_FUTURE_SKEW_MS;
       });
+      const evidenceKeys = await storeEvidence(inWindow);
       const insertedIds = await deps.db.transaction(async (tx) => {
         const inserted = await repo.insertResults(
           tx,
@@ -94,6 +154,7 @@ export function createResultsService(deps: {
             tls: r.tls ?? null,
             details: r.details ?? null,
             taskId: r.taskId ?? null,
+            evidenceKey: evidenceKeys.get(r.id) ?? null,
           })),
         );
         const fresh = new Set(inserted);

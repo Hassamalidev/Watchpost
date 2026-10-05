@@ -222,4 +222,21 @@ describe("executor", () => {
     expect(unknown).toMatchObject({ ok: false, errorCode: "probe_error" });
     expect((await executor.run(monitor("t"), ID)).taskId).toBe(ID);
   });
+
+  it("times a request that never got an answer", async () => {
+    let clock = 1_000;
+    const executor = createExecutor({
+      region: "eu-central",
+      concurrency: 1,
+      policy: createAddressPolicy(),
+      now: () => clock,
+      runners: {
+        tcp: async () => {
+          clock += 10_000;
+          return { ok: false, errorCode: "connect_timeout", message: "no answer", latencyMs: 0 };
+        },
+      },
+    });
+    expect(await executor.run(monitor("slow"))).toMatchObject({ ok: false, latencyMs: 10_000 });
+  });
 });

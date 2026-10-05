@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { CHECK_ERROR_CODES } from "../constants/check-errors.js";
 import { REGIONS } from "../constants/regions.js";
+import { checkEvidenceSchema } from "./evidence.js";
 
 const ms = z.number().min(0).max(600_000);
 
@@ -49,6 +50,8 @@ export const checkResultSchema = z
     details: z.record(z.string(), z.unknown()).optional(),
     /* Set when the check ran for a verification or "Test now" task. */
     taskId: z.uuid().optional(),
+    /* What the probe kept of a response it didn't like; failed results only (P2-T04). */
+    evidence: checkEvidenceSchema.optional(),
   })
   .refine((r) => r.ok || r.errorCode !== undefined, {
     message: "failed results need an errorCode",

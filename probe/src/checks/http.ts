@@ -7,6 +7,7 @@ import { isAcceptedStatus, type MonitorConfig } from "@app/shared";
 import { failure, type CheckContext, type CheckOutcome } from "../executor/executor.js";
 import { CheckError } from "../net/errors.js";
 import { httpRequest, type HttpResponse } from "../net/http-client.js";
+import { evidenceOf } from "./evidence.js";
 import { RegexError, safeRegexTest } from "./safe-regex.js";
 
 type HttpLike = Extract<MonitorConfig, { type: "http" | "keyword" | "json_query" }>;
@@ -34,6 +35,11 @@ function baseOutcome(res: HttpResponse): Omit<CheckOutcome, "ok"> {
       ...(res.truncated ? { truncated: true } : {}),
     },
   };
+}
+
+/* The same facts for a response we didn't like, plus what it said (headers, start of the body). */
+function failedOutcome(res: HttpResponse): Omit<CheckOutcome, "ok"> {
+  return { ...baseOutcome(res), evidence: evidenceOf(res) };
 }
 
 async function request(config: HttpLike, ctx: CheckContext): Promise<HttpResponse | CheckOutcome> {
@@ -64,7 +70,7 @@ function isOutcome(value: HttpResponse | CheckOutcome): value is CheckOutcome {
 function statusFailure(config: HttpLike, res: HttpResponse): CheckOutcome | undefined {
   if (isAcceptedStatus(res.status, config.acceptedStatusCodes)) return undefined;
   return {
-    ...baseOutcome(res),
+    ...failedOutcome(res),
     ok: false,
     errorCode: "http_status_unexpected",
     message: `HTTP ${res.status} (expected ${config.acceptedStatusCodes.join(", ")})`,
@@ -95,21 +101,26 @@ export async function runKeyword(config: MonitorConfig, ctx: CheckContext): Prom
         : text.toLowerCase().includes(config.keyword.toLowerCase());
   } catch (err) {
     if (err instanceof RegexError)
-      return { ...baseOutcome(res), ok: false, errorCode: "keyword_missing", message: err.message };
+      return {
+        ...failedOutcome(res),
+        ok: false,
+        errorCode: "keyword_missing",
+        message: err.message,
+      };
     throw err;
   }
 
   if (config.mode === "contains" && !found) {
     if (res.truncated) {
       return {
-        ...baseOutcome(res),
+        ...failedOutcome(res),
         ok: false,
         errorCode: "body_too_large",
         message: `"${config.keyword}" not found in the first 1 MB of the response`,
       };
     }
     return {
-      ...baseOutcome(res),
+      ...failedOutcome(res),
       ok: false,
       errorCode: "keyword_missing",
       message: `"${config.keyword}" not found`,
@@ -117,7 +128,7 @@ export async function runKeyword(config: MonitorConfig, ctx: CheckContext): Prom
   }
   if (config.mode === "not_contains" && found) {
     return {
-      ...baseOutcome(res),
+      ...failedOutcome(res),
       ok: false,
       errorCode: "keyword_present",
       message: `"${config.keyword}" found`,
@@ -165,7 +176,7 @@ export async function runJsonQuery(
 
   if (res.truncated) {
     return {
-      ...baseOutcome(res),
+      ...failedOutcome(res),
       ok: false,
       errorCode: "body_too_large",
       message: "response is over 1 MB; JSON not evaluated",
@@ -176,7 +187,7 @@ export async function runJsonQuery(
     data = JSON.parse(res.body.toString("utf8"));
   } catch (err) {
     return {
-      ...baseOutcome(res),
+      ...failedOutcome(res),
       ok: false,
       errorCode: "json_invalid",
       message: `invalid JSON: ${(err as Error).message}`,
@@ -187,7 +198,7 @@ export async function runJsonQuery(
     actual = await jsonata(config.expression).evaluate(data);
   } catch (err) {
     return {
-      ...baseOutcome(res),
+      ...failedOutcome(res),
       ok: false,
       errorCode: "json_query_failed",
       message: `expression error: ${(err as { message?: string }).message ?? String(err)}`,
@@ -198,7 +209,7 @@ export async function runJsonQuery(
     matched = await compare(actual, config.operator, config.expected);
   } catch (err) {
     return {
-      ...baseOutcome(res),
+      ...failedOutcome(res),
       ok: false,
       errorCode: "json_query_failed",
       message: (err as Error).message,
@@ -206,7 +217,7 @@ export async function runJsonQuery(
   }
   if (!matched) {
     return {
-      ...baseOutcome(res),
+      ...failedOutcome(res),
       ok: false,
       errorCode: "json_query_failed",
       message:

@@ -161,6 +161,13 @@ const baseEnvSchema = z.object({
   UNFUNDED_AI_MONTHLY_CAP_USD: z.coerce.number().min(0).max(10_000).default(5),
   /* Where warnings about our own provider balances go; logged only when unset. */
   OPS_EMAIL: z.email().optional(),
+  /* Cloudflare R2 (private object storage: failure evidence, later reports and uploads). */
+  R2_ACCOUNT_ID: z.string().min(1).max(64).optional(),
+  R2_ACCESS_KEY_ID: z.string().min(1).max(128).optional(),
+  R2_SECRET_ACCESS_KEY: z.string().min(1).max(256).optional(),
+  R2_BUCKET: z.string().min(3).max(63).optional(),
+  /* Another S3-compatible endpoint (MinIO, tests); defaults to the account's R2 endpoint. */
+  R2_ENDPOINT: z.url().optional(),
   /* Twilio (SMS and voice, P3-T05); the pair also lets us read the prepaid balance. */
   TWILIO_ACCOUNT_SID: z
     .string()
@@ -205,6 +212,7 @@ export const envSchema = baseEnvSchema.superRefine((env, ctx) => {
   const groups: Array<[string, string[]]> = [
     ["Paddle", ["PADDLE_API_KEY", "PADDLE_WEBHOOK_SECRET"]],
     ["Twilio", ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN"]],
+    ["R2", ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET"]],
     ["Slack", ["SLACK_CLIENT_ID", "SLACK_CLIENT_SECRET"]],
     ["Telegram", ["TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_USERNAME", "TELEGRAM_WEBHOOK_SECRET"]],
   ];

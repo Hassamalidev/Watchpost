@@ -12,7 +12,14 @@ import {
   SERVICE_REGIONS,
 } from "../schemas/channel-configs.js";
 
-export const INTEGRATION_CATEGORIES = ["chat", "oncall", "push", "phone", "email", "automation"] as const;
+export const INTEGRATION_CATEGORIES = [
+  "chat",
+  "oncall",
+  "push",
+  "phone",
+  "email",
+  "automation",
+] as const;
 export type IntegrationCategory = (typeof INTEGRATION_CATEGORIES)[number];
 
 export type ChannelFieldKind =

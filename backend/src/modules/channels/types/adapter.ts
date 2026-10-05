@@ -16,6 +16,8 @@ export interface AlertEvent {
     status: "triggered" | "acknowledged" | "snoozed" | "resolved";
     causeCode: string | null;
     failingRegions: string[];
+    /* "Failed after 10 s" or "Answered in 412 ms; slowest step: …"; absent when nothing was timed. */
+    timing?: string | null | undefined;
     monitorName: string | null;
     startedAt: string;
     resolvedAt: string | null;

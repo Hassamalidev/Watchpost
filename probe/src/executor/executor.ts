@@ -5,6 +5,7 @@
  */
 import type { AssignedMonitor, CheckErrorCode, CheckResult, MonitorConfig } from "@app/shared";
 import { v7 as uuidv7 } from "uuid";
+import { createEvidenceLimiter } from "../checks/evidence.js";
 import type { AddressPolicy } from "../net/address-policy.js";
 
 /* What a check implementation returns; the executor adds IDs, region and timestamps. */
@@ -68,6 +69,7 @@ export function createExecutor(options: {
   const now = options.now ?? Date.now;
   const semaphore = new Semaphore(options.concurrency);
   const running = new Set<Promise<unknown>>();
+  const evidence = createEvidenceLimiter();
 
   async function execute(monitor: AssignedMonitor, taskId?: string): Promise<CheckResult> {
     await semaphore.acquire();
@@ -97,14 +99,18 @@ export function createExecutor(options: {
           clearTimeout(timer);
         }
       }
-      return {
+      /* A request that never got an answer still took time: how long is its key timing. */
+      if (!outcome.ok && outcome.latencyMs === 0) {
+        outcome = { ...outcome, latencyMs: Math.max(0, now() - startedAt) };
+      }
+      return evidence.apply({
         ...outcome,
         id: uuidv7(),
         monitorId: monitor.id,
         region: options.region,
         checkedAt: new Date(startedAt).toISOString(),
         ...(taskId === undefined ? {} : { taskId }),
-      };
+      });
     } finally {
       semaphore.release();
     }

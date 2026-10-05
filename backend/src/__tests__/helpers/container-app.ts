@@ -16,6 +16,7 @@ import type { Clock } from "../../core/clock.js";
 import type { PaddleApi } from "../../infra/paddle/index.js";
 import type { OutboundHttp, OutboundRequest, OutboundResponse } from "../../infra/http/outbound.js";
 import { outboxEvents } from "../../infra/outbox/index.js";
+import { createMemoryObjectStore, type ObjectStore } from "../../infra/storage/index.js";
 import { TEST_DATABASE_URL, TEST_REDIS_URL } from "./test-env.js";
 
 export const WEB_ORIGIN = "http://localhost:3000";
@@ -31,6 +32,8 @@ export function buildContainerApp(
     clock?: Clock;
     /* A fake Paddle API; needs the PADDLE_* variables in `env` to switch billing on. */
     paddleApi?: PaddleApi;
+    /* Object storage; memory by default, so tests can read what was stored. */
+    objects?: ObjectStore;
   } = {},
 ) {
   const config = toAppConfig(
@@ -50,9 +53,11 @@ export function buildContainerApp(
   );
   /* TEST_LOG_LEVEL=error shows server errors while debugging a test. */
   const logger = pino({ level: process.env.TEST_LOG_LEVEL ?? "silent" });
+  const objects = options.objects ?? createMemoryObjectStore();
   const container = createContainer(config, {
     service: "api",
     logger,
+    objects,
     ...(options.authRateLimit === false ? { authRateLimit: false } : {}),
     ...(options.http === undefined ? {} : { http: options.http }),
     ...(options.clock === undefined ? {} : { clock: options.clock }),
@@ -67,7 +72,7 @@ export function buildContainerApp(
     rawBodyRouters: container.rawBodyRouters,
     ipRateLimit: { windowMs: 60_000, limit: 100_000 },
   });
-  return { app, container, config };
+  return { app, container, config, objects };
 }
 
 /* The latest email.requested payload for a recipient (emails go through the outbox). */

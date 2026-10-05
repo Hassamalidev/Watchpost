@@ -31,3 +31,6 @@ Thumbs.db
 .idea/
 *.log
 backend/web/e2e/.auth/
+
+# Local object store (development)
+.data/

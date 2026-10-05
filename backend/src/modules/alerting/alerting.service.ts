@@ -11,6 +11,7 @@ import {
   CHANNEL_LABELS,
   alertPolicyRulesSchema,
   channelAccepts,
+  describeEvidenceTiming,
   type AlertEventKind,
   type AlertPolicyInput,
   type AlertPolicyRules,
@@ -223,6 +224,11 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
         status: incident.status,
         causeCode: incident.causeCode,
         failingRegions: incident.failingRegions,
+        /* While it is failing; a recovery or an acknowledgement needs no timing. */
+        timing:
+          kind === "resolved" || kind === "acknowledged"
+            ? null
+            : describeEvidenceTiming(incident.evidence),
         monitorName: ctx.monitor?.name ?? null,
         startedAt: incident.startedAt,
         resolvedAt: incident.resolvedAt,

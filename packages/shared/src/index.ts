@@ -89,6 +89,32 @@ export {
   type CheckResult,
 } from "./schemas/results.js";
 export {
+  EVIDENCE_BODY_MAX_CHARS,
+  EVIDENCE_HEADERS,
+  EVIDENCE_HEADER_VALUE_MAX,
+  checkEvidenceSchema,
+  pickEvidenceHeaders,
+  type CheckEvidence,
+} from "./schemas/evidence.js";
+export {
+  evidenceBundleSchema,
+  evidenceKey,
+  evidenceKeyPrefix,
+  evidenceRefSchema,
+  type EvidenceBundle,
+  type EvidenceRef,
+  type IncidentEvidenceItem,
+} from "./schemas/evidence-bundle.js";
+export {
+  TIMING_PHASES,
+  describeEvidenceTiming,
+  describeTiming,
+  formatMs,
+  slowestPhase,
+  type PhaseTimings,
+  type TimingPhase,
+} from "./explain/timing.js";
+export {
   PROBE_API_PREFIX,
   PROBE_CAPABILITIES,
   PROBE_HEADERS,

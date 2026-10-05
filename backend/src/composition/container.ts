@@ -2,6 +2,7 @@
  * Composition root (PRODUCT.md §7.3): builds infra clients once, creates modules with explicit
  * dependencies and collects their routers, processors and sweeps. server.ts and worker.ts use it.
  */
+import { resolve } from "node:path";
 import { Router } from "express";
 import { PROBE_API_PREFIX, createAddressPolicy } from "@app/shared";
 import type { AppConfig } from "../config/index.js";
@@ -16,6 +17,8 @@ import { createLocks } from "../infra/locks.js";
 import { createLogger, type Logger } from "../infra/logger.js";
 import { createOutbox, OUTBOX_MAX_LAG_SECONDS } from "../infra/outbox/index.js";
 import { createPaddle, type PaddleApi } from "../infra/paddle/index.js";
+import { createFileObjectStore, type ObjectStore } from "../infra/storage/index.js";
+import { createR2ObjectStore } from "../infra/storage/r2.js";
 import { createQueueConnection, createQueues } from "../infra/queues/index.js";
 import type { ReadinessCheck } from "../infra/health.js";
 import { createRedis, pingRedis } from "../infra/redis.js";
@@ -67,6 +70,8 @@ export function createInfra(
     http?: OutboundHttp;
     /* Tests replace Paddle's API with a fake; webhook signatures are still really verified. */
     paddleApi?: PaddleApi;
+    /* Tests keep objects in memory. */
+    objects?: ObjectStore;
   },
 ): Infra {
   const logger =
@@ -111,10 +116,19 @@ export function createInfra(
   });
 
   const paddle = config.paddle === undefined ? undefined : createPaddle(config.paddle);
+  /* R2 when configured; a local folder while developing; nothing otherwise (evidence is skipped). */
+  const objects =
+    options.objects ??
+    (config.r2 !== undefined
+      ? createR2ObjectStore(config.r2)
+      : config.env === "development"
+        ? createFileObjectStore(resolve(process.cwd(), ".data", "objects"))
+        : undefined);
 
   return {
     config,
     logger,
+    objects,
     paddle:
       paddle === undefined
         ? undefined
@@ -152,6 +166,7 @@ export function createContainer(
     authRateLimit?: boolean;
     http?: OutboundHttp;
     paddleApi?: PaddleApi;
+    objects?: ObjectStore;
   },
 ): Container {
   const hooks: LateHooks = { onWorkspaceCreated: [] };

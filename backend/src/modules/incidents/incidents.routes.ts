@@ -43,6 +43,7 @@ export function createIncidentsRouter(
   router.post("/incidents/drill", requireRole("admin"), controller.drill);
   router.post("/incidents", write, validate({ body: createIncidentBody }), controller.create);
   router.get("/incidents/:incidentRef", read, ref, controller.get);
+  router.get("/incidents/:incidentRef/evidence", read, ref, controller.evidence);
   router.post("/incidents/:incidentRef/acknowledge", respond, ref, controller.acknowledge);
   router.post("/incidents/:incidentRef/resolve", respond, ref, controller.resolve);
   router.post(

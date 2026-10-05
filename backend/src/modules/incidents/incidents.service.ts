@@ -5,10 +5,15 @@
  * trail — and emits an outbox event in the same transaction.
  */
 import {
+  describeEvidenceTiming,
+  evidenceBundleSchema,
+  evidenceKeyPrefix,
+  evidenceRefSchema,
   explainFailure,
   noiseLevel,
   suggestTuning,
   type Explanation,
+  type IncidentEvidenceItem,
   type NoiseStats,
   type TuningSettings,
   type TuningSuggestion,
@@ -18,6 +23,7 @@ import { ConflictError, NotFoundError } from "../../core/errors.js";
 import { createWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
 import type { Db, DbOrTx, Tx } from "../../infra/db/index.js";
 import type { Outbox } from "../../infra/outbox/index.js";
+import type { ObjectStore } from "../../infra/storage/index.js";
 import { DEPLOY_SUSPECT_MINUTES, type DeploysService } from "../deploys/index.js";
 import type { MonitorsService } from "../monitors/index.js";
 import type { WorkspacesService } from "../workspaces/index.js";
@@ -92,6 +98,8 @@ export interface IncidentDetail extends IncidentView {
   monitor: IncidentMonitor | null;
   /* The likely cause and first checks, as alerts show them; null when we can't say. */
   explanation: Explanation | null;
+  /* How long the first failing check took and where the time went; null when it wasn't timed. */
+  timing: string | null;
   recentDeploy: RecentDeploy | null;
 }
 
@@ -250,6 +258,11 @@ export interface IncidentsService {
     filters: IncidentFilters,
   ): Promise<{ data: IncidentView[]; nextCursor: string | null }>;
   get(scope: WorkspaceScope, ref: string | number): Promise<IncidentDetail>;
+  /*
+   * What the failing checks saw when the incident opened, one item per failing region: response
+   * headers, the start of the body, timings. Stored privately for 30 days and read only through here.
+   */
+  evidence(scope: WorkspaceScope, ref: string | number): Promise<IncidentEvidenceItem[]>;
   create(scope: WorkspaceScope, input: CreateIncidentInput): Promise<IncidentView>;
   /* `via` records where the action came from ("web" by default, "email" for action links). */
   acknowledge(
@@ -279,6 +292,8 @@ export interface IncidentsServiceDeps {
   outbox: Outbox;
   clock: Clock;
   newId: () => string;
+  /* Where evidence bundles live; without it incidents have none to show. */
+  objects?: ObjectStore | undefined;
 }
 
 const toRef = (ref: string | number): IncidentRef =>
@@ -685,8 +700,52 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
         comments: comments.map(toComment),
         monitor,
         explanation: explainIncident(view, monitor, recentDeploy),
+        timing: describeEvidenceTiming(view.evidence),
         recentDeploy,
       };
+    },
+
+    async evidence(scope, ref) {
+      const row = await mustFind(deps.db, scope, ref);
+      const refs = evidenceRefSchema
+        .array()
+        .safeParse((row.evidence as { bundles?: unknown } | null)?.bundles ?? []);
+      if (!refs.success) return [];
+      const prefix = evidenceKeyPrefix(scope.workspaceId);
+      const items: IncidentEvidenceItem[] = [];
+      for (const item of refs.data) {
+        const missing = {
+          region: item.region,
+          checkedAt: item.checkedAt,
+          available: false,
+        } as const;
+        /* The key names its workspace: a row pointing elsewhere is never followed. */
+        if (deps.objects === undefined || !item.key.startsWith(prefix)) {
+          items.push(missing);
+          continue;
+        }
+        try {
+          const stored = await deps.objects.get(item.key);
+          const bundle =
+            stored === undefined
+              ? undefined
+              : evidenceBundleSchema.safeParse(JSON.parse(stored.toString("utf8")));
+          items.push(
+            bundle?.success === true
+              ? {
+                  region: item.region,
+                  checkedAt: item.checkedAt,
+                  available: true,
+                  bundle: bundle.data,
+                }
+              : missing,
+          );
+        } catch {
+          /* Storage is unreachable or the object is damaged: the page says it isn't available. */
+          items.push(missing);
+        }
+      }
+      return items;
     },
 
     async create(scope, input) {
