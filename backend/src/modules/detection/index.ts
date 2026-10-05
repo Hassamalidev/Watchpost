@@ -71,7 +71,12 @@ function createUptimeRouter(
   const router = Router({ mergeParams: true });
   const read = [guards.session, guards.workspace, requireRole("viewer")];
   router.get("/monitor-states", ...read, async (req, res) => {
-    res.json({ data: await service.states(scopeOf(req, res)) });
+    const scope = scopeOf(req, res);
+    res.json({
+      data: await service.states(scope),
+      /* Regions whose checks don't count right now (our probe there is quarantined or silent). */
+      reducedRegions: await service.reducedRegions(scope),
+    });
   });
   router.get(
     "/monitors/:monitorId/uptime",

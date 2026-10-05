@@ -23,6 +23,19 @@ import type { TokenCipher } from "../../infra/crypto.js";
 import type { Db, DbOrTx } from "../../infra/db/index.js";
 import type { AuthenticatedProbe } from "../../middleware/probe-auth.js";
 import type { MonitorForProbe, MonitorsService } from "../monitors/index.js";
+import type { ResultsService } from "../results/index.js";
+import {
+  GUARD_BASELINE_MS,
+  GUARD_MIN_MONITORS,
+  GUARD_MIN_RATIO,
+  GUARD_WINDOW_MS,
+  QUARANTINE_MS,
+  SERVED_WINDOW_MS,
+  SILENT_AFTER_MS,
+  batchLooksBroken,
+  overThreshold,
+  type GuardStats,
+} from "./guard.js";
 import type { ProbesRepository } from "./probes.repository.js";
 import type { ProbeRow } from "./schema/probes.js";
 import type { TaskNotifier } from "./types/task-notifier.js";
@@ -70,7 +83,31 @@ export interface ProbesService {
   completeTasks(tx: DbOrTx, probeId: string, results: CheckResult[]): Promise<void>;
   /* Of `regions`, those with a healthy probe that may run this workspace's monitors. */
   healthyRegions(input: { regions: string[]; workspaceId: string }): Promise<string[]>;
+  /*
+   * Probe health guard (§9.2). Called for each batch once it is stored and before it is evaluated:
+   * quarantines the probe when the batch, or its last five minutes, fail far more than usual.
+   * True if this call quarantined it (or renewed its quarantine).
+   */
+  guard(probe: AuthenticatedProbe, batch: { monitors: number; failing: number }): Promise<boolean>;
+  /* Re-checks every managed probe: renews quarantines that still hold, reports silent probes. */
+  guardSweep(): Promise<string[]>;
+  /* Regions we check from: those with a probe of ours that reported in the last day. */
+  servedRegions(): Promise<string[]>;
   close(): Promise<void>;
+}
+
+export interface QuarantineInfo extends GuardStats {
+  probeId: string;
+  region: string;
+  /* `batch`: one batch failed nearly everything; `window`: the five-minute rule. */
+  reason: "batch" | "window";
+}
+
+export interface SilentProbeInfo {
+  probeId: string;
+  name: string;
+  region: string;
+  lastSeenAt: Date | null;
 }
 
 function toAssigned(m: MonitorForProbe): AssignedMonitor {
@@ -96,6 +133,12 @@ export function createProbesService(deps: {
   clock: Clock;
   newId: () => string;
   notifier: TaskNotifier;
+  /* The guard reads how each probe's checks are going; without it the guard is off. */
+  results?: Pick<ResultsService, "probeFailureStats" | "probeFailureRatio"> | undefined;
+  /* Told once when a quarantine starts. */
+  onQuarantine?: ((info: QuarantineInfo) => Promise<void>) | undefined;
+  /* Told on every sweep while a probe of ours isn't reporting. */
+  onSilent?: ((info: SilentProbeInfo) => Promise<void>) | undefined;
 }): ProbesService {
   const { repository: repo, clock } = deps;
   const authCache = new Map<
@@ -104,6 +147,38 @@ export function createProbesService(deps: {
   >();
   /* Tasks are announced per region; private probes wake too and claim only their workspace's tasks. */
   const notifyKeyFor = (probe: { region: string }) => probe.region;
+
+  async function quarantineNow(
+    probe: { id: string; region: string },
+    reason: QuarantineInfo["reason"],
+    stats: GuardStats,
+    now: Date,
+  ): Promise<void> {
+    const fresh = await repo.quarantine(probe.id, new Date(now.getTime() + QUARANTINE_MS), now);
+    if (fresh) {
+      await deps.onQuarantine?.({ probeId: probe.id, region: probe.region, reason, ...stats });
+    }
+  }
+
+  /* The five-minute rule for one probe: its numbers when it is over the line, otherwise null. */
+  async function overWindow(probeId: string, now: Date): Promise<GuardStats | null> {
+    const { results } = deps;
+    if (results === undefined) return null;
+    const windowStart = new Date(now.getTime() - GUARD_WINDOW_MS);
+    const window = await results.probeFailureStats(probeId, windowStart);
+    /* The baseline reads a day of results: only for a probe already over the 30% floor. */
+    if (window.monitors < GUARD_MIN_MONITORS) return null;
+    if (window.failing / window.monitors <= GUARD_MIN_RATIO) return null;
+    const stats: GuardStats = {
+      ...window,
+      baselineRatio: await results.probeFailureRatio(
+        probeId,
+        new Date(windowStart.getTime() - GUARD_BASELINE_MS),
+        windowStart,
+      ),
+    };
+    return overThreshold(stats) ? stats : null;
+  }
 
   const isAssigned = (probe: AuthenticatedProbe, m: MonitorForProbe) =>
     !m.paused &&
@@ -236,6 +311,49 @@ export function createProbesService(deps: {
         if (created) ids.push(created.id);
       }
       return ids;
+    },
+
+    async guard(probe, batch) {
+      /* Only our own probes: a private probe sits in the customer's network, which may be down. */
+      if (probe.kind !== "managed" || deps.results === undefined) return false;
+      if (batch.failing === 0) return false;
+      const now = clock.now();
+      if (batchLooksBroken(batch)) {
+        await quarantineNow(probe, "batch", { ...batch, baselineRatio: 0 }, now);
+        return true;
+      }
+      const stats = await overWindow(probe.id, now);
+      if (stats === null) return false;
+      await quarantineNow(probe, "window", stats, now);
+      return true;
+    },
+
+    async guardSweep() {
+      const now = clock.now();
+      const quarantined: string[] = [];
+      const recent = await repo.managedProbes(new Date(now.getTime() - SERVED_WINDOW_MS));
+      for (const probe of recent) {
+        const silentFor = now.getTime() - (probe.lastSeenAt?.getTime() ?? 0);
+        if (silentFor > SILENT_AFTER_MS) {
+          await deps.onSilent?.({
+            probeId: probe.id,
+            name: probe.name,
+            region: probe.region,
+            lastSeenAt: probe.lastSeenAt,
+          });
+          continue;
+        }
+        const stats = await overWindow(probe.id, now);
+        if (stats === null) continue;
+        await quarantineNow(probe, "window", stats, now);
+        quarantined.push(probe.id);
+      }
+      return quarantined;
+    },
+
+    async servedRegions() {
+      const since = new Date(clock.now().getTime() - SERVED_WINDOW_MS);
+      return [...new Set((await repo.managedProbes(since)).map((probe) => probe.region))];
     },
 
     healthyRegions({ regions, workspaceId }) {

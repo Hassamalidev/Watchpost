@@ -42,6 +42,33 @@ export function createProbesRepository(db: DbOrTx) {
       return rows.map((r) => r.region);
     },
 
+    /* Probe health guard: ignore this probe's failures until `until`. True if it wasn't already. */
+    async quarantine(id: string, until: Date, now: Date): Promise<boolean> {
+      const [before] = await db
+        .select({ quarantinedUntil: probes.quarantinedUntil })
+        .from(probes)
+        .where(eq(probes.id, id))
+        .limit(1);
+      await db.update(probes).set({ quarantinedUntil: until }).where(eq(probes.id, id));
+      return (
+        before === undefined || before.quarantinedUntil === null || before.quarantinedUntil <= now
+      );
+    },
+
+    /* Our own probes, switched on, that reported since `seenAfter`. */
+    async managedProbes(seenAfter: Date): Promise<ProbeRow[]> {
+      return db
+        .select()
+        .from(probes)
+        .where(
+          and(
+            eq(probes.kind, "managed"),
+            eq(probes.disabled, false),
+            gt(probes.lastSeenAt, seenAfter),
+          ),
+        );
+    },
+
     async listProbes(): Promise<ProbeRow[]> {
       return db.select().from(probes).orderBy(probes.region, probes.name);
     },

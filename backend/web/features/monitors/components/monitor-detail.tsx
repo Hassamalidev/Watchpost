@@ -26,7 +26,7 @@ import { ChangeTimeline } from "@/features/insights/components/changes";
 import { ExplanationCard } from "@/features/insights/components/explanation";
 import { TuningCard } from "@/features/insights/components/tuning";
 import { monitorsApi, targetOf } from "../api";
-import { monitorKeys, useMonitor, useMonitorStates } from "../hooks";
+import { monitorKeys, useMonitor, useMonitorStates, useReducedRegions } from "../hooks";
 import { LatencyChart, UptimeBars } from "./charts";
 import { TestNow } from "./test-now";
 
@@ -39,6 +39,7 @@ export function MonitorDetail({ monitorId }: { monitorId: string }) {
   const client = useQueryClient();
   const monitor = useMonitor(ws, monitorId);
   const states = useMonitorStates(ws);
+  const reducedRegions = useReducedRegions(ws);
   const uptime = useQuery({
     queryKey: ["uptime", ws, monitorId],
     queryFn: () => monitorsApi.uptime(ws, monitorId),
@@ -73,6 +74,7 @@ export function MonitorDetail({ monitorId }: { monitorId: string }) {
   if (monitor.isError) return <Alert tone="error">{errorMessage(monitor.error)}</Alert>;
   const data = monitor.data;
   const state = states.data?.get(data.id);
+  const reduced = data.regions.filter((region) => reducedRegions.data?.includes(region));
   const status = data.paused ? "paused" : (state?.status ?? "pending");
   const canEdit = can(workspace.role, "member");
   /* While failing, explain the newest failed check the way alerts do. */
@@ -112,6 +114,13 @@ export function MonitorDetail({ monitorId }: { monitorId: string }) {
       </div>
 
       {data.paused && <Alert tone="info">{t("pausedNotice")}</Alert>}
+      {!data.paused && reduced.length > 0 && (
+        <Alert tone={reduced.length === data.regions.length ? "error" : "info"}>
+          {t(reduced.length === data.regions.length ? "notWatched" : "reducedConfirmation", {
+            regions: reduced.join(", "),
+          })}
+        </Alert>
+      )}
       {explanation && explanation.category !== "unknown" && (
         <ExplanationCard
           explanation={explanation}

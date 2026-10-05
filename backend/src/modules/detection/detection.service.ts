@@ -73,6 +73,11 @@ export interface DetectionService {
   state(monitorId: string): Promise<MonitorStateRow | undefined>;
   /* Status of every monitor in the workspace that has reported (the status wall). */
   states(scope: WorkspaceScope): Promise<MonitorStateView[]>;
+  /*
+   * Regions we check from whose probe is quarantined or silent: their results don't count, so
+   * monitors there are confirmed from fewer regions (or, with no other region, not watched).
+   */
+  reducedRegions(scope: WorkspaceScope): Promise<string[]>;
   /* Uptime for a range, from downtimes (§9.9). */
   uptime(
     scope: WorkspaceScope,
@@ -121,7 +126,10 @@ export interface DetectionServiceDeps {
     ResultsService,
     "ingest" | "recent" | "ipHistory" | "tlsHistory" | "latencyAverage"
   >;
-  probes: Pick<ProbesService, "isAssigned" | "completeTasks" | "createTasks" | "healthyRegions">;
+  probes: Pick<
+    ProbesService,
+    "isAssigned" | "completeTasks" | "createTasks" | "healthyRegions" | "guard" | "servedRegions"
+  >;
   incidents: Pick<
     IncidentsService,
     "openForMonitor" | "resolveForMonitor" | "setFlapping" | "findOpenForMonitor"
@@ -234,6 +242,23 @@ export function createDetectionService(deps: DetectionServiceDeps): DetectionSer
           probeId: probe.id,
         })),
       );
+      /*
+       * Probe health guard (§9.2): judge the probe now that the batch is stored and before any of
+       * it is evaluated, so a probe that fails everything is quarantined before its failures can
+       * open incidents. A guard that can't run must not stop results from being evaluated.
+       */
+      const failed = new Set(accepted.filter((r) => !r.ok).map((r) => r.monitorId));
+      if (failed.size > 0) {
+        try {
+          await deps.probes.guard(probe, {
+            monitors: new Set(accepted.map((r) => r.monitorId)).size,
+            failing: failed.size,
+          });
+        } catch (err) {
+          deps.logger.error({ err, probeId: probe.id }, "probe health guard failed");
+        }
+      }
+
       const stored = new Set(outcome.insertedIds);
       const newResults = accepted.filter((r) => stored.has(r.id));
       await deps.db.transaction((tx) => deps.probes.completeTasks(tx, probe.id, newResults));
@@ -429,6 +454,16 @@ export function createDetectionService(deps: DetectionServiceDeps): DetectionSer
         reason: s.reason,
         lastResultAt: s.lastResultAt?.toISOString() ?? null,
       }));
+    },
+
+    async reducedRegions(scope) {
+      const served = await deps.probes.servedRegions();
+      if (served.length === 0) return [];
+      const healthy = await deps.probes.healthyRegions({
+        regions: served,
+        workspaceId: scope.workspaceId,
+      });
+      return served.filter((region) => !healthy.includes(region));
     },
 
     async uptime(scope, monitorId, { from, to, excludeMaintenance }) {

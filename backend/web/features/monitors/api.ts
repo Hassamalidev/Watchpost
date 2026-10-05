@@ -95,7 +95,8 @@ export const monitorsApi = {
     }),
   remove: (ws: string, id: string) =>
     api<void>(wsPath(ws, `/monitors/${id}`), { method: "DELETE" }),
-  states: (ws: string) => api<{ data: MonitorState[] }>(wsPath(ws, "/monitor-states")),
+  states: (ws: string) =>
+    api<{ data: MonitorState[]; reducedRegions?: string[] }>(wsPath(ws, "/monitor-states")),
   latency: (ws: string, id: string, range = "24h") =>
     api<{ points: LatencyPoint[]; summary: Omit<LatencyPoint, "bucket"> }>(
       wsPath(ws, `/monitors/${id}/latency?range=${range}`),

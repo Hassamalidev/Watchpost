@@ -96,6 +96,42 @@ export function createResultsRepository(db: DbOrTx) {
         .limit(limit);
     },
 
+    /*
+     * Probe health guard: of the monitors a probe reported on since `since`, how many failed their
+     * latest check from it. Per probe, not per region: another probe in the same region (a second
+     * one of ours, or a customer's private probe) says nothing about this one.
+     */
+    async probeFailureStats(
+      probeId: string,
+      since: Date,
+    ): Promise<{ monitors: number; failing: number }> {
+      const result = await db.execute(sql`
+        select count(*)::int as monitors, (count(*) filter (where not ok))::int as failing
+        from (
+          select distinct on (monitor_id) monitor_id, ok
+          from check_results
+          where probe_id = ${probeId} and checked_at >= ${since.toISOString()}::timestamptz
+          order by monitor_id, checked_at desc
+        ) latest`);
+      const row = result.rows[0] as { monitors: number; failing: number } | undefined;
+      return { monitors: row?.monitors ?? 0, failing: row?.failing ?? 0 };
+    },
+
+    /*
+     * Share of the results a probe reported in [from, to) that failed; 0 when it reported nothing.
+     * Reads up to a day of raw results, so callers ask only once the five-minute check looks bad.
+     */
+    async probeFailureRatio(probeId: string, from: Date, to: Date): Promise<number> {
+      const result = await db.execute(sql`
+        select count(*)::int as total, (count(*) filter (where not ok))::int as failed
+        from check_results
+        where probe_id = ${probeId}
+          and checked_at >= ${from.toISOString()}::timestamptz
+          and checked_at < ${to.toISOString()}::timestamptz`);
+      const row = result.rows[0] as { total: number; failed: number } | undefined;
+      return row === undefined || row.total === 0 ? 0 : row.failed / row.total;
+    },
+
     /* The newest TLS facts per monitor from raw results (the last 48 h). */
     async latestTls(): Promise<
       Array<{

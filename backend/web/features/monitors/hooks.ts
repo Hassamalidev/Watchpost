@@ -25,6 +25,15 @@ export function useMonitorStates(ws: string) {
   });
 }
 
+/* Regions whose checks don't count right now because our probe there is unhealthy. */
+export function useReducedRegions(ws: string) {
+  return useQuery({
+    queryKey: [...monitorKeys.states(ws), "reduced"],
+    queryFn: async () => (await monitorsApi.states(ws)).reducedRegions ?? [],
+    refetchInterval: 30_000,
+  });
+}
+
 export function useMonitor(ws: string, id: string) {
   return useQuery({ queryKey: monitorKeys.one(ws, id), queryFn: () => monitorsApi.get(ws, id) });
 }

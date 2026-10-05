@@ -37,6 +37,9 @@ export interface ResultsService {
   ipHistory: ResultsRepository["ipHistory"];
   tlsHistory: ResultsRepository["tlsHistory"];
   latencyAverage: ResultsRepository["latencyAverage"];
+  /* Probe health guard (system-level): how a probe's checks are going. */
+  probeFailureStats: ResultsRepository["probeFailureStats"];
+  probeFailureRatio: ResultsRepository["probeFailureRatio"];
   /* The newest TLS facts per monitor (system-level, across workspaces). */
   latestTls(): ReturnType<ResultsRepository["latestTls"]>;
   /* Records a check event that isn't a failed result (for example a certificate change). */
@@ -127,6 +130,8 @@ export function createResultsService(deps: {
     ipHistory: (monitorId, from, to) => repo.ipHistory(monitorId, from, to),
     tlsHistory: (monitorId, from, to) => repo.tlsHistory(monitorId, from, to),
     latencyAverage: (monitorId, from, to) => repo.latencyAverage(monitorId, from, to),
+    probeFailureStats: (probeId, since) => repo.probeFailureStats(probeId, since),
+    probeFailureRatio: (probeId, from, to) => repo.probeFailureRatio(probeId, from, to),
 
     async recordEvent(event) {
       await repo.insertEvents(deps.db, [

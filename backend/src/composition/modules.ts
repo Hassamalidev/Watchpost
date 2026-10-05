@@ -51,6 +51,7 @@ export function createModules(infra: Infra): AppModule[] {
   const probes = createProbesModule({
     infra,
     monitors: monitors.service,
+    results: results.service,
     guards: workspaces.guards,
   });
   modules.push(probes);
