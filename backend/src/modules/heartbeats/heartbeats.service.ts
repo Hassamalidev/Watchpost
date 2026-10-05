@@ -16,6 +16,7 @@ import type { Db, Tx } from "../../infra/db/index.js";
 import type { Logger } from "../../infra/logger.js";
 import type { Outbox } from "../../infra/outbox/index.js";
 import type { IncidentsService } from "../incidents/index.js";
+import type { MaintenanceService } from "../maintenance/index.js";
 import type { MonitorForDetection, MonitorsService } from "../monitors/index.js";
 import type { HeartbeatsRepository, HeartbeatStatePatch } from "./heartbeats.repository.js";
 import type {
@@ -87,6 +88,8 @@ export function createHeartbeatsService(deps: {
   repository: HeartbeatsRepository;
   monitors: Pick<MonitorsService, "get" | "getForProbes" | "getForDetection">;
   incidents: Pick<IncidentsService, "openForMonitor" | "resolveForMonitor">;
+  /* Maintenance windows (§9.6): a miss during one is recorded but opens no incident. */
+  maintenance?: Pick<MaintenanceService, "inMaintenance"> | undefined;
   outbox: Outbox;
   clock: Clock;
   logger: Logger;
@@ -157,6 +160,11 @@ export function createHeartbeatsService(deps: {
     causeCode: "heartbeat_missed" | "heartbeat_failed_signal",
     evidence: Record<string, unknown>,
   ) {
+    const quiet = await deps.maintenance?.inMaintenance(
+      { id: monitor.id, workspaceId: monitor.workspaceId },
+      clock.now(),
+    );
+    if (quiet === true) return;
     await deps.incidents.openForMonitor(tx, {
       workspaceId: monitor.workspaceId,
       monitorId: monitor.id,

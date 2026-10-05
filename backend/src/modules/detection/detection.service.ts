@@ -21,6 +21,7 @@ import { buildJobId, type EnqueueOptions } from "../../infra/queues/index.js";
 import type { AuthenticatedProbe } from "../../middleware/probe-auth.js";
 import type { DeploysService } from "../deploys/index.js";
 import type { IncidentsService } from "../incidents/index.js";
+import type { MaintenanceService } from "../maintenance/index.js";
 import type { MonitorForDetection, MonitorsService } from "../monitors/index.js";
 import type { ProbesService } from "../probes/index.js";
 import type { CheckResultRow, ResultsService } from "../results/index.js";
@@ -145,7 +146,8 @@ export interface DetectionServiceDeps {
   newId: () => string;
   enqueue: (job: DetectionJob, options: EnqueueOptions) => Promise<void>;
   /* Maintenance windows arrive with the maintenance module (P2); nothing is in maintenance until then. */
-  inMaintenance?: (monitorId: string, at: Date) => Promise<boolean>;
+  /* Maintenance windows (§9.6); without them nothing is ever in maintenance. */
+  maintenance?: Pick<MaintenanceService, "inMaintenance" | "boundaryChanges"> | undefined;
 }
 
 export function engineMonitor(m: MonitorForDetection): EngineMonitor {
@@ -209,6 +211,33 @@ export function createDetectionService(deps: DetectionServiceDeps): DetectionSer
         deps.logger.warn({ err, monitorId }, "evaluate enqueue failed; leaving it to the sweep");
       }
     }
+  }
+
+  /*
+   * Maintenance boundaries (§9.6): monitors whose window just started switch to "maintenance" now,
+   * and every monitor that is in maintenance is looked at again, which is how the end of a window,
+   * its deletion or an edit is noticed. The job ID changes each minute, so each pass really runs.
+   */
+  async function maintenanceSweep(): Promise<number> {
+    if (deps.maintenance === undefined) return 0;
+    const minute = Math.floor(clock.now().getTime() / 60_000);
+    const ids = new Set<string>();
+    for (const change of await deps.maintenance.boundaryChanges()) {
+      const monitorIds =
+        change.monitorIds === "all"
+          ? await repo.monitorIdsOf(deps.db, change.workspaceId, SWEEP_BATCH)
+          : change.monitorIds;
+      for (const id of monitorIds) ids.add(id);
+    }
+    for (const id of await repo.inStatus(deps.db, "maintenance", SWEEP_BATCH)) ids.add(id);
+    for (const id of ids) {
+      try {
+        await evaluateJob(id, `maintenance-${minute}`);
+      } catch (err) {
+        deps.logger.warn({ err, monitorId: id }, "maintenance re-evaluation not queued");
+      }
+    }
+    return ids.size;
   }
 
   const service: DetectionService = {
@@ -310,7 +339,11 @@ export function createDetectionService(deps: DetectionServiceDeps): DetectionSer
         }
         const now = clock.now();
         const open = await deps.incidents.findOpenForMonitor(tx, monitorId);
-        const inMaintenance = (await deps.inMaintenance?.(monitorId, now)) ?? false;
+        const inMaintenance =
+          (await deps.maintenance?.inMaintenance(
+            { id: monitorId, workspaceId: monitor.workspaceId },
+            now,
+          )) ?? false;
         const decision = evaluate({
           monitor: engine,
           state: {
@@ -448,7 +481,7 @@ export function createDetectionService(deps: DetectionServiceDeps): DetectionSer
       for (const p of pending) {
         await evaluateJob(p.monitorId, `sweep-${p.lastResultAt.getTime()}`);
       }
-      return pending.length;
+      return pending.length + (await maintenanceSweep());
     },
 
     state: (monitorId) => repo.findState(deps.db, monitorId),

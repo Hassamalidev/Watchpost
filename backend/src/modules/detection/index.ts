@@ -9,6 +9,7 @@ import { inputOf, validate } from "../../middleware/validate.js";
 import { scopeOf } from "../../middleware/workspace.js";
 import type { DeploysService } from "../deploys/index.js";
 import type { IncidentsService } from "../incidents/index.js";
+import type { MaintenanceService } from "../maintenance/index.js";
 import type { MonitorsService } from "../monitors/index.js";
 import type { ProbesService } from "../probes/index.js";
 import type { ResultsService } from "../results/index.js";
@@ -39,6 +40,8 @@ export interface DetectionModuleDeps {
   probes: ProbesService;
   incidents: IncidentsService;
   deploys: DeploysService;
+  /* Maintenance windows; optional so tests can build detection without them. */
+  maintenance?: Pick<MaintenanceService, "inMaintenance" | "boundaryChanges"> | undefined;
   guards: { session: RequestHandler; workspace: RequestHandler };
 }
 
@@ -155,6 +158,7 @@ export function createDetectionModule(deps: DetectionModuleDeps): DetectionModul
     probes: deps.probes,
     incidents: deps.incidents,
     deploys: deps.deploys,
+    maintenance: deps.maintenance,
     outbox: deps.infra.outbox,
     clock: deps.infra.clock,
     logger: deps.infra.logger.child({ module: "detection" }),

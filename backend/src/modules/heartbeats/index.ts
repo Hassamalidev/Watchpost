@@ -3,6 +3,7 @@ import type { RequestHandler } from "express";
 import type { AppModule, Infra } from "../../composition/types.js";
 import { newId } from "../../infra/ids.js";
 import type { IncidentsService } from "../incidents/index.js";
+import type { MaintenanceService } from "../maintenance/index.js";
 import type { MonitorsService } from "../monitors/index.js";
 import { createHeartbeatsRepository } from "./heartbeats.repository.js";
 import { createHeartbeatsRouter, createPingRouter } from "./heartbeats.routes.js";
@@ -23,6 +24,7 @@ export interface HeartbeatsModuleDeps {
   infra: Pick<Infra, "db" | "clock" | "outbox" | "logger" | "config">;
   monitors: MonitorsService;
   incidents: IncidentsService;
+  maintenance?: Pick<MaintenanceService, "inMaintenance"> | undefined;
   guards: { session: RequestHandler; workspace: RequestHandler };
 }
 
@@ -37,6 +39,7 @@ export function createHeartbeatsModule(deps: HeartbeatsModuleDeps): HeartbeatsMo
     repository: createHeartbeatsRepository(),
     monitors: deps.monitors,
     incidents: deps.incidents,
+    maintenance: deps.maintenance,
     outbox: infra.outbox,
     clock: infra.clock,
     logger: infra.logger.child({ module: "heartbeats" }),

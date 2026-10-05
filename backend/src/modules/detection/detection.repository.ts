@@ -206,6 +206,30 @@ export function createDetectionRepository() {
     },
 
     /* Monitors with results no evaluation has seen (the evaluate queue's recovery source). */
+    /* System (maintenance boundaries): monitors of a workspace that have a state row. */
+    async monitorIdsOf(tx: DbOrTx, workspaceId: string, limit: number): Promise<string[]> {
+      const rows = await tx
+        .select({ monitorId: monitorState.monitorId })
+        .from(monitorState)
+        .where(eq(monitorState.workspaceId, workspaceId))
+        .limit(limit);
+      return rows.map((r) => r.monitorId);
+    },
+
+    /* System: monitors currently in one status, across workspaces. */
+    async inStatus(
+      tx: DbOrTx,
+      status: MonitorStateRow["status"],
+      limit: number,
+    ): Promise<string[]> {
+      const rows = await tx
+        .select({ monitorId: monitorState.monitorId })
+        .from(monitorState)
+        .where(eq(monitorState.status, status))
+        .limit(limit);
+      return rows.map((r) => r.monitorId);
+    },
+
     async unevaluated(
       tx: DbOrTx,
       limit: number,

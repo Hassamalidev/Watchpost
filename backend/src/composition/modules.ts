@@ -18,6 +18,7 @@ import { createReportsModule } from "../modules/reports/index.js";
 import { createDeploysModule } from "../modules/deploys/index.js";
 import { createBillingModule } from "../modules/billing/index.js";
 import { createCreditsModule } from "../modules/credits/index.js";
+import { createMaintenanceModule } from "../modules/maintenance/index.js";
 /* new-module:imports */
 
 export function createModules(infra: Infra): AppModule[] {
@@ -65,8 +66,15 @@ export function createModules(infra: Infra): AppModule[] {
     guards: workspaces.guards,
   });
   modules.push(incidents);
+  const maintenance = createMaintenanceModule({
+    infra,
+    monitors: monitors.service,
+    guards: workspaces.guards,
+  });
+  modules.push(maintenance);
   const detection = createDetectionModule({
     infra,
+    maintenance: maintenance.service,
     monitors: monitors.service,
     results: results.service,
     probes: probes.service,
@@ -78,6 +86,7 @@ export function createModules(infra: Infra): AppModule[] {
   modules.push(
     createHeartbeatsModule({
       infra,
+      maintenance: maintenance.service,
       monitors: monitors.service,
       incidents: incidents.service,
       guards: workspaces.guards,

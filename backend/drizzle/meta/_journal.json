@@ -155,6 +155,13 @@
       "when": 1790857923020,
       "tag": "0021_phone_numbers",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791210305029,
+      "tag": "0022_maintenance_windows",
+      "breakpoints": true
     }
   ]
 }

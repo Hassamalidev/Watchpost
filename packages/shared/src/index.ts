@@ -256,3 +256,14 @@ export {
   type TuningSettings,
   type TuningSuggestion,
 } from "./explain/tuning.js";
+export {
+  MAINTENANCE_MAX_DAYS,
+  MAINTENANCE_MAX_MONITORS,
+  createMaintenanceWindowSchema,
+  maintenanceScopeSchema,
+  updateMaintenanceWindowSchema,
+  type CreateMaintenanceWindowInput,
+  type MaintenanceScope,
+  type MaintenanceWindowView,
+  type UpdateMaintenanceWindowInput,
+} from "./schemas/maintenance.js";
