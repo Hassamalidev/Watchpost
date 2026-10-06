@@ -2,6 +2,7 @@
 import {
   Activity,
   BarChart3,
+  Bell,
   CalendarClock,
   CreditCard,
   Globe,
@@ -37,6 +38,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { segment: "maintenance", labelKey: "maintenance", icon: Wrench, needs: "maintenance:read" },
   { segment: "integrations", labelKey: "integrations", icon: Plug, needs: "channel:read" },
   { segment: "reports", labelKey: "reports", icon: BarChart3, needs: "monitor:read" },
+  /* Your own contact methods and rules: for everyone who can be paged. */
+  { segment: "notifications", labelKey: "notifications", icon: Bell, needs: "contact:manage" },
   { segment: "team", labelKey: "team", icon: Users, needs: "roster:read" },
   /* Workspace settings shape monitoring (time zone for schedules and reports), so billing skips them. */
   { segment: "settings", labelKey: "settings", icon: Settings, needs: "monitor:read" },

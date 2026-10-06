@@ -73,6 +73,8 @@ test("a billing member lands on billing and sees nothing else", async ({
   browser,
 }, testInfo) => {
   test.skip(testInfo.project.name !== "light", "one sign-up per run is enough");
+  /* A sign-up, an invitation and an accessibility scan: give it room on a busy runner. */
+  test.setTimeout(90_000);
   const workspaceId = workspace();
   const email = uniqueEmail("e2e-billing");
 

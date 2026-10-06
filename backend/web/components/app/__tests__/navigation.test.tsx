@@ -50,9 +50,13 @@ describe("navigation helpers", () => {
     const segments = (role: WorkspaceRole) => navItemsFor(role).map((item) => item.segment);
     expect(segments("owner")).toEqual(NAV_ITEMS.map((item) => item.segment));
     expect(segments("admin")).toEqual(segments("owner"));
-    for (const role of ["member", "responder", "viewer"] as const) {
+    for (const role of ["member", "responder"] as const) {
       expect(segments(role)).toEqual(segments("owner").filter((s) => s !== "team"));
     }
+    /* Viewers are never paged, so they have no notification settings. */
+    expect(segments("viewer")).toEqual(
+      segments("owner").filter((s) => s !== "team" && s !== "notifications"),
+    );
     expect(segments("billing")).toEqual(["billing"]);
   });
 

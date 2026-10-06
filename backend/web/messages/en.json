@@ -21,6 +21,7 @@
     "maintenance": "Maintenance",
     "integrations": "Integrations",
     "reports": "Reports",
+    "notifications": "My notifications",
     "team": "Team",
     "settings": "Settings",
     "billing": "Billing"
@@ -730,6 +731,47 @@
       "viewer": "Read-only: sees monitors, incidents and maintenance, changes nothing.",
       "billing": "Billing pages only: the plan, usage, credits and invoices. Sees no monitors or incidents."
     }
+  },
+  "notifications": {
+    "title": "My notifications",
+    "lead": "How Watchpost reaches you when an incident is yours to handle. These settings are yours alone; teammates set their own.",
+    "methods": "Contact methods",
+    "methodsHint": "An address is used only after you enter the code we send to it. Your account email is ready to use.",
+    "types": { "email": "Email", "sms": "SMS", "voice": "Phone call" },
+    "verified": "Verified",
+    "unverified": "Not verified yet",
+    "remove": "Remove",
+    "removeAddress": "Remove {address}",
+    "codeFor": "Code sent to {address}",
+    "codeHint": "Six digits, valid for 10 minutes.",
+    "verify": "Verify",
+    "resend": "Send a new code",
+    "codeSent": "A new code is on its way to {address}.",
+    "add": "Add an email address",
+    "address": "Email address",
+    "addressHint": "We'll email a code to confirm it's yours.",
+    "label": "Label (optional)",
+    "addButton": "Add and send code",
+    "rules": "When to notify me",
+    "rulesHint": "Delays count from the moment an incident reaches you. Later steps are skipped once someone acknowledges it.",
+    "urgency": {
+      "high": {
+        "title": "High urgency",
+        "hint": "Critical and high-severity incidents: something is down."
+      },
+      "low": {
+        "title": "Low urgency",
+        "hint": "Low-severity incidents, such as a certificate that expires soon."
+      }
+    },
+    "delay": {
+      "off": "Don't use",
+      "now": "Immediately",
+      "after": "After {minutes, plural, one {# minute} other {# minutes}}"
+    },
+    "pickOne": "Choose at least one contact method, or these incidents couldn't reach you.",
+    "saveRules": "Save rules",
+    "rulesSaved": "Rules saved."
   },
   "settings": {
     "title": "Settings",

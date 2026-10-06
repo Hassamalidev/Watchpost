@@ -32,6 +32,27 @@ export async function emailLink(email: string, template: string): Promise<string
 
 export const verificationLink = (email: string) => emailLink(email, "verify-email");
 
+/* One field of the newest queued email of a template to an address (for example a one-time code). */
+export async function emailField(email: string, template: string, field: string): Promise<string> {
+  const client = new pg.Client({ connectionString: E2E_DATABASE_URL });
+  await client.connect();
+  try {
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      const { rows } = await client.query<{ value: string }>(
+        `select payload->'data'->>$3 as value from outbox_events
+         where type = 'email.requested' and payload->>'to' = $1 and payload->>'template' = $2
+         order by created_at desc limit 1`,
+        [email, template, field],
+      );
+      if (rows[0]?.value) return rows[0].value;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    throw new Error(`no ${template} email for ${email}`);
+  } finally {
+    await client.end();
+  }
+}
+
 /* Signs up through the UI and opens the verification link; ends signed in on /onboarding. */
 export async function signUpAndVerify(page: Page, email: string, name = "Sara Ahmed") {
   await page.goto("/signup");
