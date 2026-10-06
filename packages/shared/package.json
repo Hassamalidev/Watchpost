@@ -17,9 +17,15 @@
     "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "schemas:generate": "tsx scripts/generate-json-schema.ts"
   },
   "dependencies": {
+    "cron-parser": "5.10.1",
+    "ipaddr.js": "2.5.0",
     "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "tsx": "4.23.15"
   }
 }

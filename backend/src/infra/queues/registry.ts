@@ -9,6 +9,7 @@ export const QUEUE_NAMES = [
   "statuspages-events",
   "ai-events",
   "credits-events",
+  "billing-events",
   "monitors-events",
   "admin-events",
   "notify",
@@ -56,6 +57,7 @@ export const QUEUES: Record<QueueName, QueueDefinition> = {
   "statuspages-events": fromOutbox,
   "ai-events": fromOutbox,
   "credits-events": fromOutbox,
+  "billing-events": fromOutbox,
   "monitors-events": fromOutbox,
   "admin-events": fromOutbox,
   notify: {

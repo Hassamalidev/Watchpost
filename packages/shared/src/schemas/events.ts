@@ -5,10 +5,11 @@
  */
 import { z } from "zod";
 import { MONITOR_STATUSES } from "../constants/product.js";
+import { SEVERITIES } from "../constants/regions.js";
 
 const id = z.uuid();
 const timestamp = z.iso.datetime({ offset: true });
-const severity = z.enum(["critical", "high", "low"]);
+const severity = z.enum(SEVERITIES);
 
 export const EVENT_SCHEMAS = {
   "workspace.created": { version: 1, schema: z.object({ workspaceId: id }) },
@@ -42,6 +43,13 @@ export const EVENT_SCHEMAS = {
   "incident.resolved": { version: 1, schema: z.object({ incidentId: id, auto: z.boolean() }) },
   "incident.reopened": { version: 1, schema: z.object({ incidentId: id }) },
   "incident.escalation_requested": { version: 1, schema: z.object({ incidentId: id }) },
+  /* An open incident changed in a way worth telling people (for example a nearer expiry date). */
+  "incident.updated": {
+    version: 1,
+    schema: z.object({ incidentId: id, reason: z.string().max(300) }),
+  },
+  /* 5+ state changes in 30 minutes: one notice, then quiet until stable (§9.2). */
+  "incident.flapping_started": { version: 1, schema: z.object({ incidentId: id }) },
   "incident.ai_summary_ready": {
     version: 1,
     schema: z.object({ incidentId: id, generationId: id }),
@@ -59,9 +67,18 @@ export const EVENT_SCHEMAS = {
     version: 1,
     schema: z.object({ from: z.string(), to: z.string() }),
   },
+  /* A billing period Paddle collected money for (the first one included). */
   "billing.period_renewed": {
     version: 1,
     schema: z.object({ subscriptionId: id, periodEnd: timestamp }),
+  },
+  /* A one-time credit pack was paid for. */
+  "billing.credits_purchased": {
+    version: 1,
+    schema: z.object({
+      transactionId: z.string().min(1).max(200),
+      credits: z.number().int().positive(),
+    }),
   },
   "import.completed": { version: 1, schema: z.object({ importId: id, source: z.string() }) },
   "email.requested": {
@@ -70,6 +87,10 @@ export const EVENT_SCHEMAS = {
       template: z.string(),
       to: z.email(),
       data: z.record(z.string(), z.unknown()),
+      /* Stable key for the provider when the same email may be requested twice (alert retries). */
+      idempotencyKey: z.string().min(1).max(200).optional(),
+      /* Extra email headers, for example List-Unsubscribe on digests. */
+      headers: z.record(z.string(), z.string().max(2_000)).optional(),
     }),
   },
 } as const;

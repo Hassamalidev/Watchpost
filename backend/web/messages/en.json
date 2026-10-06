@@ -3,7 +3,13 @@
     "name": "Watchpost",
     "skipToContent": "Skip to content",
     "primaryNav": "Primary",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "menu": "Menu",
+    "closeMenu": "Close menu",
+    "signOut": "Sign out",
+    "loading": "Loading…",
+    "notMember": "You don't have access to this workspace.",
+    "pickWorkspace": "Choose a workspace"
   },
   "nav": {
     "overview": "Overview",
@@ -12,6 +18,7 @@
     "incidents": "Incidents",
     "onCall": "On-call",
     "statusPages": "Status pages",
+    "maintenance": "Maintenance",
     "integrations": "Integrations",
     "reports": "Reports",
     "team": "Team",
@@ -40,18 +47,1238 @@
     "maintenance": "Maintenance",
     "paused": "Paused"
   },
+  "common": {
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "create": "Create",
+    "back": "Back",
+    "name": "Name",
+    "email": "Email",
+    "never": "Never",
+    "none": "None",
+    "yes": "Yes",
+    "no": "No",
+    "copy": "Copy",
+    "copied": "Copied",
+    "retry": "Try again"
+  },
+  "auth": {
+    "loginTitle": "Sign in to Watchpost",
+    "signupTitle": "Create your Watchpost account",
+    "signupIntro": "Free for 20 monitors. No card needed.",
+    "planSelected": "{plan} plan selected. Your workspace starts with a free 14-day Pro trial and no card; you can subscribe to {plan} from Billing at any time.",
+    "changePlan": "Change plan",
+    "email": "Work email",
+    "password": "Password",
+    "passwordHint": "At least 8 characters.",
+    "name": "Your name",
+    "signIn": "Sign in",
+    "signingIn": "Signing in…",
+    "signUp": "Create account",
+    "signingUp": "Creating account…",
+    "noAccount": "New to Watchpost?",
+    "haveAccount": "Already have an account?",
+    "createOne": "Create an account",
+    "signInInstead": "Sign in",
+    "unverified": "Confirm your email first: open the link we sent you.",
+    "verifyTitle": "Check your email",
+    "verifyBody": "We sent a confirmation link to {email}. Open it to finish setting up your account.",
+    "verifyDev": "Running locally? The link is printed in the worker's log.",
+    "invalidEmail": "Enter a valid email address.",
+    "shortPassword": "Use at least 8 characters.",
+    "nameRequired": "Enter your name."
+  },
+  "onboarding": {
+    "title": "Set up monitoring",
+    "stepWorkspace": "Workspace",
+    "stepMonitors": "Monitors",
+    "stepAlerts": "Alerts",
+    "stepTest": "Test alert",
+    "workspaceName": "Workspace name",
+    "workspaceHint": "Usually your company or team.",
+    "continue": "Continue",
+    "urlLabel": "Website or API URL",
+    "urlHint": "We'll suggest monitors for it.",
+    "urlInvalid": "Enter a full http:// or https:// URL.",
+    "suggestions": "Suggested monitors",
+    "suggestHome": "Homepage is up ({url})",
+    "suggestHealth": "Health endpoint answers ({url})",
+    "suggestSsl": "SSL certificate for {host} doesn't expire",
+    "suggestDomain": "Domain {domain} doesn't expire",
+    "createMonitors": "Create monitors",
+    "creating": "Creating…",
+    "alertsIntro": "Where should alerts go? You can add Slack, Teams, Telegram and more later.",
+    "alertEmail": "Email alerts to",
+    "addChannel": "Save and continue",
+    "testIntro": "Send a test alert to check that alerts reach you.",
+    "sendTest": "Send test alert",
+    "sending": "Sending…",
+    "delivered": "Test alert delivered to {channel}.",
+    "failed": "The test alert failed: {error}",
+    "done": "Go to overview"
+  },
   "overview": {
     "title": "Overview",
-    "intro": "Your monitors, incidents and on-call status will appear here.",
+    "intro": "Everything you monitor, at a glance.",
+    "statusWall": "Monitors",
+    "openIncidents": "Open incidents",
+    "noMonitors": "No monitors yet.",
+    "addFirst": "Add your first monitor",
+    "noIncidents": "No open incidents. All quiet.",
     "statusLegend": "Status colors"
   },
+  "monitors": {
+    "title": "Monitors",
+    "new": "New monitor",
+    "empty": "No monitors yet.",
+    "type": "Type",
+    "status": "Status",
+    "name": "Name",
+    "target": "Target",
+    "interval": "Check every",
+    "regions": "Regions",
+    "regionsHint": "The Free plan checks from up to 2 regions.",
+    "severity": "Severity",
+    "url": "URL",
+    "method": "Method",
+    "keyword": "Keyword",
+    "keywordMode": "Alert when the keyword is",
+    "missing": "missing",
+    "present": "present",
+    "host": "Host",
+    "port": "Port",
+    "hostname": "Hostname",
+    "recordType": "Record type",
+    "domain": "Domain",
+    "createTitle": "New monitor",
+    "created": "Monitor created.",
+    "minutes": "{count, plural, one {# minute} other {# minutes}}",
+    "hours": "{count, plural, one {# hour} other {# hours}}",
+    "pause": "Pause",
+    "resume": "Resume",
+    "delete": "Delete monitor",
+    "confirmDelete": "Delete this monitor and its history?",
+    "testNow": "Test now",
+    "testing": "Testing…",
+    "testResult": "{region}: {outcome} in {ms} ms",
+    "testOk": "OK",
+    "testFailed": "failed",
+    "testPending": "{region}: waiting for a probe…",
+    "uptime30": "Uptime (30 days)",
+    "uptimeBars": "Last 90 days",
+    "latency": "Response time (24 h)",
+    "p50": "p50",
+    "p95": "p95",
+    "noLatency": "No data yet. Charts fill in as checks run.",
+    "recentChecks": "Recent checks",
+    "checkedAt": "Time",
+    "region": "Region",
+    "result": "Result",
+    "latencyMs": "Latency",
+    "incidents": "Incidents",
+    "expiry": "Expiry",
+    "expiresIn": "{kind} expires in {days} days ({date})",
+    "expiryState": "{kind}: {status}",
+    "certificate": "Certificate",
+    "registration": "Registration",
+    "dayTitle": "{date}: {status}",
+    "noData": "no data",
+    "types": {
+      "http": "HTTP(S)",
+      "keyword": "Keyword",
+      "json_query": "JSON query",
+      "tcp": "TCP port",
+      "ping": "Ping",
+      "dns": "DNS",
+      "websocket": "WebSocket",
+      "ssl": "SSL certificate",
+      "domain": "Domain expiry",
+      "heartbeat": "Heartbeat"
+    },
+    "severities": {
+      "critical": "Critical",
+      "high": "High",
+      "low": "Low"
+    },
+    "pausedNotice": "Paused: no checks run and no alerts are sent. Resume to start checking again.",
+    "sloTarget": "Availability target",
+    "sloHint": "Sets this monitor's monthly error budget: the downtime you can afford before missing the target.",
+    "sloOption": "{target}% (about {allowance} down per month)",
+    "noChecksYet": "No checks yet. The first results arrive within one interval, or use Test now.",
+    "noChecksPaused": "No checks while paused.",
+    "editTitle": "Edit monitor",
+    "edit": "Edit",
+    "secretsRetarget": "This monitor has saved credentials (a password, token or secret header). They were entered for the old target and won't be sent to the new one.",
+    "secretsDrop": "Remove the saved credentials and save",
+    "secretsRetargetRequired": "The target changed: confirm removing the saved credentials, or keep the old target.",
+    "confirmRegions": "Open an incident when it fails from",
+    "confirmRegionsHint": "A failure in one region is rechecked from the others first. Fewer regions alert sooner; more regions mean fewer false alarms.",
+    "confirmRegionsOption": "{count, plural, one {# region} other {# regions}}",
+    "alertRegional": "Also alert on regional issues",
+    "alertRegionalHint": "When it fails from fewer regions than that and the others are healthy, open a low-severity incident instead of only showing the monitor as degraded.",
+    "reducedConfirmation": "Our checks from {regions} aren't reliable right now because of a problem on our side, so they don't count. This monitor is still checked from its other regions, with fewer of them to confirm an outage. You don't need to do anything.",
+    "notWatched": "This monitor is only checked from {regions}, and our checks from there aren't working right now because of a problem on our side. It isn't being watched until that is fixed. We have been alerted and are on it."
+  },
+  "incidents": {
+    "title": "Incidents",
+    "open": "Open",
+    "resolved": "Resolved",
+    "all": "All",
+    "empty": "No incidents here.",
+    "started": "Started",
+    "duration": "Duration",
+    "severity": "Severity",
+    "acknowledge": "Acknowledge",
+    "resolve": "Resolve",
+    "acknowledgedBy": "Acknowledged",
+    "timeline": "Timeline",
+    "comment": "Add a comment",
+    "commentPlaceholder": "What did you find? What are you trying?",
+    "post": "Post",
+    "cause": "Cause",
+    "regions": "Failing regions",
+    "falseAlarm": "Mark as false alarm",
+    "notFalseAlarm": "Not a false alarm",
+    "events": {
+      "triggered": "Triggered",
+      "acknowledged": "Acknowledged",
+      "resolved": "Resolved",
+      "comment": "Comment",
+      "updated": "Updated",
+      "delivery_failed": "Alert delivery failed",
+      "false_alarm_marked": "Marked as a false alarm",
+      "false_alarm_cleared": "False-alarm mark removed",
+      "flapping_started": "Started flapping",
+      "flapping_stopped": "Stopped flapping"
+    },
+    "statuses": {
+      "triggered": "Triggered",
+      "acknowledged": "Acknowledged",
+      "snoozed": "Snoozed",
+      "resolved": "Resolved"
+    },
+    "severityLabel": "{severity} severity",
+    "regionsOf": "{count} of {total}",
+    "filterSeverity": "Filter by severity",
+    "filterMonitor": "Filter by monitor",
+    "allSeverities": "All severities",
+    "allMonitors": "All monitors",
+    "emptyFiltered": "No incidents match these filters.",
+    "timing": "Timing",
+    "evidence": {
+      "title": "What the failing check saw",
+      "answered": "The server answered with HTTP {status}",
+      "noResponse": "No response from the server",
+      "ip": "Address checked: {ip}",
+      "timings": "Where the time went ({total} in all)",
+      "phase": {
+        "dns": "DNS lookup",
+        "connect": "Connecting",
+        "tls": "TLS handshake",
+        "ttfb": "Waiting for first byte",
+        "download": "Downloading"
+      },
+      "headers": "Response headers (a fixed list; cookies and tokens are never kept)",
+      "body": "Response body",
+      "bodyStart": "Start of the response body",
+      "expired": "The stored evidence for this region is no longer available. It is kept for 30 days.",
+      "note": "Recorded when the incident opened and kept privately for 30 days."
+    }
+  },
+  "integrations": {
+    "title": "Integrations",
+    "intro": "Send alerts to the tools your team already uses. Every integration has a test button, its own rules and a health check.",
+    "connected": "Connected",
+    "empty": "Nothing is connected yet.",
+    "emptyHint": "Pick an integration below. Most take about a minute.",
+    "gallery": "Add an integration",
+    "search": "Search integrations",
+    "searchPlaceholder": "Try PagerDuty, chat or push",
+    "categoryFilter": "Category",
+    "categories": {
+      "all": "All",
+      "chat": "Chat",
+      "oncall": "On-call",
+      "push": "Push",
+      "phone": "Phone",
+      "email": "Email",
+      "automation": "Automation"
+    },
+    "resultCount": "{count, plural, one {# integration} other {# integrations}}",
+    "noResults": "No integration matches “{query}”.",
+    "noResultsHint": "A webhook reaches almost anything that accepts HTTP requests.",
+    "noResultsAction": "Set up a webhook",
+    "followUps": {
+      "thread": "Follow-ups in one thread",
+      "update": "Updates in place",
+      "sync": "Acknowledge and resolve stay in sync"
+    },
+    "unavailable": "Not set up on this server",
+    "unavailableSlack": "The Slack app isn't configured on this server yet. A Slack incoming webhook works right away.",
+    "unavailableTelegram": "The Telegram bot isn't configured on this server yet.",
+    "useSlackWebhook": "Use an incoming webhook",
+    "back": "All integrations",
+    "setupTitle": "Connect {name}",
+    "setupSteps": "How to set it up",
+    "notFound": "We don't have that integration.",
+    "adminOnly": "Only workspace admins can change integrations.",
+    "name": "Name",
+    "nameHint": "Shown in the list and in each incident's delivery log.",
+    "save": "Save",
+    "saveAndTest": "Save and send test",
+    "saving": "Saving…",
+    "saved": "Saved.",
+    "pagesNote": "A test opens a real alert in {name} and resolves it at once, so whoever is on call may be paged. We don't send one automatically.",
+    "confirmTestPages": "Send a test alert to {name}? It may page whoever is on call.",
+    "created": "{name} is connected.",
+    "testDelivered": "The test alert was delivered.",
+    "testFailedAfterSave": "It is saved, but the test alert failed: {error}",
+    "notTested": "Send a test to check that it works.",
+    "notRouted": "It is saved, but it isn't receiving alerts yet: {error}",
+    "secretSaved": "Saved. Leave empty to keep it.",
+    "secretUrlSaved": "Saved ({value}). Leave empty to keep it.",
+    "removeSecret": "Remove the saved value",
+    "headersSaved": "Values show as ******** and are kept unless you change them.",
+    "headersInvalid": "Write each header as Name: value, one per line.",
+    "rulesTitle": "What to send here",
+    "rulesIntro": "The alert policy decides which integrations are asked. These rules decide what this one accepts.",
+    "severityLabel": "Incidents",
+    "severity": {
+      "low": "All incidents",
+      "high": "High and critical only",
+      "critical": "Critical only"
+    },
+    "severityHint": "Certificate and domain expiry warnings are low severity.",
+    "eventsLabel": "Events",
+    "events": {
+      "triggered": "Down",
+      "acknowledged": "Acknowledged",
+      "resolved": "Resolved",
+      "reminder": "Reminders while down",
+      "flapping": "Flapping notices"
+    },
+    "syncHint": "Acknowledged and Resolved always follow Down here, so the alert in the other tool never stays open.",
+    "rulesSummary": {
+      "all": "All alerts",
+      "high": "High and critical",
+      "critical": "Critical only",
+      "without": {
+        "triggered": "no down alerts",
+        "acknowledged": "no acknowledgements",
+        "resolved": "no recoveries",
+        "reminder": "no reminders",
+        "flapping": "no flapping notices"
+      }
+    },
+    "notInPolicy": "Not receiving alerts",
+    "notInPolicyHint": "It isn't in the default alert policy.",
+    "addToPolicy": "Send alerts here",
+    "sendTest": "Send test",
+    "testOk": "Delivered.",
+    "testFailed": "Failed: {error}",
+    "healthy": "Healthy",
+    "failing": "Failing",
+    "lastSuccess": "Last delivery",
+    "lastFailure": "Last failure",
+    "noDeliveriesYet": "No deliveries yet",
+    "edit": "Edit",
+    "editAria": "Edit {name}",
+    "settings": "Settings",
+    "delivery": "Delivery",
+    "remove": "Remove",
+    "removeTitle": "Remove this integration",
+    "removeHint": "Alerts stop going to it right away. The incident history keeps its delivery log.",
+    "confirmRemove": "Remove {name}? Alerts stop going to it right away.",
+    "signingSecret": "Signing secret",
+    "signingSecretHint": "Use it to verify the Watchpost-Signature header of each request.",
+    "slackConnect": "Add to Slack",
+    "slackAnother": "Connect another Slack workspace",
+    "slackWorkspace": "Slack workspace",
+    "slackChannel": "Channel",
+    "slackPickChannel": "Choose a channel",
+    "slackPrivate": "private",
+    "slackInstalled": "Slack is connected. Pick a channel to finish.",
+    "slackNoInstall": "Install the Watchpost app in your Slack workspace first.",
+    "slackPostsTo": "Posts to #{channel}.",
+    "telegramTitle": "Connect a chat",
+    "telegramUnlinked": "No chat is connected yet. Open the link in Telegram and press Start.",
+    "telegramLinked": "Connected to {chat}.",
+    "telegramGetLink": "Get the link",
+    "telegramOpen": "Open in Telegram",
+    "telegramWaiting": "Waiting for you to press Start in Telegram…",
+    "telegramRelink": "Connect a different chat",
+    "telegramCreate": "Save and get the link",
+    "catalog": {
+      "slack": {
+        "summary": "Install the Watchpost app and pick a channel. Follow-ups reply in the alert's thread.",
+        "steps": "Click Add to Slack and approve the app for your Slack workspace.\nPick the channel alerts should go to.\nFor a private channel, invite the Watchpost app to it first."
+      },
+      "slack-webhook": {
+        "summary": "Post to one Slack channel through an incoming webhook, without installing our app.",
+        "steps": "At api.slack.com/apps, create an app (From scratch) and turn on Incoming Webhooks.\nClick Add New Webhook to Workspace and pick the channel.\nCopy the webhook URL and paste it below."
+      },
+      "teams": {
+        "summary": "Adaptive Cards in a Teams channel through a Workflows webhook.",
+        "steps": "In Teams, open the channel's ⋯ menu and choose Workflows.\nPick “Send webhook alerts to a channel” and finish the wizard.\nCopy the URL it shows and paste it below."
+      },
+      "discord": {
+        "summary": "Colored embeds in a Discord channel. The first message updates as the incident changes.",
+        "steps": "In Discord, open Server Settings → Integrations → Webhooks.\nClick New Webhook and pick the channel.\nCopy the webhook URL and paste it below."
+      },
+      "telegram": {
+        "summary": "Our bot posts to a chat or group. Follow-ups reply to the first message.",
+        "steps": "Give it a name and save.\nOpen the link we show in Telegram and press Start.\nFor a group, add the bot to the group and open the link there."
+      },
+      "google-chat": {
+        "summary": "Cards in a Google Chat space. An incident's updates stay in one thread.",
+        "steps": "In the space, open its menu → Apps & integrations → Webhooks.\nAdd a webhook named Watchpost.\nCopy its URL and paste it below."
+      },
+      "mattermost": {
+        "summary": "Alerts in a Mattermost channel through an incoming webhook.",
+        "steps": "In Mattermost, open Integrations → Incoming Webhooks → Add Incoming Webhook.\nPick the channel and save.\nCopy the webhook URL and paste it below. The server must be reachable from the internet over HTTPS."
+      },
+      "rocketchat": {
+        "summary": "Alerts in a Rocket.Chat channel through an incoming webhook.",
+        "steps": "In Rocket.Chat, open Administration → Workspace → Integrations → New → Incoming.\nEnable it, pick the channel and the user to post as, and save.\nCopy the Webhook URL and paste it below. The server must be reachable from the internet over HTTPS."
+      },
+      "zulip": {
+        "summary": "A bot posts to a Zulip channel, with one topic per monitor.",
+        "steps": "In Zulip, open Settings → Personal → Bots and add a bot (the Incoming webhook type is enough).\nCopy the bot's email and API key.\nSubscribe the bot to the channel, then fill in the form."
+      },
+      "matrix": {
+        "summary": "A bot account posts to a Matrix room. Follow-ups go in a thread.",
+        "steps": "Create a Matrix account for the bot, invite it to the room and accept the invite.\nCopy the bot's access token (in Element: Settings → Help & About → Advanced).\nCopy the room's internal ID (Room settings → Advanced). It starts with !."
+      },
+      "pagerduty": {
+        "summary": "Page your on-call through PagerDuty. Acknowledging or resolving here does the same there.",
+        "steps": "In PagerDuty, open the service → Integrations → Add an integration → Events API V2.\nCopy the Integration Key.\nPaste it below and pick your account's region."
+      },
+      "opsgenie": {
+        "summary": "Alerts in Opsgenie, acknowledged and closed in step with the incident.",
+        "steps": "In Opsgenie, open your team → Integrations → Add integration → API.\nTurn the integration on and copy its API key.\nPaste it below and pick your region.",
+        "note": "Opsgenie shuts down on April 5, 2027. After you move to Jira Service Management, switch the region here; the alert format stays the same."
+      },
+      "jira-service-management": {
+        "summary": "Alerts in Jira Service Management operations, where Opsgenie's alerting now lives.",
+        "steps": "In Jira Service Management, open your team's Operations → Integrations → Add integration → API.\nTurn the integration on and copy its API key.\nPaste it below."
+      },
+      "splunk-on-call": {
+        "summary": "Page through Splunk On-Call (VictorOps). Acknowledgements and recoveries follow the incident.",
+        "steps": "In Splunk On-Call, open Integrations → 3rd Party Integrations → REST – Generic and enable it.\nCopy the endpoint URL.\nReplace $routing_key at its end with a routing key from Settings → Routing Keys, and paste it below."
+      },
+      "pushover": {
+        "summary": "Push notifications to phones through your own Pushover application.",
+        "steps": "On pushover.net, create an application and copy its API token.\nCopy your user key, or a delivery group's key, from the dashboard.\nPaste both below."
+      },
+      "ntfy": {
+        "summary": "Push notifications through ntfy.sh or your own ntfy server.",
+        "steps": "Pick a topic name that is hard to guess: anyone who knows it can read your alerts.\nSubscribe to the topic in the ntfy app.\nFor a protected topic, or to use your own account's limits on ntfy.sh, add an access token."
+      },
+      "pushbullet": {
+        "summary": "Pushes to all your devices, or to the subscribers of a Pushbullet channel.",
+        "steps": "On pushbullet.com, open Settings → Account → Create Access Token.\nPaste the token below.\nTo push to a channel instead of your own devices, enter its tag."
+      },
+      "gotify": {
+        "summary": "Messages to your self-hosted Gotify server.",
+        "steps": "In Gotify, open Apps → Create Application and copy its token. It is shown once.\nEnter your server's address and the token below.\nThe server must be reachable from the internet over HTTPS."
+      },
+      "email": {
+        "summary": "Alert emails with one-click acknowledge and resolve links.",
+        "steps": "Enter up to 10 addresses, separated by commas.\nEach person gets their own email with their own action links."
+      },
+      "webhook": {
+        "summary": "Signed JSON for every incident event, to any HTTP endpoint.",
+        "steps": "Enter the URL that should receive POST requests.\nAdd headers if your endpoint needs them, for example Authorization.\nAfter saving, copy the signing secret to verify the Watchpost-Signature header."
+      },
+      "zapier": {
+        "summary": "Start a Zap from every incident event with Webhooks by Zapier.",
+        "steps": "In Zapier, create a Zap with the trigger Webhooks by Zapier → Catch Hook.\nCopy the webhook URL Zapier shows and paste it below.\nSend a test from here, then map the fields in your Zap."
+      },
+      "make": {
+        "summary": "Start a Make scenario from every incident event.",
+        "steps": "In Make, add a Webhooks → Custom webhook module to a scenario.\nCopy its address and paste it below.\nSend a test from here so Make learns the data structure."
+      },
+      "n8n": {
+        "summary": "Trigger an n8n workflow from every incident event.",
+        "steps": "In n8n, add a Webhook node with the method POST.\nCopy its production URL and paste it below.\nIf the node uses header authentication, add that header here."
+      },
+      "sms": {
+        "summary": "Text messages to a phone. Reply 1 to acknowledge or 2 to resolve. Uses alert credits.",
+        "steps": "Enter the number in international format, like +14155550123.\nCheck what a message to that country costs in credits, then send a code to the number.\nEnter the code to verify the number, then save."
+      },
+      "voice": {
+        "summary": "A phone call that reads the alert aloud. Press 1 to acknowledge. Uses alert credits.",
+        "steps": "Enter the number in international format, like +14155550123.\nCheck what a call to that country costs in credits, then send a code to the number by SMS.\nEnter the code to verify the number, then save. Calls are placed for new and ongoing incidents only."
+      }
+    },
+    "fields": {
+      "email": {
+        "to": {
+          "label": "Email addresses",
+          "hint": "Comma-separated, up to 10."
+        }
+      },
+      "teams": {
+        "url": {
+          "label": "Workflow webhook URL"
+        }
+      },
+      "discord": {
+        "url": {
+          "label": "Webhook URL"
+        }
+      },
+      "webhook": {
+        "url": {
+          "label": "Endpoint URL",
+          "hint": "We sign each request. The signing secret appears after saving."
+        },
+        "headers": {
+          "label": "Request headers (optional)",
+          "hint": "One per line, as Name: value. Up to 10."
+        }
+      },
+      "slack_webhook": {
+        "url": {
+          "label": "Webhook URL",
+          "hint": "Starts with https://hooks.slack.com/services/"
+        }
+      },
+      "google_chat": {
+        "url": {
+          "label": "Webhook URL"
+        }
+      },
+      "mattermost": {
+        "url": {
+          "label": "Webhook URL"
+        }
+      },
+      "rocketchat": {
+        "url": {
+          "label": "Webhook URL"
+        }
+      },
+      "zulip": {
+        "serverUrl": {
+          "label": "Zulip server"
+        },
+        "botEmail": {
+          "label": "Bot email"
+        },
+        "apiKey": {
+          "label": "Bot API key"
+        },
+        "stream": {
+          "label": "Channel",
+          "hint": "The channel (stream) name, without #."
+        },
+        "topic": {
+          "label": "Topic (optional)",
+          "hint": "Leave empty to use one topic per monitor."
+        }
+      },
+      "matrix": {
+        "homeserverUrl": {
+          "label": "Homeserver URL"
+        },
+        "accessToken": {
+          "label": "Access token"
+        },
+        "roomId": {
+          "label": "Room ID",
+          "hint": "The internal ID, starting with !. Not the #alias."
+        }
+      },
+      "pagerduty": {
+        "routingKey": {
+          "label": "Integration key",
+          "hint": "32 characters, from the service's Events API V2 integration."
+        },
+        "region": {
+          "label": "Region",
+          "options": {
+            "us": "United States",
+            "eu": "Europe"
+          }
+        }
+      },
+      "opsgenie": {
+        "apiKey": {
+          "label": "API key",
+          "hint": "From the team's API integration."
+        },
+        "region": {
+          "label": "Region",
+          "options": {
+            "us": "Opsgenie, United States",
+            "eu": "Opsgenie, Europe",
+            "jsm": "Jira Service Management"
+          }
+        }
+      },
+      "splunk_oncall": {
+        "url": {
+          "label": "REST endpoint URL",
+          "hint": "Ends with one of your routing keys."
+        }
+      },
+      "pushover": {
+        "userKey": {
+          "label": "User or group key"
+        },
+        "appToken": {
+          "label": "Application API token"
+        },
+        "critical": {
+          "label": "Critical incidents",
+          "options": {
+            "high": "High priority: bypasses quiet hours",
+            "emergency": "Emergency: repeats until acknowledged"
+          }
+        }
+      },
+      "pushbullet": {
+        "accessToken": {
+          "label": "Access token"
+        },
+        "channelTag": {
+          "label": "Channel tag (optional)",
+          "hint": "Leave empty to push to your own devices."
+        }
+      },
+      "ntfy": {
+        "serverUrl": {
+          "label": "Server",
+          "hint": "https://ntfy.sh, or the address of your own server."
+        },
+        "topic": {
+          "label": "Topic"
+        },
+        "accessToken": {
+          "label": "Access token (optional)",
+          "hint": "On ntfy.sh, a token makes alerts count against your own account's limits."
+        }
+      },
+      "gotify": {
+        "serverUrl": {
+          "label": "Server URL"
+        },
+        "appToken": {
+          "label": "Application token"
+        }
+      },
+      "sms": {
+        "phone": {
+          "label": "Phone number",
+          "hint": "International format, starting with + and the country code."
+        }
+      },
+      "voice": {
+        "phone": {
+          "label": "Phone number",
+          "hint": "International format, starting with + and the country code."
+        }
+      }
+    },
+    "phoneIntro": "This number must be verified before alerts go to it.",
+    "phoneCheckCost": "Check cost",
+    "phoneCost": "{country}: each SMS costs {sms, plural, one {# credit} other {# credits}}, each call {voice, plural, one {# credit} other {# credits}}.",
+    "phoneSendCode": "Send code by SMS ({credits, plural, one {# credit} other {# credits}})",
+    "phoneCode": "6-digit code",
+    "phoneConfirm": "Verify number",
+    "phoneVerified": "Number verified. You can save now."
+  },
+  "heartbeats": {
+    "title": "Heartbeats",
+    "intro": "Cron jobs and workers ping a URL; we alert when a ping is late or reports a failure.",
+    "new": "New heartbeat",
+    "empty": "No heartbeats yet.",
+    "period": "Expected every",
+    "grace": "Grace time",
+    "create": "Create heartbeat",
+    "pingUrl": "Ping URL",
+    "showUrl": "Get ping URL",
+    "urlOnce": "Copy it now: it's shown only once. You can create a new one at any time.",
+    "lastPing": "Last ping",
+    "nextExpected": "Next expected",
+    "usage": "Add to the end of your job: curl -fsS {url}"
+  },
+  "team": {
+    "title": "Team",
+    "members": "Members",
+    "role": "Role",
+    "joined": "Joined",
+    "invite": "Invite someone",
+    "inviteEmail": "Email",
+    "invited": "Invitation sent to {email}.",
+    "send": "Send invite",
+    "roles": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "member": "Member",
+      "responder": "Responder",
+      "viewer": "Viewer",
+      "billing": "Billing"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "timezone": "Time zone",
+    "timezoneHint": "Used for schedules, reports and dates.",
+    "saved": "Settings saved."
+  },
+  "billing": {
+    "title": "Billing",
+    "readOnly": "Owners, admins and billing members can change the plan. You can see it.",
+    "planTitle": "Your plan",
+    "planOn": "{plan} plan",
+    "sourceTrial": "Free trial of {plan}, no card needed. It ends on {date} ({days, plural, =0 {today} one {# day left} other {# days left}}). After that the workspace moves to the Free plan unless you pick a plan; nothing is deleted.",
+    "sourceFree": "The Free plan is free forever, also for commercial use.",
+    "sourceSubscription": "Billed {interval, select, year {yearly} other {monthly}}. Renews on {date}.",
+    "sourceSubscriptionNoDate": "Billed {interval, select, year {yearly} other {monthly}}.",
+    "sourceGrace": "A payment failed. {plan} features stay on until {date} while the payment is retried. Update the payment method to keep them.",
+    "trialWithSubscription": "Your {paid} subscription is active. The trial keeps {plan} features on until {date}; then {paid} limits apply.",
+    "scheduledCancel": "The subscription ends on {date}. Until then nothing changes; after that the workspace moves to Free and monitors over the limit are paused, never deleted.",
+    "scheduledPause": "The subscription pauses on {date}. While paused nothing is charged and Free limits apply.",
+    "paused": "The subscription is paused. Nothing is charged and Free limits apply until you resume it.",
+    "overdueLapsed": "A payment is overdue and the grace period has ended, so Free limits apply. Update the payment method in the customer portal to get your plan back; nothing was deleted.",
+    "downgradePending": "You moved to {to}. {from} features stay on until {date}, the end of the period you already paid for.",
+    "keep": "Keep subscription",
+    "resume": "Resume subscription",
+    "founding": "Founding customer: 30% off for life.",
+    "foundingOffer": "Founding offer: the first 100 paying workspaces get 30% off for life. It is applied at checkout.",
+    "activating": "Payment received. Activating your plan…",
+    "activatingSlow": "Payment received. Activation is taking longer than usual; this page updates on its own.",
+    "usageTitle": "Usage",
+    "usageMonitors": "Monitors",
+    "usageHeartbeats": "Heartbeat monitors",
+    "usageMembers": "Team members",
+    "usageOf": "{used} of {limit}",
+    "usageUnlimited": "{used} (no limit)",
+    "usageMeter": "{label}: {used} of {limit}",
+    "pausedByPlan": "{count, plural, one {# monitor is} other {# monitors are}} paused because of the plan limit. Upgrade to resume them, or pause others to choose which stay active.",
+    "plansTitle": "Plans",
+    "interval": "Billing interval",
+    "intervalMonth": "Monthly",
+    "intervalYear": "Yearly (two months free)",
+    "perMonth": "{price} per month",
+    "perMonthYearly": "{price} per month, billed yearly ({total})",
+    "free": "Free",
+    "limitMonitors": "{count} monitors",
+    "limitHeartbeats": "{count} heartbeat monitors",
+    "limitInterval": "Checks every {interval}",
+    "limitRegions": "{count, plural, one {# region} other {# regions}} per monitor",
+    "limitMembers": "{count} team members",
+    "limitMembersUnlimited": "Unlimited team members",
+    "limitHistory": "{days} days of history",
+    "limitCredits": "{count} SMS and voice credits a month",
+    "limitNoCredits": "No SMS or voice alerts",
+    "current": "Current plan",
+    "subscribe": "Choose {plan}",
+    "upgrade": "Upgrade to {plan}",
+    "downgrade": "Move to {plan}",
+    "switchYearly": "Switch to yearly",
+    "restore": "Move back to {plan}",
+    "unavailable": "Checkout isn't set up on this server yet.",
+    "blockedStatus": "Resume or keep the subscription before changing plans.",
+    "blockedPastDue": "A payment is overdue. Update the payment method in the customer portal, then change plans.",
+    "blockedPending": "A plan change is waiting for the end of this period. Change the billing interval after that.",
+    "blockedYearly": "A yearly subscription can move to monthly at renewal, from the customer portal.",
+    "blockedInterval": "Keep the same billing interval when moving to a smaller plan.",
+    "freeHow": "Cancel the subscription to return to Free.",
+    "confirmUpgrade": "Upgrade to {plan} now? The difference for the rest of this period is charged to your saved payment method.",
+    "confirmDowngrade": "Move to {plan}? Nothing is charged now. Your current features stay on until the end of the period you paid for; then monitors over the {plan} limit are paused, never deleted.",
+    "confirmRestore": "Move back to {plan}? Nothing is charged now: this period is already paid for. The next renewal is charged at the {plan} price.",
+    "creditsTitle": "SMS and voice credits",
+    "creditsIntro": "Credits pay for SMS, voice and WhatsApp alerts. Email and chat alerts are always free.",
+    "creditsTotal": "{count, plural, one {# credit} other {# credits}} left",
+    "creditsIncluded": "{count} from this month's plan allowance of {allowance}; unused ones expire when the month ends.",
+    "creditsPurchased": "{count} purchased; these never expire.",
+    "creditsLow": "Credits are running low. When they run out, SMS and voice alerts stop; email and chat alerts keep working.",
+    "creditsNone": "This plan has no SMS or voice credits. Starter and higher plans include them every month.",
+    "buyPack": "Buy {credits} credits for {price}",
+    "buyNeedsPlan": "Credit packs need an active Starter, Pro or Business plan.",
+    "confirmBuy": "Buy {credits} credits for {price}? Your saved payment method is charged now.",
+    "buying": "Charging your saved payment method… the credits appear here in a moment.",
+    "bought": "Credits added.",
+    "historyTitle": "Recent credit activity",
+    "historyEmpty": "No credit activity yet.",
+    "reason": {
+      "grant": "Monthly allowance",
+      "grant_upgrade": "Allowance raised by upgrade",
+      "purchase": "Credit pack",
+      "charge": "Alert sent",
+      "refund": "False-alarm refund",
+      "expire": "Unused allowance expired"
+    },
+    "invoicesTitle": "Invoices and payment method",
+    "invoicesIntro": "Invoices, receipts and your card are in the secure customer portal run by Paddle, our payment provider.",
+    "openPortal": "Open customer portal",
+    "portalNone": "Invoices appear here after your first payment.",
+    "manageTitle": "Pause or cancel",
+    "cancelStart": "Cancel subscription",
+    "pauseStart": "Pause instead",
+    "pauseHint": "Pausing keeps your subscription and data. Nothing is charged while it is paused and you can resume any time.",
+    "cancelHeading": "Cancel your subscription",
+    "cancelIntro": "The subscription runs until the end of the period you paid for. After that the workspace moves to Free: monitors over the limit are paused, never deleted, and purchased credits stay.",
+    "cancelIntroPaused": "The subscription is paused, so canceling takes effect right away. The workspace stays on Free; purchased credits stay.",
+    "cancelReason": "Why are you canceling?",
+    "cancelReasonHint": "It helps us fix what didn't work.",
+    "cancelComment": "Anything else? (optional)",
+    "cancelConfirm": "Cancel at the end of the period",
+    "cancelConfirmNow": "Cancel the subscription now",
+    "cancelBack": "Keep my subscription",
+    "cancelReasons": {
+      "too_expensive": "It costs too much",
+      "missing_feature": "A feature I need is missing",
+      "switched_tool": "I moved to another tool",
+      "not_needed": "I don't need monitoring any more",
+      "too_noisy": "Too many false or noisy alerts",
+      "other": "Something else"
+    },
+    "chosenOnSite": "You picked this plan before signing up"
+  },
   "placeholder": {
-    "title": "Coming soon",
-    "body": "This section is built in a later phase."
+    "title": "Coming in Phase {phase}",
+    "sections": {
+      "statusPages": {
+        "what": "Public status pages on your own domain, with components, 90-day uptime bars, incident updates and subscribers.",
+        "meanwhile": "Until then, every monitor page shows 90-day uptime and response times you can share with your team.",
+        "action": "Open monitors"
+      },
+      "onCall": {
+        "what": "Schedules, rotations, overrides and escalation policies, with no per-seat pricing.",
+        "meanwhile": "Until then, alerts go to every channel in your alert routes, with reminders while an incident stays open.",
+        "action": "Set up alert channels"
+      },
+      "reports": {
+        "what": "Monthly SLA reports as PDF and CSV, and uptime history you can send to clients.",
+        "meanwhile": "A weekly digest already arrives by email every Monday, and the overview shows alert accuracy, response times and error budgets.",
+        "action": "Open the overview"
+      }
+    }
   },
   "marketing": {
     "hero": "Know about real outages first. Confirmed, explained, actionable.",
     "subhead": "Watchpost checks your sites and APIs from around the world, confirms each failure before it pages anyone, and lets your team acknowledge from wherever they are.",
-    "openApp": "Open the app"
+    "navLabel": "Site",
+    "navFeatures": "Features",
+    "navPricing": "Pricing",
+    "signIn": "Sign in",
+    "signUp": "Sign up",
+    "startFreeNoCard": "Start free, no card",
+    "seePlans": "See plans",
+    "haveAccount": "Already have an account?",
+    "featuresTitle": "Alerts you can trust at 3 a.m.",
+    "featuresIntro": "Every alert is checked from more than one place and arrives with what you need to act on it.",
+    "features": {
+      "confirmed": {
+        "title": "Confirmed before it pages you",
+        "body": "A failure is rechecked from other regions first, so one flaky network path doesn't wake anyone up."
+      },
+      "evidence": {
+        "title": "Evidence in every alert",
+        "body": "Each alert says what failed, the likely cause and what to check first, with the timings from every region."
+      },
+      "channels": {
+        "title": "Alerts where your team works",
+        "body": "Email, Slack, Teams, Discord, Telegram, webhooks and more, with rules per channel and acknowledge links that work from a phone."
+      },
+      "changes": {
+        "title": "What changed before the outage",
+        "body": "Deploys from CI and GitHub, certificate and address changes and settings edits sit on the incident timeline."
+      },
+      "tuning": {
+        "title": "Less noise over time",
+        "body": "The tuning advisor finds flapping and false alarms and suggests fixes you can apply in one click."
+      },
+      "heartbeats": {
+        "title": "Cron jobs and error budgets",
+        "body": "Heartbeat monitors catch jobs that stop running, and monthly error budgets show which services are at risk."
+      }
+    },
+    "pricingTitle": "Pick a plan",
+    "pricingIntro": "Flat prices, not per seat. Start on Free and change plans whenever you like.",
+    "billingPeriod": "Billing period",
+    "billedMonthly": "Monthly",
+    "billedAnnually": "Annual (2 months free)",
+    "mostPopular": "Most popular",
+    "pricePerMonth": "per month",
+    "pricePerMonthAnnual": "per month, billed annually",
+    "priceForever": "forever",
+    "startFree": "Start free",
+    "choosePlan": "Choose {plan}",
+    "pricingNote": "Every account starts free with no card. Prices in USD; tax is added at checkout where it applies.",
+    "footer": "Watchpost: uptime monitoring that confirms outages before it alerts.",
+    "plans": {
+      "free": {
+        "name": "Free",
+        "tagline": "For side projects and small sites. Commercial use allowed.",
+        "f1": "20 monitors, 5 heartbeats",
+        "f2": "Checks every 3 minutes",
+        "f3": "2 regions per monitor",
+        "f4": "3 team members",
+        "f5": "1 status page",
+        "f6": "30 days of history"
+      },
+      "starter": {
+        "name": "Starter",
+        "tagline": "For a small team with a product in production.",
+        "f1": "50 monitors, 20 heartbeats",
+        "f2": "Checks every minute",
+        "f3": "3 regions per monitor",
+        "f4": "5 team members",
+        "f5": "25 SMS and voice credits a month",
+        "f6": "6 months of history"
+      },
+      "pro": {
+        "name": "Pro",
+        "tagline": "For teams that run on-call.",
+        "f1": "150 monitors, 75 heartbeats",
+        "f2": "Checks every 30 seconds",
+        "f3": "5 regions per monitor",
+        "f4": "Unlimited team members",
+        "f5": "150 SMS and voice credits a month",
+        "f6": "13 months of history"
+      },
+      "business": {
+        "name": "Business",
+        "tagline": "For agencies and larger teams.",
+        "f1": "500 monitors, 250 heartbeats",
+        "f2": "Checks every 15 seconds",
+        "f3": "All regions",
+        "f4": "Unlimited team members, SSO and audit log",
+        "f5": "500 SMS and voice credits a month",
+        "f6": "25 months of history"
+      }
+    },
+    "navDocs": "Docs",
+    "compareAll": "Compare every feature",
+    "footerProduct": "Product",
+    "footerCompare": "Compare",
+    "footerLegal": "Legal",
+    "footerCompareWith": "Watchpost vs {name}",
+    "comingSoon": "Coming soon",
+    "included": "Included",
+    "notIncluded": "Not included",
+    "pricingPageTitle": "Pricing",
+    "pricingPageIntro": "Flat prices for the whole team. Start free without a card; every new workspace gets 14 days of Pro to try.",
+    "tableTitle": "What each plan includes",
+    "tableCaption": "Plan limits and features. Rows marked \"Coming soon\" are planned and not available yet.",
+    "tableFeature": "Feature",
+    "calculatorTitle": "What per-seat pricing costs your team",
+    "calculatorIntro": "Many tools charge for every person who can be alerted. Watchpost Pro is one flat price with unlimited team members.",
+    "calculatorTeamSize": "People on your team",
+    "calculatorTool": "Tool",
+    "calculatorMonthly": "Per month",
+    "calculatorDifference": "More than Watchpost Pro, per year",
+    "calculatorPerSeat": "{price} per user",
+    "calculatorFlat": "flat, any team size",
+    "calculatorSame": "No more",
+    "calculatorNote": "Per-user prices as reported by the sources on our comparison pages on {date}, billed annually. Watchpost Pro billed annually. On-call schedules in Watchpost are coming soon.",
+    "faqTitle": "Questions",
+    "compareIndexTitle": "How Watchpost compares",
+    "compareTitle": "Watchpost vs {name}",
+    "compareIntro": "A short, honest comparison. Check the vendor's own site before you decide.",
+    "compareWhatItIs": "What {name} is",
+    "comparePricing": "Reported pricing",
+    "compareGoodFit": "Where {name} fits well",
+    "compareDifferences": "How Watchpost differs",
+    "compareSources": "Sources",
+    "compareChecked": "Checked on {date} from the third-party pages listed below, not from {name}'s own price list. Prices and terms change; we will correct anything that is out of date.",
+    "compareCta": "Try Watchpost free",
+    "docsTitle": "Documentation",
+    "docsIntro": "Short guides for setting up and running Watchpost.",
+    "docsBack": "All docs",
+    "legalDraft": "Draft, needs owner review. This page is not final and is not legal advice. Text in [square brackets] still has to be filled in.",
+    "legalUpdated": "Last updated {date}",
+    "faq": {
+      "q1": "Is the Free plan really free?",
+      "a1": "Yes. It has no time limit, needs no card and may be used for commercial projects.",
+      "q2": "What happens when the 14-day trial ends?",
+      "a2": "The workspace moves to the Free plan unless you choose a paid one. Nothing is deleted: monitors over the Free limits are paused and you pick which ones stay active.",
+      "q3": "Do you charge per user?",
+      "a3": "No. Free includes 3 team members, Starter 5, and Pro and Business have unlimited members at the same price.",
+      "q4": "How do I pay, and what about tax?",
+      "a4": "Payments go through Paddle, which accepts cards and other common methods, adds tax where it applies and issues the invoices. You can download invoices from the billing page.",
+      "q5": "Can I change or cancel my plan?",
+      "a5": "At any time. An upgrade starts at once. A move to a smaller plan or a cancellation takes effect at the end of the period you already paid for. Your data is kept either way.",
+      "q6": "What are alert credits?",
+      "a6": "Credits pay for SMS and voice alerts. Paid plans include some every month and you can buy more. Credits used by an incident you mark as a false alarm are returned. SMS and voice alerts are coming soon.",
+      "q7": "What does \"Coming soon\" mean in the table?",
+      "a7": "The feature is planned but not available yet. It will be added to the plans shown at no extra cost."
+    },
+    "table": {
+      "monitors": {
+        "label": "Monitors",
+        "free": "20",
+        "starter": "50",
+        "pro": "150",
+        "business": "500"
+      },
+      "heartbeats": {
+        "label": "Heartbeat (cron) monitors",
+        "free": "5",
+        "starter": "20",
+        "pro": "75",
+        "business": "250"
+      },
+      "interval": {
+        "label": "Fastest check interval",
+        "free": "3 minutes",
+        "starter": "1 minute",
+        "pro": "30 seconds",
+        "business": "15 seconds"
+      },
+      "regions": {
+        "label": "Regions per monitor",
+        "free": "2",
+        "starter": "3",
+        "pro": "5",
+        "business": "All"
+      },
+      "members": {
+        "label": "Team members",
+        "free": "3",
+        "starter": "5",
+        "pro": "Unlimited",
+        "business": "Unlimited"
+      },
+      "channels": {
+        "label": "Email, chat, push and webhook alerts",
+        "free": "Included",
+        "starter": "Included",
+        "pro": "Included",
+        "business": "Included"
+      },
+      "history": {
+        "label": "Data history",
+        "free": "30 days",
+        "starter": "6 months",
+        "pro": "13 months",
+        "business": "25 months"
+      },
+      "credits": {
+        "label": "SMS and voice credits per month",
+        "free": "None",
+        "starter": "25",
+        "pro": "150",
+        "business": "500"
+      },
+      "statusPages": {
+        "label": "Status pages",
+        "free": "1",
+        "starter": "3",
+        "pro": "10",
+        "business": "50"
+      },
+      "onCall": {
+        "label": "On-call schedules and escalation",
+        "free": "None",
+        "starter": "1 each",
+        "pro": "Unlimited",
+        "business": "Unlimited"
+      },
+      "ai": {
+        "label": "AI summaries and drafts",
+        "free": "20 a month",
+        "starter": "100 a month",
+        "pro": "Fair use",
+        "business": "Fair use"
+      },
+      "privateProbes": {
+        "label": "Private probes",
+        "free": "None",
+        "starter": "None",
+        "pro": "1",
+        "business": "5"
+      },
+      "api": {
+        "label": "API",
+        "free": "Read-only",
+        "starter": "Full",
+        "pro": "Full",
+        "business": "Full"
+      },
+      "sso": {
+        "label": "Single sign-on and audit log",
+        "free": "None",
+        "starter": "None",
+        "pro": "None",
+        "business": "Included"
+      },
+      "support": {
+        "label": "Support",
+        "free": "Docs",
+        "starter": "Email",
+        "pro": "Email, 1 business day",
+        "business": "Priority, 4 business hours"
+      }
+    }
+  },
+  "actionLink": {
+    "title": "Incident action",
+    "loading": "Checking the link…",
+    "confirmAcknowledge": "Acknowledge incident #{number}?",
+    "confirmResolve": "Resolve incident #{number}?",
+    "for": "Link for {email}. It works once.",
+    "acknowledge": "Acknowledge",
+    "resolve": "Resolve",
+    "working": "Working…",
+    "doneAcknowledge": "Acknowledged #{number}. The team has been told.",
+    "doneResolve": "Resolved #{number}.",
+    "already": "#{number} is already {status}.",
+    "used": "This link was already used.",
+    "open": "Open Watchpost"
+  },
+  "invite": {
+    "title": "Join a workspace",
+    "loading": "Opening the invitation…",
+    "signInFirst": "You've been invited to a Watchpost workspace. Sign in, or create an account with the address the invitation was sent to.",
+    "signIn": "Sign in to accept",
+    "signUp": "Create an account",
+    "unavailable": "This invitation can't be opened while you're signed in as {email}. It may be for another address, expired or already used.",
+    "summary": "<strong>{inviter}</strong> invited you to join <strong>{workspace}</strong> as {role}.",
+    "accept": "Join {workspace}",
+    "joining": "Joining…",
+    "decline": "Decline",
+    "declined": "Invitation declined. You can close this page.",
+    "notPending": "This invitation was already accepted, declined or withdrawn."
+  },
+  "insights": {
+    "loading": "Loading…",
+    "budgetTitle": "Error budget this month",
+    "budgetTarget": "Target: {target}% availability.",
+    "budgetOf": "Error budget of {name}",
+    "budgetUsedPercent": "{percent}% of the budget used",
+    "budgetLeft": "{left} of {total} downtime left",
+    "budgetOver": "Over budget by {over}",
+    "budgetPaceOk": "On pace to stay within the target this month.",
+    "budgetPaceRisk": "Downtime is using the budget {rate}× faster than the month passes; at this pace it runs out before the month ends.",
+    "budgetPaceGone": "The budget for this month is used up; the target is already missed.",
+    "budgetsEmpty": "Error budgets appear once you have monitors.",
+    "budgetStatus": {
+      "healthy": "Healthy",
+      "at_risk": "At risk",
+      "exhausted": "Used up"
+    },
+    "inRegions": "in {regions}",
+    "likelyCause": "Likely cause",
+    "checkFirst": "Check first",
+    "confirmedFrom": "Confirmed from {count} of {total} {total, plural, one {region} other {regions}} ({regions}).",
+    "scopeEverywhere": "Every region sees it, so it's most likely the service itself.",
+    "scopeSome": "Only some regions see it, so it may be a network path or a regional server.",
+    "noDeliveries": "No alerts were sent for this incident.",
+    "deletedChannel": "Deleted channel",
+    "attempts": "{count} attempts",
+    "deliveryKind": {
+      "triggered": "opened",
+      "acknowledged": "acknowledged",
+      "resolved": "resolved",
+      "reminder": "reminder",
+      "flapping": "flapping"
+    },
+    "deliveryStatus": {
+      "sent": "Delivered",
+      "failed": "Failed",
+      "skipped": "Skipped",
+      "pending": "Queued",
+      "sending": "Sending",
+      "retrying": "Retrying"
+    },
+    "tileMonitors": "Monitors up",
+    "tileMonitorsDown": "{count, plural, one {# monitor needs attention} other {# monitors need attention}}",
+    "tileMonitorsUp": "Everything is running.",
+    "tileMonitorsNone": "No monitors yet.",
+    "tileAccuracy": "Alert accuracy (30 days)",
+    "tileAccuracyNone": "No incidents in the last 30 days.",
+    "tileAccuracyNote": "{incidents, plural, one {# incident} other {# incidents}}, {falseAlarms, plural, =0 {no false alarms} one {# false alarm} other {# false alarms}}",
+    "tileResponse": "Acknowledge / resolve",
+    "tileResponseNote": "Average times over 30 days.",
+    "tileBudgets": "Error budgets",
+    "tileBudgetsOk": "Healthy",
+    "tileBudgetsOkNote": "Every monitor is within its monthly target.",
+    "tileBudgetsRisk": "{count, plural, one {# monitor is} other {# monitors are}} at risk of missing the target.",
+    "drillTitle": "Alert drill",
+    "drillIntro": "Opens a labelled test incident that goes through your real alert routes, so you know who gets paged before a real outage. Acknowledge it to finish.",
+    "drillConfirm": "Start an alert drill? Everyone in your alert routes will be notified.",
+    "drillStart": "Run alert drill",
+    "drillStarting": "Starting…",
+    "drillStarted": "Drill #{number} started.",
+    "drillOpen": "Open the incident",
+    "drillBanner": "This is an alert drill, not a real outage. Acknowledge it to see how fast the team responds, then resolve it.",
+    "whatChanged": "What changed before this",
+    "whatChangedEmpty": "No changes to the address, certificate, settings or response time in the 24 hours before.",
+    "recentChanges": "Recent changes",
+    "recentChangesEmpty": "No changes in the last 24 hours.",
+    "whoWasTold": "Who was notified",
+    "budgetsTitle": "Error budgets",
+    "monitorLink": "Monitor: {name}",
+    "tileBudgetsNone": "Budgets start with your first monitor.",
+    "tileMonitorsWaiting": "{count, plural, one {# monitor is} other {# monitors are}} waiting for the first check.",
+    "deployTitle": "Deploy markers",
+    "deployIntro": "Tell Watchpost when you deploy, and incidents will say \"started 2 minutes after deploy abc123\". Deploys also appear in each monitor's recent changes.",
+    "deployNotConfigured": "No deploy URL yet.",
+    "deployConfigured": "A deploy URL is set up. For security it is only shown when created; rotate it to see a new one.",
+    "deployCreate": "Create deploy URL",
+    "deployRotate": "Rotate deploy URL",
+    "deployRotateConfirm": "Rotate the deploy URL? The current URL and GitHub secret stop working right away.",
+    "deployOnce": "Copy these now: the URL and secret are shown only once.",
+    "deployUrl": "Deploy URL",
+    "deployCurl": "From CI (any provider)",
+    "deployGithubTitle": "Or from GitHub",
+    "deployGithubSteps": "In your repository: Settings → Webhooks → Add webhook. Use the URL and secret below, content type application/json, and pick only the \"Deployment statuses\" event.",
+    "deployGithubUrl": "Payload URL",
+    "deployGithubSecret": "Secret",
+    "deploySuspect": "Deploy {version} went out {minutes, plural, =0 {less than a minute} one {# minute} other {# minutes}} before this started.",
+    "tuningTitle": "Alert tuning",
+    "tuningStats": "Last 30 days: {incidents, plural, one {# incident} other {# incidents}}; {falseAlarms} marked false alarm, {flapping} flapped, {shortLived} cleared within 5 minutes.",
+    "tuningNone": "No changes suggested: this monitor's alerts have been reliable.",
+    "tuningApply": "Apply",
+    "tuningApplied": "Applied. The new settings take effect on the next check.",
+    "noisyTitle": "Noisy monitors",
+    "noisySummary": "{noisy} of {incidents} alerts were noise"
+  },
+  "maintenance": {
+    "title": "Maintenance",
+    "intro": "Plan work on your systems. During a window the chosen monitors are still checked, but failures open no incident and send no alert. When it ends, anything still failing alerts as usual.",
+    "planned": "Windows",
+    "empty": "No maintenance windows.",
+    "emptyHint": "Plan one below before your next deploy or upgrade.",
+    "activeUntil": "In effect until {time}",
+    "nextStart": "Starts {time}",
+    "over": "Over",
+    "new": "Plan a window",
+    "name": "What is happening",
+    "namePlaceholder": "Database upgrade",
+    "start": "Starts",
+    "end": "Ends",
+    "timesHint": "In your browser's time zone.",
+    "repeat": "Repeats",
+    "repeats": {
+      "none": "Does not repeat",
+      "daily": "Every day",
+      "weekly": "Every week",
+      "monthly": "Every month"
+    },
+    "timezone": "Time zone for the repeat",
+    "timezoneHint": "The window keeps its local start time when clocks change. For example Europe/Berlin.",
+    "monitors": "Monitors",
+    "allMonitors": "All monitors",
+    "someMonitors": "Only these",
+    "noMonitors": "There are no monitors yet.",
+    "monitorCount": "{count, plural, one {# monitor} other {# monitors}}",
+    "create": "Plan window",
+    "delete": "Delete",
+    "confirmDelete": "Delete “{name}”? Monitors it covers will alert again at once.",
+    "invalid": {
+      "name": "Say what is happening.",
+      "start": "Choose when it starts.",
+      "end": "Choose an end after the start.",
+      "monitors": "Choose at least one monitor, or all monitors."
+    }
   }
 }

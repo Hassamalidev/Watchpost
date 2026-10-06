@@ -1,0 +1,69 @@
+/* Public API of the incidents module. Other modules import only from this file (PRODUCT.md §7.1). */
+import type { RequestHandler } from "express";
+import type { AppModule, Infra } from "../../composition/types.js";
+import { newId } from "../../infra/ids.js";
+import type { DeploysService } from "../deploys/index.js";
+import type { MonitorsService } from "../monitors/index.js";
+import type { WorkspacesService } from "../workspaces/index.js";
+import { createIncidentsController } from "./incidents.controller.js";
+import { createIncidentsRepository } from "./incidents.repository.js";
+import { createIncidentsRouter } from "./incidents.routes.js";
+import { createIncidentsService, type IncidentsService } from "./incidents.service.js";
+
+export type {
+  AlertContext,
+  CommentView,
+  CreateIncidentInput,
+  ExpiryIncidentInput,
+  IncidentSummary,
+  IncidentDetail,
+  IncidentMonitor,
+  RecentDeploy,
+  IncidentView,
+  IncidentsService,
+  OpenForMonitorInput,
+  TimelineEntry,
+} from "./incidents.service.js";
+export { explainIncident } from "./incidents.service.js";
+export type {
+  IncidentRow,
+  IncidentSeverity,
+  IncidentSource,
+  IncidentStatus,
+} from "./schema/incidents.js";
+
+export interface IncidentsModuleDeps {
+  infra: Pick<Infra, "db" | "clock" | "outbox" | "objects">;
+  workspaces: Pick<WorkspacesService, "nextIncidentNumber">;
+  monitors: Pick<MonitorsService, "get" | "getForDetection">;
+  deploys: Pick<DeploysService, "latestBefore">;
+  guards: { session: RequestHandler; workspace: RequestHandler };
+}
+
+export interface IncidentsModule extends AppModule {
+  service: IncidentsService;
+}
+
+export function createIncidentsModule(deps: IncidentsModuleDeps): IncidentsModule {
+  const service = createIncidentsService({
+    db: deps.infra.db,
+    repository: createIncidentsRepository(),
+    workspaces: deps.workspaces,
+    monitors: deps.monitors,
+    deploys: deps.deploys,
+    outbox: deps.infra.outbox,
+    clock: deps.infra.clock,
+    newId,
+    objects: deps.infra.objects,
+  });
+  return {
+    name: "incidents",
+    service,
+    routers: [
+      {
+        path: "/api/w/:workspaceId",
+        router: createIncidentsRouter(createIncidentsController(service), deps.guards),
+      },
+    ],
+  };
+}

@@ -10,6 +10,9 @@ import type { QueueName } from "./registry.js";
 export interface EnqueueOptions {
   jobId: string;
   delayMs?: number;
+  /* Overrides the default retry policy (5 attempts, exponential from 1 s). */
+  attempts?: number;
+  backoffMs?: number;
 }
 
 export interface Queues {
@@ -36,10 +39,12 @@ export function createQueues(connection: Redis, options: { prefix?: string } = {
 
   return {
     get,
-    async enqueue(queue, jobName, data, { jobId, delayMs }) {
+    async enqueue(queue, jobName, data, { jobId, delayMs, attempts, backoffMs }) {
       await get(queue).add(jobName, data, {
         jobId,
         ...(delayMs === undefined ? {} : { delay: delayMs }),
+        ...(attempts === undefined ? {} : { attempts }),
+        ...(backoffMs === undefined ? {} : { backoff: { type: "exponential", delay: backoffMs } }),
       });
     },
     async close() {

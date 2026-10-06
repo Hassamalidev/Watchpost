@@ -7,7 +7,15 @@ import { ConfigError, loadConfig, type AppConfig } from "./config/index.js";
 import { createContainer } from "./composition/container.js";
 import { subscribersOf } from "./composition/architecture.js";
 import { createOutboxRelay } from "./infra/outbox/index.js";
+import {
+  createConsoleTransport,
+  createEmailProcessor,
+  createMemoryTransport,
+  createResendTransport,
+} from "./infra/email/index.js";
 import { isEventType } from "@app/shared";
+import { UnrecoverableError } from "bullmq";
+import type { ModuleSweep } from "./composition/types.js";
 import {
   createWorkerRuntime,
   defineProcessor,
@@ -56,22 +64,51 @@ const relay = createOutboxRelay({
   subscribersOf: (type) => (isEventType(type) ? subscribersOf(type) : []),
 });
 
-/* Platform maintenance on the `sweeps` queue; module sweeps are added in later tasks. */
+/* The shared `sweeps` queue: platform maintenance plus every module's sweeps, dispatched by kind. */
+const sweeps = new Map<string, ModuleSweep>([
+  [
+    "outbox-cleanup",
+    {
+      kind: "outbox-cleanup",
+      everyMs: OUTBOX_CLEANUP_EVERY_MS,
+      async run(jobLogger) {
+        const deleted = await infra.outbox.cleanup(infra.db);
+        jobLogger.info({ deleted }, "outbox cleanup finished");
+      },
+    },
+  ],
+]);
+for (const sweep of modules.flatMap((m) => m.sweeps ?? [])) {
+  if (sweeps.has(sweep.kind)) fail(`Two sweeps registered with kind "${sweep.kind}"`);
+  sweeps.set(sweep.kind, sweep);
+}
 const platformSweeps = defineProcessor({
   queue: "sweeps",
-  schema: z.object({ kind: z.enum(["outbox-cleanup"]) }),
+  schema: z.object({ kind: z.string() }),
   async handle(data, { logger: jobLogger }) {
-    if (data.kind === "outbox-cleanup") {
-      const deleted = await infra.outbox.cleanup(infra.db);
-      jobLogger.info({ deleted }, "outbox cleanup finished");
-    }
+    const sweep = sweeps.get(data.kind);
+    if (sweep === undefined) throw new UnrecoverableError(`Unknown sweep "${data.kind}"`);
+    await sweep.run(jobLogger);
   },
+});
+
+/* email.requested → rendered and sent (console in development, Resend in production). */
+const emails = createEmailProcessor({
+  db: infra.db,
+  transport:
+    config.email.transport === "resend" && config.email.resendApiKey
+      ? createResendTransport({ apiKey: config.email.resendApiKey })
+      : config.email.transport === "memory"
+        ? createMemoryTransport()
+        : createConsoleTransport(logger.child({ component: "email" })),
+  from: config.email.from,
+  logger,
 });
 
 const runtime = createWorkerRuntime({
   connection: infra.queueConnection,
   logger,
-  processors: [platformSweeps, ...modules.flatMap((m) => m.processors ?? [])],
+  processors: [platformSweeps, emails, ...modules.flatMap((m) => m.processors ?? [])],
   recoverySweeps: [
     /* Undispatched outbox rows are the source of every event-handler job. */
     { name: "outbox", run: () => relay.drain() },
@@ -91,10 +128,23 @@ installShutdownHandlers(
 
 await runtime.start();
 await relay.start();
-await infra.queues
-  .get("sweeps")
-  .upsertJobScheduler(
-    "outbox-cleanup",
-    { every: OUTBOX_CLEANUP_EVERY_MS },
-    { name: "outbox-cleanup", data: { kind: "outbox-cleanup" } },
-  );
+
+/* Repeating jobs: platform cleanup plus every module's schedules (idempotent on each start). */
+const schedules = [
+  ...[...sweeps.values()].map((sweep) => ({
+    queue: "sweeps" as const,
+    id: sweep.kind === "outbox-cleanup" ? "outbox-cleanup" : `sweep-${sweep.kind}`,
+    everyMs: sweep.everyMs,
+    data: { kind: sweep.kind },
+  })),
+  ...modules.flatMap((m) => m.schedules ?? []),
+];
+for (const schedule of schedules) {
+  await infra.queues
+    .get(schedule.queue)
+    .upsertJobScheduler(
+      schedule.id,
+      { every: schedule.everyMs },
+      { name: schedule.id, data: schedule.data },
+    );
+}

@@ -1,9 +1,32 @@
 {
   "name": "@app/probe",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx watch src/main.ts",
+    "start": "node dist/main.js",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
   "dependencies": {
-    "@app/shared": "workspace:*"
+    "@app/shared": "workspace:*",
+    "@szmarczak/http-timer": "5.0.1",
+    "ipaddr.js": "2.5.0",
+    "jsonata": "2.2.2",
+    "pino": "10.3.1",
+    "uuid": "14.0.2",
+    "ws": "8.22.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@app/fake-target": "workspace:*",
+    "@types/node": "24.19.0",
+    "@types/ws": "8.18.2",
+    "selfsigned": "5.5.0",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3"
   }
 }

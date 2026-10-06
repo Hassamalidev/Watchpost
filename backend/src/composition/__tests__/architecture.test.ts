@@ -87,7 +87,8 @@ describe("table ownership (§8)", () => {
       for (const match of source.matchAll(/pgTable\(\s*"([a-z0-9_]+)"/g)) {
         const rel = path.relative(SRC, file).split(path.sep).join("/");
         expect(rel, `${match[1]} is declared outside a schema file`).toMatch(
-          /^(modules\/[^/]+\/schema\/[^/]+\.ts|infra\/[^/]+\/schema\.ts)$/,
+          /* schema/partitioned/ holds query-only definitions of tables created by custom SQL. */
+          /^(modules\/[^/]+\/schema\/(partitioned\/)?[^/]+\.ts|infra\/[^/]+\/schema\.ts)$/,
         );
         expect(owners.get(match[1] ?? ""), `${match[1]} is declared twice`).toBeUndefined();
         owners.set(match[1] ?? "", rel);

@@ -1,0 +1,256 @@
+{
+  "$id": "urn:watchpost:schema:probe-results-batch",
+  "title": "probe-results-batch",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "batchId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+    },
+    "results": {
+      "minItems": 1,
+      "maxItems": 500,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "monitorId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "region": {
+            "type": "string",
+            "enum": [
+              "eu-central",
+              "us-east",
+              "ap-southeast",
+              "ap-south",
+              "me-central",
+              "eu-west",
+              "us-west",
+              "sa-east",
+              "ap-southeast-2"
+            ]
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "errorCode": {
+            "type": "string",
+            "enum": [
+              "dns_nxdomain",
+              "dns_servfail",
+              "dns_timeout",
+              "dns_no_records",
+              "ssrf_blocked",
+              "connect_refused",
+              "connect_timeout",
+              "connect_reset",
+              "network_unreachable",
+              "tls_handshake_failed",
+              "tls_cert_expired",
+              "tls_cert_not_yet_valid",
+              "tls_hostname_mismatch",
+              "tls_untrusted_chain",
+              "http_status_unexpected",
+              "http_too_many_redirects",
+              "http_redirect_blocked",
+              "response_timeout",
+              "body_too_large",
+              "keyword_missing",
+              "keyword_present",
+              "json_invalid",
+              "json_query_failed",
+              "latency_threshold",
+              "ws_handshake_failed",
+              "ws_expect_failed",
+              "tcp_expect_failed",
+              "ping_loss",
+              "dns_value_mismatch",
+              "heartbeat_missed",
+              "heartbeat_failed_signal",
+              "heartbeat_too_long",
+              "probe_error",
+              "probe_overloaded"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "httpStatus": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 599
+          },
+          "latencyMs": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 600000
+          },
+          "timings": {
+            "type": "object",
+            "properties": {
+              "dns": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 600000
+              },
+              "connect": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 600000
+              },
+              "tls": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 600000
+              },
+              "ttfb": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 600000
+              },
+              "download": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 600000
+              },
+              "total": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 600000
+              }
+            },
+            "required": [
+              "total"
+            ]
+          },
+          "ip": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "ipv4",
+                "pattern": "^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])\\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])$"
+              },
+              {
+                "type": "string",
+                "format": "ipv6",
+                "pattern": "^(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:))$"
+              }
+            ]
+          },
+          "tls": {
+            "type": "object",
+            "properties": {
+              "validFrom": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "validTo": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "issuer": {
+                "type": "string",
+                "maxLength": 512
+              },
+              "subject": {
+                "type": "string",
+                "maxLength": 512
+              },
+              "fingerprint256": {
+                "type": "string",
+                "maxLength": 128
+              },
+              "daysRemaining": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "protocol": {
+                "type": "string",
+                "maxLength": 32
+              }
+            },
+            "required": [
+              "validFrom",
+              "validTo",
+              "issuer",
+              "subject",
+              "fingerprint256",
+              "daysRemaining"
+            ]
+          },
+          "details": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "evidence": {
+            "type": "object",
+            "properties": {
+              "headers": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "maxLength": 300
+                }
+              },
+              "bodySnippet": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "bodyBytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "bodyTruncated": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "required": [
+          "id",
+          "monitorId",
+          "region",
+          "checkedAt",
+          "ok",
+          "latencyMs"
+        ]
+      }
+    }
+  },
+  "required": [
+    "batchId",
+    "results"
+  ]
+}

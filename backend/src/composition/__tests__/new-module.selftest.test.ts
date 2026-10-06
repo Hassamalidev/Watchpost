@@ -46,7 +46,12 @@ beforeAll(() => {
     JSON.stringify({
       ...tsconfig,
       extends: "../tsconfig.base.json",
-      compilerOptions: { rootDir: "src", noEmit: true },
+      /* Keep the backend's own options (jsx and friends); only the root changes. */
+      compilerOptions: {
+        ...(tsconfig.compilerOptions as Record<string, unknown> | undefined),
+        rootDir: "src",
+        noEmit: true,
+      },
     }),
   );
 });

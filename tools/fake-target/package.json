@@ -3,6 +3,12 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./servers": {
+      "types": "./dist/servers.d.ts",
+      "default": "./dist/servers.js"
+    }
+  },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "dev:local": "tsx watch src/main.ts",
