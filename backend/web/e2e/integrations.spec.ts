@@ -26,7 +26,7 @@ test("the gallery lists every integration and narrows by search and category", a
   await page.goto(path("integrations"));
   await expect(page.getByRole("heading", { name: "Add an integration" })).toBeVisible();
   const gallery = page.getByRole("region", { name: "Add an integration" });
-  await expect(gallery.getByRole("listitem")).toHaveCount(23);
+  await expect(gallery.getByRole("listitem")).toHaveCount(25);
   await expect(gallery.getByRole("link", { name: /^Slack Chat/ })).toContainText(
     "Not set up on this server",
   );
