@@ -41,3 +41,19 @@ Server setup, once (the person who runs the Slack app):
 3. Copy the app's **Signing Secret** (Basic Information) into `SLACK_SIGNING_SECRET` and restart the API.
 
 A click is accepted only when Slack's signature on the request is valid and no older than five minutes, and when it comes from the message Watchpost posted for that incident. The person who clicked sees a short note that only they can see; everyone else sees the message change.
+
+## The `/watchpost` command
+
+| Command                         | What it does                                                                                               |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `/watchpost oncall`             | Who is on call for each schedule                                                                           |
+| `/watchpost ack 482`            | Acknowledges incident #482                                                                                 |
+| `/watchpost resolve 482`        | Resolves incident #482                                                                                     |
+| `/watchpost maintenance 1h api` | Silences alerts for monitors named like "api" for an hour (`30m`, `2h30m`, up to `24h`; no name means all) |
+| `/watchpost link`               | Gives you a link that connects your Slack user to your Watchpost account                                   |
+
+Answers are visible only to you. Looking and acknowledging work for anyone in the Slack workspace. Starting maintenance needs a linked account whose role can plan maintenance (member, admin or owner).
+
+**Linking your account.** Type `/watchpost link`, open the link while signed in to Watchpost, and confirm. From then on your clicks and commands in Slack are recorded under your name. You can unlink under **My notifications**.
+
+Server setup, once: in the Slack app's settings add a slash command `/watchpost` with the Request URL `https://app.<domain>/api/integrations/slack/commands`. It uses the same signing secret as the buttons.

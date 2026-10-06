@@ -23,6 +23,7 @@ import { Field } from "@/components/ui/field";
 import { Input, Select } from "@/components/ui/input";
 import { Loading } from "@/components/ui/skeleton";
 import { api, errorMessage, wsPath } from "@/lib/api";
+import { ChatLinksCard } from "./chat-links";
 
 /* Minutes after the incident reaches you; "off" leaves the method out. */
 const DELAYS = [0, 1, 2, 5, 10, 15, 30, 60] as const;
@@ -348,6 +349,9 @@ export function NotificationsPage() {
       ) : (
         <>
           <MethodsCard ws={ws} methods={methods.data} />
+          <React.Suspense fallback={null}>
+            <ChatLinksCard ws={ws} />
+          </React.Suspense>
           <section className="grid gap-4" aria-labelledby="rules-heading">
             <div className="grid gap-1">
               <h2 id="rules-heading" className="text-base font-semibold">

@@ -4,6 +4,9 @@ import { inputOf } from "../../middleware/validate.js";
 import { scopeOf } from "../../middleware/workspace.js";
 import type { ContactsService } from "./contacts.service.js";
 import type {
+  chatLinkBody,
+  chatLinkParams,
+  chatLinkQuery,
   confirmBody,
   createMethodBody,
   methodIdParams,
@@ -12,7 +15,17 @@ import type {
 } from "./validators/index.js";
 
 export type ContactsController = Record<
-  "list" | "add" | "remove" | "requestCode" | "confirm" | "rules" | "replaceRules",
+  | "list"
+  | "add"
+  | "remove"
+  | "requestCode"
+  | "confirm"
+  | "rules"
+  | "replaceRules"
+  | "chatLinks"
+  | "chatLinkPreview"
+  | "claimChatLink"
+  | "removeChatLink",
   RequestHandler
 >;
 
@@ -38,6 +51,22 @@ export function createContactsController(service: ContactsService): ContactsCont
     confirm: async (req, res) => {
       const { body } = inputOf<{ body: typeof confirmBody }>(req, res);
       res.json(await service.confirm(scopeOf(req, res), idOf(req, res), body.code));
+    },
+    chatLinks: async (req, res) => {
+      res.json({ data: await service.listChatLinks(scopeOf(req, res)) });
+    },
+    chatLinkPreview: async (req, res) => {
+      const { query } = inputOf<{ query: typeof chatLinkQuery }>(req, res);
+      res.json({ data: service.chatLinkPreview(scopeOf(req, res), query.token) ?? null });
+    },
+    claimChatLink: async (req, res) => {
+      const { body } = inputOf<{ body: typeof chatLinkBody }>(req, res);
+      res.status(201).json({ data: await service.claimChatLink(scopeOf(req, res), body.token) });
+    },
+    removeChatLink: async (req, res) => {
+      const { params } = inputOf<{ params: typeof chatLinkParams }>(req, res);
+      await service.removeChatLink(scopeOf(req, res), params.linkId);
+      res.status(204).end();
     },
     rules: async (req, res) => {
       res.json(await service.rules(scopeOf(req, res)));

@@ -25,6 +25,7 @@ import {
 import type { ActionsService } from "./actions.service.js";
 
 export const SLACK_ACTIONS_PATH = "/api/integrations/slack/actions";
+export const SLACK_COMMANDS_PATH = "/api/integrations/slack/commands";
 export const TELEGRAM_WEBHOOK_PATH = "/api/webhooks/telegram";
 const SLACK_MAX_AGE_SECONDS = 5 * 60;
 
@@ -130,6 +131,54 @@ export function createSlackActionsRouter(
         options.logger.warn({ err }, "slack action reply failed");
       }
     }
+  });
+  return router;
+}
+
+const slackCommandFields = z.object({
+  team_id: z.string().min(1).max(64),
+  user_id: z.string().min(1).max(64),
+  user_name: z.string().max(200).optional(),
+  text: z.string().max(500).default(""),
+});
+
+/*
+ * Raw-body router for the `/watchpost` slash command. Slack shows the JSON answer to the person who
+ * typed the command, and wants it within three seconds.
+ */
+export function createSlackCommandsRouter(
+  run: (input: {
+    teamId: string;
+    externalUserId: string;
+    userName: string | null;
+    text: string;
+  }) => Promise<string>,
+  options: { signingSecret: string; clock: Clock },
+): Router {
+  const router = Router();
+  router.post("/", express.raw({ type: () => true, limit: "50kb" }), async (req, res) => {
+    const rawBody = Buffer.isBuffer(req.body) ? req.body.toString("utf8") : "";
+    if (
+      !verifySlackRequest({
+        secret: options.signingSecret,
+        timestamp: req.get("x-slack-request-timestamp"),
+        signature: req.get("x-slack-signature"),
+        rawBody,
+        now: options.clock.now(),
+      })
+    ) {
+      throw new UnauthorizedError("Invalid Slack signature.");
+    }
+    const fields = slackCommandFields.safeParse(Object.fromEntries(new URLSearchParams(rawBody)));
+    const text = fields.success
+      ? await run({
+          teamId: fields.data.team_id,
+          externalUserId: fields.data.user_id,
+          userName: fields.data.user_name ?? null,
+          text: fields.data.text,
+        })
+      : "That command didn't arrive properly. Try `/watchpost help`.";
+    res.json({ response_type: "ephemeral", text });
   });
   return router;
 }

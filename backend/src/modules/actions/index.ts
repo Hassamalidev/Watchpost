@@ -5,11 +5,18 @@ import type { AppModule, Infra } from "../../composition/types.js";
 import { validate, inputOf } from "../../middleware/validate.js";
 import type { MessagingProvider } from "../../infra/messaging/index.js";
 import type { ChannelsService, IntegrationsService, PhonesService } from "../channels/index.js";
+import type { ContactsService } from "../contacts/index.js";
+import type { MaintenanceService } from "../maintenance/index.js";
+import type { MonitorsService } from "../monitors/index.js";
+import type { OncallService } from "../oncall/index.js";
 import {
   SLACK_ACTIONS_PATH,
+  SLACK_COMMANDS_PATH,
   createSlackActionsRouter,
+  createSlackCommandsRouter,
   createTelegramWebhookRouter,
 } from "./chat.routes.js";
+import { createSlackCommand } from "./commands.js";
 import type { IncidentsService } from "../incidents/index.js";
 import type { WorkspacesService } from "../workspaces/index.js";
 import { createActionsRepository } from "./actions.repository.js";
@@ -22,13 +29,21 @@ export type {
   ActionsService,
   ChatActionOutcome,
 } from "./actions.service.js";
-export { SLACK_ACTIONS_PATH, slackSignature } from "./chat.routes.js";
+export { SLACK_ACTIONS_PATH, SLACK_COMMANDS_PATH, slackSignature } from "./chat.routes.js";
+export { COMMAND_HELP, parseDuration } from "./commands.js";
 
 export interface ActionsModuleDeps {
   infra: Pick<Infra, "db" | "clock" | "actionLinks" | "config" | "http" | "logger">;
   /* Chat buttons: which message a press came from, and the Telegram bot's other updates. */
   channels?: Pick<ChannelsService, "messageTarget"> | undefined;
-  integrations?: Pick<IntegrationsService, "telegramUpdate" | "telegramAnswer"> | undefined;
+  integrations?:
+    | Pick<IntegrationsService, "telegramUpdate" | "telegramAnswer" | "slackTeamWorkspaces">
+    | undefined;
+  /* Linked chat users, and what `/watchpost` can look up and start. */
+  contacts?: Pick<ContactsService, "chatUser" | "chatLinkUrl"> | undefined;
+  oncall?: Pick<OncallService, "list"> | undefined;
+  maintenance?: Pick<MaintenanceService, "create"> | undefined;
+  monitors?: Pick<MonitorsService, "list"> | undefined;
   incidents: IncidentsService;
   workspaces: WorkspacesService;
   /* SMS replies and call keypresses; both absent when the server has no messaging provider. */
@@ -65,6 +80,7 @@ export function createActionsModule(deps: ActionsModuleDeps): ActionsModule {
     workspaces: deps.workspaces,
     phones: deps.phones,
     channels: deps.channels,
+    contacts: deps.contacts,
     clock: deps.infra.clock,
   });
   const { config } = deps.infra;
@@ -113,6 +129,25 @@ export function createActionsModule(deps: ActionsModuleDeps): ActionsModule {
                 logger: deps.infra.logger.child({ module: "actions" }),
               }),
             },
+            ...(deps.contacts === undefined || deps.integrations === undefined
+              ? []
+              : [
+                  {
+                    path: SLACK_COMMANDS_PATH,
+                    router: createSlackCommandsRouter(
+                      createSlackCommand({
+                        incidents: deps.incidents,
+                        contacts: deps.contacts,
+                        oncall: deps.oncall,
+                        maintenance: deps.maintenance,
+                        monitors: deps.monitors,
+                        slackWorkspaces: deps.integrations.slackTeamWorkspaces,
+                        clock: deps.infra.clock,
+                      }),
+                      { signingSecret, clock: deps.infra.clock },
+                    ),
+                  },
+                ]),
           ],
   };
 }

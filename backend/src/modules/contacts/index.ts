@@ -2,6 +2,7 @@
 import type { RequestHandler } from "express";
 import type { AppModule, Infra } from "../../composition/types.js";
 import { newId } from "../../infra/ids.js";
+import { createTokenSigner } from "../../infra/signed-token.js";
 import type { PhonesService } from "../channels/index.js";
 import type { WorkspacesService } from "../workspaces/index.js";
 import { createContactsController } from "./contacts.controller.js";
@@ -9,11 +10,17 @@ import { createContactsRepository } from "./contacts.repository.js";
 import { createContactsRouter } from "./contacts.routes.js";
 import { createContactsService, type ContactsService } from "./contacts.service.js";
 
-export type { ContactsService, TimedFanOutStep } from "./contacts.service.js";
+export type {
+  ChatLinkClaims,
+  ChatLinkView,
+  ChatProvider,
+  ContactsService,
+  TimedFanOutStep,
+} from "./contacts.service.js";
 export { CODE_TTL_MS, MAX_CODES_PER_HOUR, MAX_CODE_ATTEMPTS } from "./contacts.service.js";
 
 export interface ContactsModuleDeps {
-  infra: Pick<Infra, "db" | "outbox" | "clock">;
+  infra: Pick<Infra, "db" | "outbox" | "clock" | "config">;
   workspaces: WorkspacesService;
   /* Phone verification (SMS codes, alert credits); without it only email methods can be added. */
   phones?: Pick<PhonesService, "requestCode" | "confirm" | "isVerified">;
@@ -35,6 +42,8 @@ export function createContactsModule(deps: ContactsModuleDeps): ContactsModule {
     outbox: deps.infra.outbox,
     clock: deps.infra.clock,
     newId,
+    linkSigner: createTokenSigner(deps.infra.config.auth.secret, "chat-link"),
+    webOrigin: deps.infra.config.webOrigin,
     ...(deps.newCode === undefined ? {} : { newCode: deps.newCode }),
   });
   return {

@@ -8,6 +8,9 @@ import { requirePermission } from "../../middleware/roles.js";
 import { validate } from "../../middleware/validate.js";
 import type { ContactsController } from "./contacts.controller.js";
 import {
+  chatLinkBody,
+  chatLinkParams,
+  chatLinkQuery,
   confirmBody,
   createMethodBody,
   methodIdParams,
@@ -22,7 +25,27 @@ export function createContactsRouter(
   const router = Router({ mergeParams: true });
   const own = requirePermission("contact:manage");
   const id = validate({ params: methodIdParams });
-  router.use(["/me/contact-methods", "/me/notification-rules"], guards.session, guards.workspace);
+  router.use(
+    ["/me/contact-methods", "/me/notification-rules", "/me/chat-links"],
+    guards.session,
+    guards.workspace,
+  );
+
+  /* Chat app users linked to you, so a button press in Slack is recorded as yours. */
+  router.get("/me/chat-links", own, controller.chatLinks);
+  router.get(
+    "/me/chat-links/preview",
+    own,
+    validate({ query: chatLinkQuery }),
+    controller.chatLinkPreview,
+  );
+  router.post("/me/chat-links", own, validate({ body: chatLinkBody }), controller.claimChatLink);
+  router.delete(
+    "/me/chat-links/:linkId",
+    own,
+    validate({ params: chatLinkParams }),
+    controller.removeChatLink,
+  );
 
   router.get("/me/contact-methods", own, controller.list);
   router.post("/me/contact-methods", own, validate({ body: createMethodBody }), controller.add);

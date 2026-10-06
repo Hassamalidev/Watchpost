@@ -185,6 +185,15 @@ export function createChannelsRepository() {
       return rows[0];
     },
 
+    /* System: every workspace this Slack team is installed in. */
+    async slackTeamWorkspaces(tx: DbOrTx, teamId: string): Promise<string[]> {
+      const rows = await tx
+        .select({ workspaceId: slackInstallations.workspaceId })
+        .from(slackInstallations)
+        .where(eq(slackInstallations.teamId, teamId));
+      return rows.map((r) => r.workspaceId);
+    },
+
     /* Telegram links */
 
     async upsertTelegramLink(

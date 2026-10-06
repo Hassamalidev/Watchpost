@@ -937,7 +937,24 @@
     "rulesSaved": "Rules saved.",
     "kind": "Type",
     "phone": "Phone number",
-    "phoneHint": "International format, like +14155550123. The verification text and every alert text or call use the workspace's alert credits."
+    "phoneHint": "International format, like +14155550123. The verification text and every alert text or call use the workspace's alert credits.",
+    "chat": {
+      "title": "Linked chat accounts",
+      "hint": "Link your Slack user so that what you do in Slack (a button on an alert, a /watchpost command) is recorded under your name and with your role.",
+      "empty": "None yet. In Slack, type /watchpost link and open the link it gives you.",
+      "providers": {
+        "slack": "Slack",
+        "telegram": "Telegram"
+      },
+      "unnamed": "unnamed user",
+      "confirm": "Link the {provider} user “{name}” to your account?",
+      "confirmHint": "Only confirm if that is you. Whoever uses that chat account will act as you.",
+      "link": "Yes, link it",
+      "notMe": "No, that isn't me",
+      "expired": "This link has expired or isn't for this workspace. Type /watchpost link in Slack for a new one.",
+      "since": "linked {date}",
+      "unlink": "Unlink"
+    }
   },
   "settings": {
     "title": "Settings",

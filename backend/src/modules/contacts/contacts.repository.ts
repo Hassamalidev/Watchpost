@@ -4,8 +4,10 @@ import type { ContactMethodType, Urgency } from "@app/shared";
 import type { WorkspaceScope } from "../../core/workspace-scope.js";
 import { tenantWhere, withWorkspace, type DbOrTx } from "../../infra/db/index.js";
 import {
+  chatLinks,
   contactMethods,
   notificationRules,
+  type ChatLinkRow,
   type ContactMethodRow,
   type NotificationRuleRow,
 } from "./schema/contacts.js";
@@ -99,6 +101,63 @@ export function createContactsRepository() {
       await db
         .delete(contactMethods)
         .where(tenantWhere(scope, contactMethods, eq(contactMethods.id, id)));
+    },
+
+    async findChatLink(
+      db: DbOrTx,
+      scope: WorkspaceScope,
+      provider: ChatLinkRow["provider"],
+      externalId: string,
+    ): Promise<ChatLinkRow | undefined> {
+      const rows = await db
+        .select()
+        .from(chatLinks)
+        .where(
+          tenantWhere(
+            scope,
+            chatLinks,
+            eq(chatLinks.provider, provider),
+            eq(chatLinks.externalId, externalId),
+          ),
+        )
+        .limit(1);
+      return rows[0];
+    },
+
+    async listChatLinks(db: DbOrTx, scope: WorkspaceScope, userId: string): Promise<ChatLinkRow[]> {
+      return db
+        .select()
+        .from(chatLinks)
+        .where(tenantWhere(scope, chatLinks, eq(chatLinks.userId, userId)))
+        .orderBy(asc(chatLinks.createdAt), asc(chatLinks.id));
+    },
+
+    /* A chat user belongs to one member: linking again moves it to whoever linked last. */
+    async saveChatLink(
+      db: DbOrTx,
+      scope: WorkspaceScope,
+      row: Pick<ChatLinkRow, "id" | "userId" | "provider" | "externalId" | "externalName">,
+    ): Promise<void> {
+      await db
+        .insert(chatLinks)
+        .values(withWorkspace(scope, row))
+        .onConflictDoUpdate({
+          target: [chatLinks.workspaceId, chatLinks.provider, chatLinks.externalId],
+          set: { userId: row.userId, externalName: row.externalName, createdAt: sql`now()` },
+        });
+    },
+
+    async deleteChatLink(
+      db: DbOrTx,
+      scope: WorkspaceScope,
+      userId: string,
+      id: string,
+    ): Promise<boolean> {
+      const rows = await db
+        .delete(chatLinks)
+        .where(tenantWhere(scope, chatLinks, eq(chatLinks.userId, userId), eq(chatLinks.id, id)))
+        .returning({ id: chatLinks.id });
+      return rows.length > 0;
     },
 
     async listRules(

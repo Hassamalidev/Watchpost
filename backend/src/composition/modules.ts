@@ -144,6 +144,10 @@ export function createModules(infra: Infra): AppModule[] {
       messaging: channels.messaging,
       channels: channels.service,
       integrations: channels.integrations,
+      contacts: contacts.service,
+      oncall: oncall.service,
+      maintenance: maintenance.service,
+      monitors: monitors.service,
     }),
   );
   modules.push(

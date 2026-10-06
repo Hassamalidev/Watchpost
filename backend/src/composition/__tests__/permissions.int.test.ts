@@ -49,7 +49,7 @@ describe("workspace route permissions", () => {
   const routes = workspaceRoutes();
 
   it("finds the workspace routes", () => {
-    expect(routes.length).toBeGreaterThanOrEqual(107);
+    expect(routes.length).toBeGreaterThanOrEqual(111);
   });
 
   it("guards every workspace route with exactly one known permission", () => {
@@ -66,6 +66,7 @@ describe("workspace route permissions", () => {
         "DELETE /channels/:channelId → channel:manage",
         "DELETE /escalation-policies/:policyId → schedule:write",
         "DELETE /maintenance-windows/:windowId → maintenance:write",
+        "DELETE /me/chat-links/:linkId → contact:manage",
         "DELETE /me/contact-methods/:methodId → contact:manage",
         "DELETE /me/oncall-feed → contact:manage",
         "DELETE /monitor-groups/:groupId → monitor:write",
@@ -100,6 +101,8 @@ describe("workspace route permissions", () => {
         "GET /maintenance-windows → maintenance:read",
         "GET /maintenance-windows/:windowId → maintenance:read",
         "GET /me → settings:read",
+        "GET /me/chat-links → contact:manage",
+        "GET /me/chat-links/preview → contact:manage",
         "GET /me/contact-methods → contact:manage",
         "GET /me/notification-rules → contact:manage",
         "GET /me/oncall-feed → contact:manage",
@@ -154,6 +157,7 @@ describe("workspace route permissions", () => {
         "POST /incidents/:incidentRef/resolve → incident:respond",
         "POST /incidents/drill → incident:drill",
         "POST /maintenance-windows → maintenance:write",
+        "POST /me/chat-links → contact:manage",
         "POST /me/contact-methods → contact:manage",
         "POST /me/contact-methods/:methodId/code → contact:manage",
         "POST /me/contact-methods/:methodId/confirm → contact:manage",

@@ -20,6 +20,7 @@ import {
   phoneNumberSchema,
 } from "@app/shared";
 import { z } from "zod";
+import type { WorkspaceRole } from "@app/shared";
 import type { Clock } from "../../core/clock.js";
 import {
   ConflictError,
@@ -28,15 +29,34 @@ import {
   RateLimitedError,
   ValidationError,
 } from "../../core/errors.js";
-import type { WorkspaceScope } from "../../core/workspace-scope.js";
+import { createWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
 import type { Db, DbOrTx } from "../../infra/db/index.js";
 import type { Outbox } from "../../infra/outbox/index.js";
+import type { TokenSigner } from "../../infra/signed-token.js";
 import type { PhonesService } from "../channels/index.js";
 import type { WorkspacesService } from "../workspaces/index.js";
 import type { ContactsRepository } from "./contacts.repository.js";
 import type { ContactMethodRow } from "./schema/contacts.js";
 
 export const CODE_TTL_MS = 10 * 60_000;
+export const CHAT_LINK_TTL_MS = 30 * 60_000;
+
+export type ChatProvider = "slack" | "telegram";
+
+/* What a "link your chat user" token carries. */
+export interface ChatLinkClaims {
+  workspaceId: string;
+  provider: ChatProvider;
+  externalId: string;
+  externalName: string | null;
+}
+
+export interface ChatLinkView {
+  id: string;
+  provider: ChatProvider;
+  externalName: string | null;
+  linkedAt: string;
+}
 export const MAX_CODE_ATTEMPTS = 5;
 export const MAX_CODES_PER_HOUR = 3;
 const HOUR_MS = 3_600_000;
@@ -59,6 +79,23 @@ export interface ContactsService {
     urgency: Urgency,
     rules: NotificationRuleInput[],
   ): Promise<NotificationRulesView>;
+  /* System: the member a chat user is linked to, with their current role. */
+  chatUser(
+    workspaceId: string,
+    provider: ChatProvider,
+    externalId: string,
+  ): Promise<{ userId: string; role: WorkspaceRole } | undefined>;
+  /* System: the page where a signed-in member confirms that a chat user is theirs. */
+  chatLinkUrl(claims: ChatLinkClaims): string;
+  /* What a link token is about, before confirming; undefined when it is forged or expired. */
+  chatLinkPreview(
+    scope: WorkspaceScope,
+    token: string,
+  ): { provider: ChatProvider; externalName: string | null } | undefined;
+  /* Ties the chat user in the token to the acting member. */
+  claimChatLink(scope: WorkspaceScope, token: string): Promise<ChatLinkView[]>;
+  listChatLinks(scope: WorkspaceScope): Promise<ChatLinkView[]>;
+  removeChatLink(scope: WorkspaceScope, id: string): Promise<void>;
   /* System: who-hears-when for a member, counted from `from`. Empty for someone who left. */
   fanOut(
     scope: WorkspaceScope,
@@ -80,6 +117,9 @@ export interface ContactsServiceDeps {
   outbox: Outbox;
   clock: Clock;
   newId: () => string;
+  /* Signs "link this chat user" tokens; the page they open is under `webOrigin`. */
+  linkSigner: TokenSigner<ChatLinkClaims>;
+  webOrigin: string;
   /* Tests fix the code. */
   newCode?: () => string;
 }
@@ -386,6 +426,64 @@ export function createContactsService(deps: ContactsServiceDeps): ContactsServic
         );
       });
       return rulesOf(scope, userId);
+    },
+
+    async chatUser(workspaceId, provider, externalId) {
+      const scope = createWorkspaceScope({ workspaceId });
+      const link = await repo.findChatLink(deps.db, scope, provider, externalId);
+      if (link === undefined) return undefined;
+      /* The role is read now, so a demoted or removed member loses what the link could do. */
+      const member = (await deps.workspaces.listMembers(scope)).find(
+        (m) => m.userId === link.userId,
+      );
+      return member === undefined ? undefined : { userId: member.userId, role: member.role };
+    },
+
+    chatLinkUrl(claims) {
+      const token = deps.linkSigner.sign(
+        claims,
+        new Date(clock.now().getTime() + CHAT_LINK_TTL_MS),
+      );
+      return `${deps.webOrigin}/w/${claims.workspaceId}/notifications?link=${encodeURIComponent(token)}`;
+    },
+
+    chatLinkPreview(scope, token) {
+      const claims = deps.linkSigner.verify(token, clock.now());
+      if (claims === undefined || claims.workspaceId !== scope.workspaceId) return undefined;
+      return { provider: claims.provider, externalName: claims.externalName };
+    },
+
+    async claimChatLink(scope, token) {
+      const userId = actorOf(scope);
+      const claims = deps.linkSigner.verify(token, clock.now());
+      if (claims === undefined || claims.workspaceId !== scope.workspaceId) {
+        throw new ValidationError("This link has expired. Ask for a new one in the chat app.", [
+          { path: "body.token", message: "This link has expired or isn't for this workspace." },
+        ]);
+      }
+      await repo.saveChatLink(deps.db, scope, {
+        id: deps.newId(),
+        userId,
+        provider: claims.provider,
+        externalId: claims.externalId,
+        externalName: claims.externalName,
+      });
+      return service.listChatLinks(scope);
+    },
+
+    async listChatLinks(scope) {
+      return (await repo.listChatLinks(deps.db, scope, actorOf(scope))).map((row) => ({
+        id: row.id,
+        provider: row.provider,
+        externalName: row.externalName,
+        linkedAt: row.createdAt.toISOString(),
+      }));
+    },
+
+    async removeChatLink(scope, id) {
+      if (!(await repo.deleteChatLink(deps.db, scope, actorOf(scope), id))) {
+        throw new NotFoundError("Linked account not found.");
+      }
     },
 
     async fanOut(scope, userId, urgency, from) {

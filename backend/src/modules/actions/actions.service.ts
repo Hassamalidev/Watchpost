@@ -15,6 +15,7 @@ import {
 } from "../../infra/action-links.js";
 import type { Db } from "../../infra/db/index.js";
 import type { ChannelsService, PhonesService } from "../channels/index.js";
+import type { ContactsService } from "../contacts/index.js";
 import type { IncidentsService, IncidentStatus } from "../incidents/index.js";
 import type { WorkspacesService } from "../workspaces/index.js";
 import type { ActionsRepository } from "./actions.repository.js";
@@ -81,6 +82,8 @@ export function createActionsService(deps: {
   phones?: Pick<PhonesService, "replyTarget"> | undefined;
   /* Chat buttons; optional so tests can build the email and phone parts alone. */
   channels?: Pick<ChannelsService, "messageTarget"> | undefined;
+  /* Who a chat user is in Watchpost, when they have linked their account. */
+  contacts?: Pick<ContactsService, "chatUser" | "chatLinkUrl"> | undefined;
   clock: Clock;
 }): ActionsService {
   function claimsOf(token: string): ActionClaims {
@@ -155,7 +158,7 @@ export function createActionsService(deps: {
       return { action: claims.action, result: "done", incident: summary(after) };
     },
 
-    async chatAction({ provider, providerRef, incidentId, action, actorName }) {
+    async chatAction({ provider, providerRef, incidentId, action, actorName, externalUserId }) {
       const target = await deps.channels?.messageTarget(providerRef, incidentId);
       if (target === undefined) {
         return {
@@ -163,10 +166,31 @@ export function createActionsService(deps: {
           text: "This button no longer works. Open the incident in Watchpost.",
         };
       }
-      /* Whoever can press a button in the channel was told about the incident on purpose. */
-      const scope = createWorkspaceScope({ workspaceId: target.workspaceId, role: "responder" });
+      /*
+       * Whoever can press a button in the channel was told about the incident on purpose, so the
+       * press counts either way. A linked chat user acts as themselves, with their own role.
+       */
+      const linked = await deps.contacts?.chatUser(target.workspaceId, provider, externalUserId);
+      const scope = createWorkspaceScope({
+        workspaceId: target.workspaceId,
+        ...(linked === undefined
+          ? { role: "responder" as const }
+          : { actorUserId: linked.userId, role: linked.role }),
+      });
       const before = await deps.incidents.get(scope, incidentId);
       const label = `#${before.number}`;
+      /* Slack can show a link; a Telegram notice is one short line. */
+      const hint =
+        linked === undefined && provider === "slack" && deps.contacts !== undefined
+          ? ` Link your Slack user so this is recorded under your name: ${deps.contacts.chatLinkUrl(
+              {
+                workspaceId: target.workspaceId,
+                provider,
+                externalId: externalUserId,
+                externalName: actorName,
+              },
+            )}`
+          : "";
       const who = actorName === null ? "" : ` by ${actorName}`;
       if (before.status === "resolved") {
         return { result: "already", text: `${label} is already resolved.` };
@@ -176,10 +200,10 @@ export function createActionsService(deps: {
           return { result: "already", text: `${label} is already acknowledged.` };
         }
         await deps.incidents.acknowledge(scope, incidentId, { via: provider });
-        return { result: "done", text: `${label} acknowledged${who}.` };
+        return { result: "done", text: `${label} acknowledged${who}.${hint}` };
       }
       await deps.incidents.resolve(scope, incidentId, { via: provider });
-      return { result: "done", text: `${label} resolved${who}.` };
+      return { result: "done", text: `${label} resolved${who}.${hint}` };
     },
 
     async phoneReply({ phone, text, via, incidentId }) {

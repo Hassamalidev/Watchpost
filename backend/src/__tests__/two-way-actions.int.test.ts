@@ -8,7 +8,7 @@ import { randomBytes } from "node:crypto";
 import request from "supertest";
 import type TestAgent from "supertest/lib/agent.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { slackSignature } from "../modules/actions/index.js";
+import { COMMAND_HELP, parseDuration, slackSignature } from "../modules/actions/index.js";
 import type { AlertingModule } from "../modules/alerting/index.js";
 import {
   WEB_ORIGIN,
@@ -17,6 +17,9 @@ import {
   stubHttp,
 } from "./helpers/container-app.js";
 
+const run = randomBytes(4).toString("hex");
+/* Its own Slack team, so earlier runs in the same database don't share it. */
+const TEAM = `T0${run.toUpperCase()}`;
 const TELEGRAM_SECRET = "telegram-secret-0123456789";
 const SLACK_SIGNING_SECRET = "slack-signing-secret-0123456789";
 const SLACK_REF = { channel: "C0ZED", ts: "1700000000.000200" };
@@ -30,7 +33,7 @@ const http = stubHttp((req) => {
         access_token: "xoxb-secret-token",
         scope: "chat:write,channels:read",
         bot_user_id: "U0BOT",
-        team: { id: "T0ACME", name: "Acme Slack" },
+        team: { id: TEAM, name: "Acme Slack" },
       }),
     };
   }
@@ -68,7 +71,6 @@ const ctx = buildContainerApp({
     TELEGRAM_WEBHOOK_SECRET: TELEGRAM_SECRET,
   },
 });
-const run = randomBytes(4).toString("hex");
 let owner: TestAgent;
 let ws = "";
 
@@ -232,11 +234,12 @@ describe("alerts that can be answered", () => {
     expect(clicked.status).toBe(200);
     expect(await statusOf(incident.number)).toBe("resolved");
     const whisper = http.requests.find((r) => r.url.startsWith("https://hooks.slack.com/actions/"));
-    expect(JSON.parse(whisper?.body ?? "{}")).toMatchObject({
-      response_type: "ephemeral",
-      replace_original: false,
-      text: `#${incident.number} resolved by Sara.`,
-    });
+    const said = JSON.parse(whisper?.body ?? "{}") as { text: string };
+    expect(said).toMatchObject({ response_type: "ephemeral", replace_original: false });
+    /* Sara hasn't linked her Slack user yet, so she is shown how. */
+    expect(said.text).toMatch(
+      new RegExp(`^#${incident.number} resolved by Sara\. Link your Slack user .*link=`),
+    );
 
     await follow(incident.id, "resolved");
     const edited = calls("/editMessageText").at(-1);
@@ -282,5 +285,131 @@ describe("presses that must not work", () => {
     const nonsense = await telegram(tap("ack:not-an-incident"));
     expect(nonsense.status).toBe(200);
     expect(await statusOf(incident.number)).toBe("triggered");
+  });
+});
+
+describe("/watchpost in Slack", () => {
+  function command(text: string, options: { secret?: string; user?: string } = {}) {
+    const body = new URLSearchParams({
+      team_id: TEAM,
+      user_id: options.user ?? "U0SARA",
+      user_name: "sara",
+      text,
+    }).toString();
+    const timestamp = String(Math.floor(Date.now() / 1_000));
+    return request(ctx.app)
+      .post("/api/integrations/slack/commands")
+      .set("content-type", "application/x-www-form-urlencoded")
+      .set("x-slack-request-timestamp", timestamp)
+      .set(
+        "x-slack-signature",
+        slackSignature(options.secret ?? SLACK_SIGNING_SECRET, timestamp, body),
+      )
+      .send(body);
+  }
+  const say = async (text: string, user?: string) => {
+    const started = Date.now();
+    const res = await command(text, user === undefined ? {} : { user });
+    expect(res.status, res.text).toBe(200);
+    expect(res.body.response_type).toBe("ephemeral");
+    /* Slack gives a command three seconds. */
+    expect(Date.now() - started).toBeLessThan(3_000);
+    return res.body.text as string;
+  };
+
+  it("reads durations like 30m, 1h and 2h30m, up to a day", () => {
+    expect(parseDuration("30m")).toBe(30 * 60_000);
+    expect(parseDuration("1h")).toBe(3_600_000);
+    expect(parseDuration("2h30m")).toBe(150 * 60_000);
+    expect(parseDuration("24h")).toBe(24 * 3_600_000);
+    expect(parseDuration("25h")).toBeUndefined();
+    expect(parseDuration("0m")).toBeUndefined();
+    expect(parseDuration("soon")).toBeUndefined();
+    expect(parseDuration("")).toBeUndefined();
+  });
+
+  it("refuses a request Slack didn't sign, and explains itself on help", async () => {
+    expect((await command("help", { secret: "another-secret-0123456789" })).status).toBe(401);
+    expect(await say("")).toBe(COMMAND_HELP);
+    expect(await say("help")).toBe(COMMAND_HELP);
+    expect(await say("dance")).toBe(COMMAND_HELP);
+  });
+
+  it("acknowledges and resolves by number for anyone in the Slack workspace", async () => {
+    const incident = await openAndAlert("By number");
+    expect(await say(`ack #${incident.number}`)).toBe(
+      `Acknowledged #${incident.number} By number.`,
+    );
+    expect(await say(`ack ${incident.number}`)).toBe(
+      `#${incident.number} By number is already acknowledged.`,
+    );
+    expect(await say(`resolve ${incident.number}`)).toBe(`Resolved #${incident.number} By number.`);
+    expect(await statusOf(incident.number)).toBe("resolved");
+    expect(await say("ack")).toContain("Which incident?");
+    expect(await say("ack 99999999")).toMatch(/not found/i);
+    expect(await say("oncall")).toBe("No on-call schedules yet.");
+  });
+
+  it("keeps maintenance for linked accounts, and tells an unlinked user how to link", async () => {
+    const refused = await say("maintenance 1h");
+    expect(refused).toContain("Link it first");
+    expect(refused).toMatch(/\/notifications\?link=/);
+  });
+
+  it("links a Slack user to the signed-in member, whose clicks are then recorded as theirs", async () => {
+    const offered = await say("link");
+    const url = new URL(/https?:\/\/\S+/.exec(offered)?.[0] ?? "");
+    expect(url.pathname).toBe(`/w/${ws}/notifications`);
+    const token = url.searchParams.get("link") ?? "";
+
+    const preview = await api("get", `/me/chat-links/preview?token=${encodeURIComponent(token)}`);
+    expect(preview.body.data).toEqual({ provider: "slack", externalName: "sara" });
+    const forged = await api("post", "/me/chat-links").send({ token: `${token.slice(0, -4)}AAAA` });
+    expect(forged.status).toBe(400);
+    const claimed = await api("post", "/me/chat-links").send({ token });
+    expect(claimed.status, claimed.text).toBe(201);
+    expect(claimed.body.data).toEqual([
+      expect.objectContaining({ provider: "slack", externalName: "sara" }),
+    ]);
+    expect(await say("link")).toBe("Your Slack user is already linked to your Watchpost account.");
+
+    /* A click is now the member's own, and nobody is asked to link again. */
+    const me = (await api("get", "/members")).body.data[0].userId as string;
+    const incident = await openAndAlert("Linked click");
+    const before = http.requests.length;
+    await slackClick(slackPayload("watchpost_acknowledge", incident.id));
+    const detail = await api("get", `/incidents/${incident.number}`);
+    expect(detail.body.status).toBe("acknowledged");
+    expect(detail.body.acknowledgedBy).toBe(me);
+    const whisper = http.requests
+      .slice(before)
+      .find((r) => r.url.startsWith("https://hooks.slack.com/actions/"));
+    expect(JSON.parse(whisper?.body ?? "{}").text).toBe(
+      `#${incident.number} acknowledged by Sara.`,
+    );
+
+    /* Another Slack user in the same team is still a stranger. */
+    expect(await say("maintenance 1h", "U0OTHER")).toContain("Link it first");
+  });
+
+  it("starts maintenance for a linked member, for all monitors or the ones named", async () => {
+    const all = await say("maintenance 1h");
+    expect(all).toMatch(/^Maintenance started for all monitors until /);
+    expect(await say("maintenance 2h nothing-is-called-this")).toBe(
+      "No monitor is named like “nothing-is-called-this”.",
+    );
+    expect(await say("maintenance soon")).toContain("How long?");
+    const windows = await api("get", "/maintenance-windows");
+    const started = (windows.body.data as { name: string; active: boolean }[]).find((w) =>
+      w.name.startsWith("Started from Slack"),
+    );
+    expect(started).toMatchObject({ name: "Started from Slack by sara", active: true });
+
+    const links = await api("get", "/me/chat-links");
+    const removed = await owner
+      .delete(`/api/w/${ws}/me/chat-links/${links.body.data[0].id}`)
+      .set("Origin", WEB_ORIGIN);
+    expect(removed.status).toBe(204);
+    expect(await say("maintenance 1h")).toContain("Link it first");
   });
 });

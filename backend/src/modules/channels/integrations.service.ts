@@ -59,6 +59,8 @@ export interface IntegrationsService {
   ): Promise<{ url: string; expiresAt: string }>;
   /* A Telegram bot update (already authenticated by the secret header). */
   telegramUpdate(update: unknown): Promise<void>;
+  /* System: the Watchpost workspaces a Slack team is installed in (for slash commands). */
+  slackTeamWorkspaces(teamId: string): Promise<string[]>;
   /* Answers a button tap with a short notice in the Telegram app. Failures are logged, not thrown. */
   telegramAnswer(callbackQueryId: string, text: string): Promise<void>;
 }
@@ -258,6 +260,10 @@ export function createIntegrationsService(deps: {
         url: `https://t.me/${config.telegram.botUsername}?start=${token}`,
         expiresAt: expiresAt.toISOString(),
       };
+    },
+
+    async slackTeamWorkspaces(teamId) {
+      return repo.slackTeamWorkspaces(deps.db, teamId);
     },
 
     async telegramAnswer(callbackQueryId, text) {

@@ -211,6 +211,13 @@
       "when": 1791291981246,
       "tag": "0029_direct_refs",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1791292581773,
+      "tag": "0030_chat_links",
+      "breakpoints": true
     }
   ]
 }

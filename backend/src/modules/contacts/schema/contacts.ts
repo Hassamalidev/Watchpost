@@ -62,5 +62,26 @@ export const notificationRules = pgTable(
   ],
 );
 
+/* A chat app user (a Slack member, a Telegram account) tied to a member of the workspace. */
+export const chatLinks = pgTable(
+  "chat_links",
+  {
+    id: uuid("id").primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull(),
+    provider: text("provider").$type<"slack" | "telegram">().notNull(),
+    externalId: text("external_id").notNull(),
+    externalName: text("external_name"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("chat_links_external_uq").on(t.workspaceId, t.provider, t.externalId),
+    index("chat_links_user_idx").on(t.workspaceId, t.userId),
+  ],
+);
+
+export type ChatLinkRow = typeof chatLinks.$inferSelect;
 export type ContactMethodRow = typeof contactMethods.$inferSelect;
 export type NotificationRuleRow = typeof notificationRules.$inferSelect;
