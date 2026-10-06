@@ -8,7 +8,7 @@
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { useWorkspace } from "@/components/app/workspace-context";
+import { can, useWorkspace } from "@/components/app/workspace-context";
 import { Alert } from "@/components/ui/alert";
 import { Loading } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/api";
@@ -20,14 +20,13 @@ import { PlanPicker } from "./plan-picker";
 import { PlanSummary } from "./plan-summary";
 import { UsageCard } from "./usage-card";
 
-const MANAGER_ROLES = ["owner", "admin", "billing"];
 const SLOW_ACTIVATION_MS = 60_000;
 
 export function BillingPage() {
   const t = useTranslations("billing");
   const workspace = useWorkspace();
   const ws = workspace.id;
-  const canManage = MANAGER_ROLES.includes(workspace.role);
+  const canManage = can(workspace.role, "billing:manage");
   const client = useQueryClient();
   /* After checkout the plan changes when Paddle's webhook is processed; poll until it shows. */
   const [activating, setActivating] = React.useState<"no" | "yes" | "slow">("no");

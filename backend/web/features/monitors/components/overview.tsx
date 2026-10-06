@@ -23,7 +23,7 @@ export function OverviewView() {
   const tInsights = useTranslations("insights");
   const workspace = useWorkspace();
   const ws = workspace.id;
-  const addFirst = can(workspace.role, "member") ? (
+  const addFirst = can(workspace.role, "monitor:write") ? (
     <Link href={workspaceHref(ws, "monitors/new")} className={buttonVariants({ size: "sm" })}>
       <Plus aria-hidden />
       {t("addFirst")}
@@ -66,7 +66,7 @@ export function MonitorsIndex() {
     <div className="grid max-w-5xl gap-4">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="flex-1 text-2xl font-semibold tracking-tight">{t("title")}</h1>
-        {can(workspace.role, "member") && (
+        {can(workspace.role, "monitor:write") && (
           <Link
             href={workspaceHref(workspace.id, "monitors/new")}
             className={buttonVariants({ size: "sm" })}

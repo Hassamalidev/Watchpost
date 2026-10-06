@@ -722,6 +722,13 @@
       "responder": "Responder",
       "viewer": "Viewer",
       "billing": "Billing"
+    },
+    "roleHints": {
+      "admin": "Everything except deleting the workspace: monitors, integrations, alert routing, members and billing.",
+      "member": "Manages monitors, maintenance and incidents. Can't change integrations, members or billing.",
+      "responder": "Sees everything and can acknowledge, resolve and comment on incidents. Can't change monitors.",
+      "viewer": "Read-only: sees monitors, incidents and maintenance, changes nothing.",
+      "billing": "Billing pages only: the plan, usage, credits and invoices. Sees no monitors or incidents."
     }
   },
   "settings": {

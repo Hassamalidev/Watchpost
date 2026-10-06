@@ -4,7 +4,7 @@
  * and only admins see a channel's configuration.
  */
 import { Router, type RequestHandler } from "express";
-import { requireRole } from "../../middleware/roles.js";
+import { requirePermission } from "../../middleware/roles.js";
 import { validate } from "../../middleware/validate.js";
 import type { ChannelsController } from "./channels.controller.js";
 import { channelIdParams, createChannelBody, updateChannelBody } from "./validators/index.js";
@@ -14,8 +14,8 @@ export function createChannelsRouter(
   guards: { session: RequestHandler; workspace: RequestHandler },
 ): Router {
   const router = Router({ mergeParams: true });
-  const read = requireRole("viewer");
-  const admin = requireRole("admin");
+  const read = requirePermission("channel:read");
+  const admin = requirePermission("channel:manage");
   const id = validate({ params: channelIdParams });
   router.use("/channels", guards.session, guards.workspace);
 

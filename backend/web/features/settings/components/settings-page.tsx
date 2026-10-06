@@ -49,7 +49,7 @@ export function SettingsPage() {
           <Select
             id="settings-tz"
             value={current}
-            disabled={!can(workspace.role, "admin")}
+            disabled={!can(workspace.role, "settings:update")}
             onChange={(e) => setTimezone(e.target.value)}
           >
             {zones.map((zone) => (
@@ -59,7 +59,7 @@ export function SettingsPage() {
             ))}
           </Select>
         </Field>
-        {can(workspace.role, "admin") && (
+        {can(workspace.role, "settings:update") && (
           <div>
             <Button type="submit" disabled={save.isPending}>
               {save.isPending ? tc("saving") : tc("save")}

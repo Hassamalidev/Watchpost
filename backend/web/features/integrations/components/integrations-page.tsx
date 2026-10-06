@@ -127,7 +127,7 @@ export function IntegrationsPage() {
   const ws = workspace.id;
   const router = useRouter();
   const search = useSearchParams();
-  const isAdmin = can(workspace.role, "admin");
+  const isAdmin = can(workspace.role, "channel:manage");
   const channels = useQuery({
     queryKey: integrationKeys.channels(ws),
     queryFn: async () => (await integrationsApi.channels(ws)).data,

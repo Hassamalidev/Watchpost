@@ -3,7 +3,7 @@
  * Viewers and above read; admins change routing (policies are part of integrations).
  */
 import { Router, type RequestHandler } from "express";
-import { requireRole } from "../../middleware/roles.js";
+import { requirePermission } from "../../middleware/roles.js";
 import { validate } from "../../middleware/validate.js";
 import type { AlertingController } from "./alerting.controller.js";
 import {
@@ -19,8 +19,8 @@ export function createAlertingRouter(
   guards: { session: RequestHandler; workspace: RequestHandler },
 ): Router {
   const router = Router({ mergeParams: true });
-  const read = requireRole("viewer");
-  const admin = requireRole("admin");
+  const read = requirePermission("alertPolicy:read");
+  const admin = requirePermission("alertPolicy:write");
   router.use("/alert-policies", guards.session, guards.workspace);
 
   router.get("/alert-policies", read, controller.list);
@@ -49,7 +49,7 @@ export function createAlertingRouter(
     "/incidents/:incidentId/deliveries",
     guards.session,
     guards.workspace,
-    requireRole("viewer"),
+    requirePermission("incident:read"),
     validate({ params: incidentIdParams }),
     controller.deliveries,
   );
@@ -58,7 +58,7 @@ export function createAlertingRouter(
     "/channels/:channelId/test",
     guards.session,
     guards.workspace,
-    admin,
+    requirePermission("channel:manage"),
     validate({ params: channelIdParams }),
     controller.sendTest,
   );

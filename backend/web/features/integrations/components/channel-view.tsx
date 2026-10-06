@@ -98,7 +98,7 @@ export function ChannelView({ channelId }: { channelId: string }) {
   const ws = workspace.id;
   const router = useRouter();
   const client = useQueryClient();
-  const isAdmin = can(workspace.role, "admin");
+  const isAdmin = can(workspace.role, "channel:manage");
   const detail = useQuery({
     queryKey: integrationKeys.channel(ws, channelId),
     queryFn: () => integrationsApi.channel(ws, channelId),

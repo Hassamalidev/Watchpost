@@ -104,7 +104,7 @@ export function HeartbeatsPage() {
   const [grace, setGrace] = React.useState("300");
   const [error, setError] = React.useState<string | null>(null);
   const heartbeats = (monitors.data ?? []).filter((m) => m.type === "heartbeat");
-  const canEdit = can(workspace.role, "member");
+  const canEdit = can(workspace.role, "monitor:write");
 
   return (
     <div className="grid max-w-4xl gap-6">

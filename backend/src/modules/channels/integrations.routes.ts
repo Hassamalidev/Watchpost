@@ -8,7 +8,7 @@ import { Router, type RequestHandler } from "express";
 import { z } from "zod";
 import { UnauthorizedError } from "../../core/errors.js";
 import { sessionOf } from "../../middleware/session.js";
-import { requireRole } from "../../middleware/roles.js";
+import { requirePermission } from "../../middleware/roles.js";
 import { inputOf, validate } from "../../middleware/validate.js";
 import { scopeOf } from "../../middleware/workspace.js";
 import type { IntegrationsService } from "./integrations.service.js";
@@ -26,17 +26,18 @@ export function createIntegrationsRouter(
   guards: { session: RequestHandler; workspace: RequestHandler },
 ): Router {
   const router = Router({ mergeParams: true });
-  const admin = requireRole("admin");
-  router.use("/integrations", guards.session, guards.workspace, admin);
+  const admin = requirePermission("channel:manage");
+  router.use("/integrations", guards.session, guards.workspace);
 
-  router.get("/integrations/slack/install", (req, res) => {
+  router.get("/integrations/slack/install", admin, (req, res) => {
     res.json({ url: service.slackInstallUrl(scopeOf(req, res)) });
   });
-  router.get("/integrations/slack/installations", async (req, res) => {
+  router.get("/integrations/slack/installations", admin, async (req, res) => {
     res.json({ data: await service.slackInstallations(scopeOf(req, res)) });
   });
   router.get(
     "/integrations/slack/installations/:installationId/channels",
+    admin,
     validate({ params: installationParams }),
     async (req, res) => {
       const { params } = inputOf<{ params: typeof installationParams }>(req, res);

@@ -76,7 +76,7 @@ export function MonitorDetail({ monitorId }: { monitorId: string }) {
   const state = states.data?.get(data.id);
   const reduced = data.regions.filter((region) => reducedRegions.data?.includes(region));
   const status = data.paused ? "paused" : (state?.status ?? "pending");
-  const canEdit = can(workspace.role, "member");
+  const canEdit = can(workspace.role, "monitor:write");
   /* While failing, explain the newest failed check the way alerts do. */
   const failing = status === "down" || status === "degraded" || status === "verifying";
   const lastFailure = failing ? (checks.data ?? []).find((c) => !c.ok) : undefined;

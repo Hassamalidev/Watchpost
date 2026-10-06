@@ -3,9 +3,11 @@
  * (PRODUCT.md §7.1 rule 8). It is branded, so a raw string or a hand-made object cannot be passed
  * where a scope is expected; only the workspace middleware (or tests) create one.
  */
+import type { WorkspaceRole } from "@app/shared";
+
 declare const scopeBrand: unique symbol;
 
-export type WorkspaceRole = "owner" | "admin" | "member" | "responder" | "viewer" | "billing";
+export type { WorkspaceRole } from "@app/shared";
 
 export interface WorkspaceScope {
   readonly workspaceId: string;

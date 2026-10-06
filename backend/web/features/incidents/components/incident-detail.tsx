@@ -35,7 +35,7 @@ export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
   const incident = useIncident(ws, incidentRef);
   const action = useIncidentAction(ws, incidentRef);
   const [comment, setComment] = React.useState("");
-  const canRespondNow = can(workspace.role, "responder");
+  const canRespondNow = can(workspace.role, "incident:respond");
 
   /* A acknowledges and R resolves, unless the user is typing (PRODUCT.md §14 keyboard-first). */
   React.useEffect(() => {
@@ -62,8 +62,8 @@ export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
   if (incident.isError) return <Alert tone="error">{errorMessage(incident.error)}</Alert>;
   const data = incident.data;
   /* Responders act on incidents; flagging false alarms is for members (PRODUCT.md §6.11). */
-  const canRespond = can(workspace.role, "responder");
-  const canFlag = can(workspace.role, "member");
+  const canRespond = can(workspace.role, "incident:respond");
+  const canFlag = can(workspace.role, "incident:write");
   const open = data.status !== "resolved";
 
   return (

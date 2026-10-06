@@ -3,7 +3,7 @@
  * Everyone but billing sees the windows; members plan them, like they manage monitors.
  */
 import { Router, type RequestHandler } from "express";
-import { requireRole } from "../../middleware/roles.js";
+import { requirePermission } from "../../middleware/roles.js";
 import { validate } from "../../middleware/validate.js";
 import type { MaintenanceController } from "./maintenance.controller.js";
 import { createWindowBody, updateWindowBody, windowIdParams } from "./validators/index.js";
@@ -13,8 +13,8 @@ export function createMaintenanceRouter(
   guards: { session: RequestHandler; workspace: RequestHandler },
 ): Router {
   const router = Router({ mergeParams: true });
-  const read = requireRole("viewer");
-  const write = requireRole("member");
+  const read = requirePermission("maintenance:read");
+  const write = requirePermission("maintenance:write");
   const id = validate({ params: windowIdParams });
   router.use("/maintenance-windows", guards.session, guards.workspace);
 

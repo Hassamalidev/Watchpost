@@ -3,7 +3,7 @@
  * Creating workspaces, inviting and accepting go through Better Auth at /api/auth/organization/*.
  */
 import { Router, type RequestHandler } from "express";
-import { requireRole } from "../../middleware/roles.js";
+import { requirePermission } from "../../middleware/roles.js";
 import { validate } from "../../middleware/validate.js";
 import { updateSettingsBody } from "./validators/index.js";
 import type { WorkspacesController } from "./workspaces.controller.js";
@@ -14,12 +14,13 @@ export function createWorkspacesRouter(
 ): Router {
   const router = Router({ mergeParams: true });
   router.use(guards.session, guards.workspace);
-  router.get("/me", controller.me);
-  router.get("/members", requireRole("admin"), controller.members);
-  router.get("/settings", controller.getSettings);
+  /* Every role, billing included: the web app asks who you are here before showing anything. */
+  router.get("/me", requirePermission("settings:read"), controller.me);
+  router.get("/members", requirePermission("roster:read"), controller.members);
+  router.get("/settings", requirePermission("settings:read"), controller.getSettings);
   router.patch(
     "/settings",
-    requireRole("admin"),
+    requirePermission("settings:update"),
     validate({ body: updateSettingsBody }),
     controller.updateSettings,
   );

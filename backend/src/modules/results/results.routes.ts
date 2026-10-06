@@ -5,7 +5,7 @@
 import { Router, type RequestHandler } from "express";
 import { z } from "zod";
 import { REGIONS } from "@app/shared";
-import { requireRole } from "../../middleware/roles.js";
+import { requirePermission } from "../../middleware/roles.js";
 import { inputOf, validate } from "../../middleware/validate.js";
 import { scopeOf } from "../../middleware/workspace.js";
 import { CHART_RANGES, type ChartRange, type RollupsService } from "./rollups.service.js";
@@ -25,7 +25,7 @@ export function createResultsRouter(
   guards: { session: RequestHandler; workspace: RequestHandler },
 ): Router {
   const router = Router({ mergeParams: true });
-  const read = [guards.session, guards.workspace, requireRole("viewer")];
+  const read = [guards.session, guards.workspace, requirePermission("monitor:read")];
 
   router.get(
     "/monitors/:monitorId/latency",

@@ -112,7 +112,7 @@ export function IntegrationSetup({ integrationId }: { integrationId: string }) {
           )}
         </CardContent>
       </Card>
-      {can(workspace.role, "admin") ? (
+      {can(workspace.role, "channel:manage") ? (
         <SetupBody ws={ws} email={workspace.user.email} integration={integration} />
       ) : (
         <Alert tone="info">{t("adminOnly")}</Alert>

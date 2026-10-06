@@ -257,7 +257,7 @@ export function MaintenancePage() {
   const workspace = useWorkspace();
   const ws = workspace.id;
   const client = useQueryClient();
-  const canPlan = can(workspace.role, "member");
+  const canPlan = can(workspace.role, "maintenance:write");
   const windows = useQuery({
     queryKey: maintenanceKey(ws),
     queryFn: async () =>

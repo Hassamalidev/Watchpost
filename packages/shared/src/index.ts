@@ -9,6 +9,20 @@ export {
   type Severity,
 } from "./constants/regions.js";
 export {
+  PERMISSIONS,
+  ROLE_PERMISSIONS,
+  WORKSPACE_ROLES,
+  WORKSPACE_STATEMENTS,
+  broadestRole,
+  isWorkspaceRole,
+  roleCan,
+  roleStatements,
+  type Permission,
+  type RoleStatements,
+  type WorkspaceResource,
+  type WorkspaceRole,
+} from "./constants/roles.js";
+export {
   CHECK_ERRORS,
   CHECK_ERROR_CODES,
   checkErrorImpact,

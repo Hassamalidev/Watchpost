@@ -3,7 +3,7 @@ import { Router, type RequestHandler } from "express";
 import { z } from "zod";
 import type { AppModule, Infra } from "../../composition/types.js";
 import { newId } from "../../infra/ids.js";
-import { requireRole } from "../../middleware/roles.js";
+import { requirePermission } from "../../middleware/roles.js";
 import { inputOf, validate } from "../../middleware/validate.js";
 import { scopeOf } from "../../middleware/workspace.js";
 import type { IncidentsService } from "../incidents/index.js";
@@ -40,7 +40,7 @@ function createExpiryRouter(
   router.use("/expiry", guards.session, guards.workspace);
   router.get(
     "/expiry/:monitorId",
-    requireRole("viewer"),
+    requirePermission("monitor:read"),
     validate({ params: monitorParams }),
     async (req, res) => {
       const { params } = inputOf<{ params: typeof monitorParams }>(req, res);
@@ -49,7 +49,7 @@ function createExpiryRouter(
   );
   router.post(
     "/expiry/:monitorId/check",
-    requireRole("member"),
+    requirePermission("monitor:write"),
     validate({ params: monitorParams }),
     async (req, res) => {
       const { params } = inputOf<{ params: typeof monitorParams }>(req, res);

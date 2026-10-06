@@ -6,8 +6,9 @@
 "use client";
 
 import * as React from "react";
+import { roleCan, type Permission, type WorkspaceRole } from "@app/shared";
 
-export type WorkspaceRole = "owner" | "admin" | "member" | "responder" | "viewer" | "billing";
+export type { Permission, WorkspaceRole } from "@app/shared";
 
 export interface CurrentWorkspace {
   id: string;
@@ -15,15 +16,6 @@ export interface CurrentWorkspace {
   role: WorkspaceRole;
   user: { id: string; email: string; name: string };
 }
-
-const RANK: Record<WorkspaceRole, number> = {
-  billing: 0,
-  viewer: 1,
-  responder: 2,
-  member: 3,
-  admin: 4,
-  owner: 5,
-};
 
 export const WorkspaceContext = React.createContext<CurrentWorkspace | null>(null);
 
@@ -33,6 +25,7 @@ export function useWorkspace(): CurrentWorkspace {
   return workspace;
 }
 
-export function can(role: WorkspaceRole, minimum: WorkspaceRole): boolean {
-  return RANK[role] >= RANK[minimum];
+/* The same role table the API enforces (PRODUCT.md §6.11). */
+export function can(role: WorkspaceRole, permission: Permission): boolean {
+  return roleCan(role, permission);
 }
