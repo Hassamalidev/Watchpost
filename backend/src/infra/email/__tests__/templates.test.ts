@@ -47,6 +47,16 @@ const SAMPLES: Record<EmailTemplate, Record<string, unknown>> = {
     },
   },
   "contact-code": { code: "048213", workspaceName: "Acme" },
+  "shift-notice": {
+    kind: "start",
+    scheduleName: "Primary",
+    workspaceName: "Acme",
+    timezone: "Europe/Berlin",
+    at: "2026-10-12T07:00:00.000Z",
+    until: "2026-10-19T07:00:00.000Z",
+    otherName: "Sara",
+    url: "https://app.example.com/w/1/on-call/2",
+  },
   "channel-failing": {
     workspaceName: "Acme",
     channelName: "Ops hook",

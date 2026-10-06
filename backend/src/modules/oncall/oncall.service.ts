@@ -22,6 +22,8 @@ import type { Clock } from "../../core/clock.js";
 import { ForbiddenError, NotFoundError, ValidationError } from "../../core/errors.js";
 import { createWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
 import type { Db } from "../../infra/db/index.js";
+import type { Outbox } from "../../infra/outbox/index.js";
+import type { ContactsService } from "../contacts/index.js";
 import type { WorkspacesService } from "../workspaces/index.js";
 import {
   isTimezone,
@@ -42,6 +44,11 @@ const MAX_OVERRIDE_MS = 62 * DAY_MS;
 /* What a calendar feed covers: a week back, two months ahead. */
 const FEED_PAST_MS = 7 * DAY_MS;
 const FEED_AHEAD_MS = 60 * DAY_MS;
+/*
+ * How far back the shift sweep looks for starts and ends it hasn't announced. Longer than any
+ * worker restart; a boundary older than this is no longer news.
+ */
+export const SHIFT_NOTICE_LOOKBACK_MS = 30 * 60_000;
 
 /* One stretch during which a person is on call for a schedule. */
 export interface Shift {
@@ -76,6 +83,11 @@ export interface OncallService {
   calendar(token: string): Promise<string | undefined>;
   /* System: a person's shifts across every schedule of the workspace that overlap (from, to). */
   shiftsOf(scope: WorkspaceScope, userId: string, from: Date, to: Date): Promise<Shift[]>;
+  /*
+   * System (sweep): emails everyone whose shift started or ended since the last look, once each,
+   * through their low-urgency email methods. Returns how many notices were sent.
+   */
+  notifyShifts(): Promise<number>;
   /* System: the user on call for a schedule at `at`; undefined when nobody is, or it is gone. */
   whoIsOnCall(scope: WorkspaceScope, scheduleId: string, at: Date): Promise<string | undefined>;
 }
@@ -84,6 +96,9 @@ export interface OncallServiceDeps {
   db: Db;
   repository: OncallRepository;
   workspaces: Pick<WorkspacesService, "listMembers" | "workspaceName">;
+  /* Where a person wants to hear things; optional so tests can build schedules without it. */
+  contacts?: Pick<ContactsService, "fanOut"> | undefined;
+  outbox?: Outbox | undefined;
   clock: Clock;
   newId: () => string;
   /* Where the API is reached from outside, for feed URLs. */
@@ -401,6 +416,102 @@ export function createOncallService(deps: OncallServiceDeps): OncallService {
         }
       }
       return shifts.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
+    },
+
+    async notifyShifts() {
+      const { contacts, outbox } = deps;
+      if (contacts === undefined || outbox === undefined) return 0;
+      const now = clock.now();
+      const since = new Date(now.getTime() - SHIFT_NOTICE_LOOKBACK_MS);
+      let sent = 0;
+      for (const workspaceId of await repo.workspacesWithSchedules(deps.db)) {
+        const scope = createWorkspaceScope({ workspaceId });
+        const rows = await repo.listSchedules(deps.db, scope);
+        const ids = rows.map((r) => r.id);
+        const [layers, overrides, { person }, workspaceName] = await Promise.all([
+          repo.layersOf(deps.db, scope, ids),
+          repo.overridesOf(deps.db, scope, ids, since, new Date(now.getTime() + NEXT_HORIZON_MS)),
+          people(scope),
+          deps.workspaces.workspaceName(scope),
+        ]);
+        for (const row of rows) {
+          /* A little past now, so the stretch that has just begun is known with its end. */
+          const segments = engineTimeline(
+            engineOf(row, layers, overrides),
+            since,
+            new Date(now.getTime() + NEXT_HORIZON_MS),
+          );
+          for (let i = 1; i < segments.length; i += 1) {
+            const before = segments[i - 1] as EngineSegment;
+            const after = segments[i] as EngineSegment;
+            const at = after.startsAt;
+            if (at.getTime() > now.getTime()) break;
+            const leaving = before.onCall?.userId;
+            const arriving = after.onCall?.userId;
+            /* The same person carrying on (a layer handing to their own override) isn't a handoff. */
+            if (leaving === arriving) continue;
+            const notices = [
+              ...(arriving === undefined
+                ? []
+                : [
+                    {
+                      userId: arriving,
+                      kind: "start" as const,
+                      other: leaving,
+                      until: after.endsAt,
+                    },
+                  ]),
+              ...(leaving === undefined
+                ? []
+                : [{ userId: leaving, kind: "end" as const, other: arriving, until: undefined }]),
+            ];
+            for (const notice of notices) {
+              const steps = (await contacts.fanOut(scope, notice.userId, "low", at)).filter(
+                (step) => step.type === "email",
+              );
+              const told = await deps.db.transaction(async (tx) => {
+                const fresh = await repo.claimShiftNotice(tx, scope, {
+                  id: deps.newId(),
+                  scheduleId: row.id,
+                  userId: notice.userId,
+                  kind: notice.kind,
+                  at,
+                });
+                if (!fresh) return false;
+                for (const step of steps) {
+                  await outbox.emit(
+                    tx,
+                    "email.requested",
+                    {
+                      template: "shift-notice",
+                      to: step.address,
+                      data: {
+                        kind: notice.kind,
+                        scheduleName: row.name,
+                        workspaceName,
+                        timezone: row.timezone,
+                        at: at.toISOString(),
+                        ...(notice.until === undefined
+                          ? {}
+                          : { until: notice.until.toISOString() }),
+                        ...(notice.other === undefined
+                          ? {}
+                          : { otherName: person(notice.other).name ?? "A former member" }),
+                        url: `${deps.webOrigin}/w/${workspaceId}/on-call/${row.id}`,
+                      },
+                      idempotencyKey: `shift.${row.id}.${notice.userId}.${notice.kind}.${at.getTime()}.${step.contactMethodId}`,
+                    },
+                    { workspaceId },
+                  );
+                }
+                return steps.length > 0;
+              });
+              if (told) sent += 1;
+            }
+          }
+        }
+      }
+      return sent;
     },
 
     async whoIsOnCall(scope, scheduleId, at) {

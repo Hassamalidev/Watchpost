@@ -94,6 +94,26 @@ export const oncallFeeds = pgTable(
   ],
 );
 
+/* A shift start or end someone was told about; the unique key makes telling them idempotent. */
+export const shiftNotices = pgTable(
+  "shift_notices",
+  {
+    id: uuid("id").primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    scheduleId: uuid("schedule_id")
+      .notNull()
+      .references(() => schedules.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull(),
+    kind: text("kind").$type<"start" | "end">().notNull(),
+    /* The moment the shift starts or ends. */
+    at: timestamp("at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("shift_notices_once_uq").on(t.scheduleId, t.userId, t.kind, t.at)],
+);
+
 export type OncallFeedRow = typeof oncallFeeds.$inferSelect;
 export type ScheduleRow = typeof schedules.$inferSelect;
 export type ScheduleLayerRow = typeof scheduleLayers.$inferSelect;

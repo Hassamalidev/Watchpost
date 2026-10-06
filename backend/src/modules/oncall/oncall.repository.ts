@@ -7,6 +7,7 @@ import {
   scheduleLayers,
   scheduleOverrides,
   schedules,
+  shiftNotices,
   type OncallFeedRow,
   type ScheduleLayerRow,
   type ScheduleOverrideRow,
@@ -123,6 +124,26 @@ export function createOncallRepository() {
           ),
         )
         .orderBy(asc(scheduleOverrides.startsAt), asc(scheduleOverrides.id));
+    },
+
+    /* System: every workspace that has a schedule, for the shift sweep. */
+    async workspacesWithSchedules(db: DbOrTx): Promise<string[]> {
+      const rows = await db.selectDistinct({ workspaceId: schedules.workspaceId }).from(schedules);
+      return rows.map((r) => r.workspaceId);
+    },
+
+    /* True when this start or end hasn't been announced yet (and now counts as announced). */
+    async claimShiftNotice(
+      db: DbOrTx,
+      scope: WorkspaceScope,
+      row: { id: string; scheduleId: string; userId: string; kind: "start" | "end"; at: Date },
+    ): Promise<boolean> {
+      const rows = await db
+        .insert(shiftNotices)
+        .values(withWorkspace(scope, row))
+        .onConflictDoNothing()
+        .returning({ id: shiftNotices.id });
+      return rows.length > 0;
     },
 
     async findFeed(

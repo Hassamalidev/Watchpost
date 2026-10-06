@@ -145,7 +145,12 @@ export function createModules(infra: Infra): AppModule[] {
     }),
   );
   modules.push(
-    createOncallModule({ infra, workspaces: workspaces.service, guards: workspaces.guards }),
+    createOncallModule({
+      infra,
+      workspaces: workspaces.service,
+      contacts: contacts.service,
+      guards: workspaces.guards,
+    }),
   );
   /* new-module:create */
   return modules;
