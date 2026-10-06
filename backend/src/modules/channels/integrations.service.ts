@@ -59,6 +59,8 @@ export interface IntegrationsService {
   ): Promise<{ url: string; expiresAt: string }>;
   /* A Telegram bot update (already authenticated by the secret header). */
   telegramUpdate(update: unknown): Promise<void>;
+  /* Answers a button tap with a short notice in the Telegram app. Failures are logged, not thrown. */
+  telegramAnswer(callbackQueryId: string, text: string): Promise<void>;
 }
 
 const telegramUpdateSchema = z.object({
@@ -256,6 +258,18 @@ export function createIntegrationsService(deps: {
         url: `https://t.me/${config.telegram.botUsername}?start=${token}`,
         expiresAt: expiresAt.toISOString(),
       };
+    },
+
+    async telegramAnswer(callbackQueryId, text) {
+      if (deps.telegram === undefined) return;
+      try {
+        await deps.telegram.call("answerCallbackQuery", {
+          callback_query_id: callbackQueryId,
+          text: text.slice(0, 200),
+        });
+      } catch (err) {
+        deps.logger.warn({ err }, "telegram callback answer failed");
+      }
     },
 
     async telegramUpdate(update) {

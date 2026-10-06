@@ -747,6 +747,7 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
             address: delivery.contactAddress,
             event,
             idempotencyKey: `delivery.${delivery.id}`,
+            userId: delivery.userId,
           });
           await finish({ status: "sent", providerRef, error: null, sentAt: clock.now() });
           return "sent";

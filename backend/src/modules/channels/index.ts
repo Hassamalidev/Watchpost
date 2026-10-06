@@ -42,6 +42,8 @@ export type {
 export type { IntegrationsService, SlackInstallationView } from "./integrations.service.js";
 export type { PaidSends, PhonesService, ReplyTarget } from "./phones.service.js";
 export { smsText, voiceText } from "./adapters/phone.js";
+export { SLACK_ACK_ACTION, SLACK_RESOLVE_ACTION } from "./adapters/slack.js";
+export { TELEGRAM_ACK, TELEGRAM_RESOLVE } from "./adapters/telegram.js";
 export {
   ChannelDeliveryError,
   type AlertEvent,
@@ -205,7 +207,6 @@ export function createChannelsModule(deps: ChannelsModuleDeps): ChannelsModule {
         router: createIntegrationsPublicRouter(integrations, {
           session: deps.guards.session,
           webOrigin: config.webOrigin,
-          telegramSecret: config.telegram?.webhookSecret,
         }),
       },
     ],

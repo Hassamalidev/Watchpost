@@ -142,6 +142,8 @@ export function createModules(infra: Infra): AppModule[] {
       workspaces: workspaces.service,
       phones: channels.phones,
       messaging: channels.messaging,
+      channels: channels.service,
+      integrations: channels.integrations,
     }),
   );
   modules.push(

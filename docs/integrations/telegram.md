@@ -29,3 +29,7 @@ One-way in P1; inline buttons arrive in P4.
 - [ ] "Send test" arrives in the private chat and in a group.
 - [ ] A real outage arrives; resolve arrives as a reply to it, and the first message is edited.
 - [ ] Blocking the bot makes the next alert fail without retries and marks the channel failing.
+
+## Buttons on alerts (Acknowledge and Resolve)
+
+The first message of every incident has **Acknowledge** and **Resolve** buttons under it. A tap is answered with a short notice in Telegram, and the message is edited to the new state for everyone in the chat. Nothing extra to set up: taps arrive on the same bot webhook as the link command.

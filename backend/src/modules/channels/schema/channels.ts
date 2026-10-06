@@ -55,6 +55,28 @@ export const messageRefs = pgTable(
   (t) => [uniqueIndex("message_refs_incident_channel_uq").on(t.incidentId, t.channelId)],
 );
 
+/*
+ * The newest text or call that went straight to a person's own number for an incident, so their
+ * reply ("1") or keypress can be matched to it. No channel stands behind these.
+ */
+export const directRefs = pgTable(
+  "direct_refs",
+  {
+    id: uuid("id").primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    incidentId: uuid("incident_id").notNull(),
+    address: text("address").notNull(),
+    userId: uuid("user_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("direct_refs_incident_address_uq").on(t.incidentId, t.address),
+    index("direct_refs_address_idx").on(t.address, t.createdAt),
+  ],
+);
+
 /* One Slack workspace connected through OAuth; the bot token is encrypted (AAD `slack:<id>`). */
 export const slackInstallations = pgTable(
   "slack_installations",

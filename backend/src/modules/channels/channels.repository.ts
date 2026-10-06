@@ -4,6 +4,7 @@ import { assertWorkspaceScope, type WorkspaceScope } from "../../core/workspace-
 import { tenantWhere, withWorkspace, type DbOrTx } from "../../infra/db/index.js";
 import {
   channels,
+  directRefs,
   messageRefs,
   phoneNumbers,
   slackInstallations,
@@ -312,13 +313,16 @@ export function createChannelsRepository() {
       tx: DbOrTx,
       channelIds: string[],
       incidentId?: string,
-    ): Promise<{ workspaceId: string; incidentId: string; channelId: string } | undefined> {
+    ): Promise<
+      { workspaceId: string; incidentId: string; channelId: string; createdAt: Date } | undefined
+    > {
       if (channelIds.length === 0) return undefined;
       const rows = await tx
         .select({
           workspaceId: messageRefs.workspaceId,
           incidentId: messageRefs.incidentId,
           channelId: messageRefs.channelId,
+          createdAt: messageRefs.createdAt,
         })
         .from(messageRefs)
         .where(
@@ -328,6 +332,65 @@ export function createChannelsRepository() {
           ),
         )
         .orderBy(desc(messageRefs.createdAt), desc(messageRefs.id))
+        .limit(1);
+      return rows[0];
+    },
+
+    /* The channel whose first message for this incident has exactly this provider reference. */
+    async messageTarget(
+      tx: DbOrTx,
+      providerRef: string,
+      incidentId: string,
+    ): Promise<{ workspaceId: string; channelId: string; channelName: string } | undefined> {
+      const rows = await tx
+        .select({
+          workspaceId: messageRefs.workspaceId,
+          channelId: messageRefs.channelId,
+          channelName: channels.name,
+        })
+        .from(messageRefs)
+        .innerJoin(channels, eq(channels.id, messageRefs.channelId))
+        .where(
+          and(eq(messageRefs.providerRef, providerRef), eq(messageRefs.incidentId, incidentId)),
+        )
+        .limit(1);
+      return rows[0];
+    },
+
+    async saveDirectRef(tx: DbOrTx, row: typeof directRefs.$inferInsert): Promise<void> {
+      await tx
+        .insert(directRefs)
+        .values(row)
+        .onConflictDoUpdate({
+          target: [directRefs.incidentId, directRefs.address],
+          set: { createdAt: sql`now()`, userId: row.userId ?? null },
+        });
+    },
+
+    /* The newest alert sent straight to this number, optionally for one incident. */
+    async latestDirectRef(
+      tx: DbOrTx,
+      address: string,
+      incidentId?: string,
+    ): Promise<
+      | { workspaceId: string; incidentId: string; userId: string | null; createdAt: Date }
+      | undefined
+    > {
+      const rows = await tx
+        .select({
+          workspaceId: directRefs.workspaceId,
+          incidentId: directRefs.incidentId,
+          userId: directRefs.userId,
+          createdAt: directRefs.createdAt,
+        })
+        .from(directRefs)
+        .where(
+          and(
+            eq(directRefs.address, address),
+            incidentId === undefined ? undefined : eq(directRefs.incidentId, incidentId),
+          ),
+        )
+        .orderBy(desc(directRefs.createdAt), desc(directRefs.id))
         .limit(1);
       return rows[0];
     },

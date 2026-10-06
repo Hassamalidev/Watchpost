@@ -1,16 +1,38 @@
 /*
  * Telegram (PRODUCT.md §10, one-way in P1): our bot posts to the chat that opened the channel's deep
- * link. Follow-ups reply to the first message, which is edited to the latest state. Inline buttons
- * arrive in P4.
+ * link. Follow-ups reply to the first message, which is edited to the latest state. The first
+ * message has inline Acknowledge and Resolve buttons while they apply (P4-T05); a tap arrives on the
+ * bot webhook as a callback query, which the `actions` module performs.
  */
 import { telegramChannelConfigSchema, type TelegramChannelConfig } from "@app/shared";
 import type { OutboundHttp } from "../../../infra/http/outbound.js";
-import { ChannelDeliveryError, type ChannelAdapter } from "../types/adapter.js";
+import { ChannelDeliveryError, type AlertEvent, type ChannelAdapter } from "../types/adapter.js";
 import { parseConfigWith } from "./config.js";
 import { call, parseJson } from "./http.js";
 import { renderPlain } from "./render.js";
 
 export const TELEGRAM_API = "https://api.telegram.org";
+
+/* `ack:<incident>` and `res:<incident>` fit Telegram's 64 bytes of callback data. */
+export const TELEGRAM_ACK = "ack";
+export const TELEGRAM_RESOLVE = "res";
+
+export function inlineKeyboard(event: AlertEvent | undefined): { inline_keyboard: unknown[][] } {
+  if (event === undefined || event.kind === "test" || event.incident.status === "resolved") {
+    return { inline_keyboard: [] };
+  }
+  const { id, status } = event.incident;
+  return {
+    inline_keyboard: [
+      [
+        ...(status === "triggered"
+          ? [{ text: "Acknowledge", callback_data: `${TELEGRAM_ACK}:${id}` }]
+          : []),
+        { text: "Resolve", callback_data: `${TELEGRAM_RESOLVE}:${id}` },
+      ],
+    ],
+  };
+}
 
 export interface TelegramApi {
   call(method: string, payload: object): Promise<Record<string, unknown>>;
@@ -53,7 +75,7 @@ export function createTelegramAdapter(deps: {
     async prepare(_input, ctx) {
       return ctx.previous === undefined ? parse({}) : parse(ctx.previous);
     },
-    render: renderPlain,
+    render: (event) => ({ ...renderPlain(event), body: event }),
     async send(config, message, meta) {
       if (config.chatId === null) {
         throw new ChannelDeliveryError(
@@ -66,9 +88,10 @@ export function createTelegramAdapter(deps: {
         chat_id: config.chatId,
         text: message.text,
         link_preview_options: { is_disabled: true },
+        /* Only the first message acts: it is the one edited to the latest state. */
         ...(Number.isInteger(replyTo)
           ? { reply_parameters: { message_id: replyTo, allow_sending_without_reply: true } }
-          : {}),
+          : { reply_markup: inlineKeyboard(message.body as AlertEvent | undefined) }),
       });
       const messageId = result.message_id;
       return {
@@ -84,6 +107,7 @@ export function createTelegramAdapter(deps: {
           message_id: Number(messageId),
           text: message.text,
           link_preview_options: { is_disabled: true },
+          reply_markup: inlineKeyboard(message.body as AlertEvent | undefined),
         });
       } catch (err) {
         /* Editing to the same text is an error in Telegram's eyes, not ours. */

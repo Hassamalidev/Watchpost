@@ -5,9 +5,11 @@
  * acknowledgement.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import request from "supertest";
 import type { ContactMethodView, NotificationRulesView } from "@app/shared";
 import { createFakeClock } from "../core/clock.js";
 import { createWorkspaceScope } from "../core/workspace-scope.js";
+import { twilioSignature } from "../infra/messaging/index.js";
 import {
   PADDLE_ENV,
   PRICES,
@@ -192,6 +194,30 @@ describe("a high-urgency incident sent to a person with a phone", () => {
     expect(twilio("/Calls.json")).toHaveLength(calls + 1);
     expect(twilio("/Calls.json").at(-1)?.To).toBe(PHONE);
     expect(await credits()).toBe(before - 3);
+  });
+
+  it("lets the person acknowledge by replying 1 to their own text", async () => {
+    const { incident, of } = await page("Reply to ack");
+    clock.advance(2 * MINUTE);
+    expect(await alerting.service.deliver(of("sms")?.id ?? "")).toBe("sent");
+
+    const path = "/api/webhooks/twilio/sms";
+    const fields = { From: PHONE, Body: "1" };
+    const reply = await request(ctx.app)
+      .post(path)
+      .type("form")
+      .set(
+        "X-Twilio-Signature",
+        twilioSignature(TWILIO_ENV.TWILIO_AUTH_TOKEN, `http://localhost:4000${path}`, fields),
+      )
+      .send(fields);
+    expect(reply.status).toBe(200);
+    expect(reply.text).toContain(`#${incident.number} acknowledged`);
+
+    const detail = await get(owner.agent, `${base()}/incidents/${incident.number}`);
+    expect(detail.body.status).toBe("acknowledged");
+    /* The reply came from their own number, so it is theirs, not an anonymous one. */
+    expect(detail.body.acknowledgedBy).toBe(owner.userId);
   });
 
   it("sends and charges nothing after an acknowledgement", async () => {

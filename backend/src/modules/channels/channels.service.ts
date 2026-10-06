@@ -91,7 +91,18 @@ export interface ChannelsService {
     address: string;
     event: AlertEvent;
     idempotencyKey: string;
+    /* Whose address it is, so their reply acts as them. */
+    userId?: string | null | undefined;
   }): Promise<{ providerRef: string | null }>;
+  /*
+   * System: the channel whose first message about this incident has this provider reference (a
+   * Slack `channel:ts`, a Telegram `chat:message`). A button press is trusted only when it comes
+   * from a message we sent for that incident.
+   */
+  messageTarget(
+    providerRef: string,
+    incidentId: string,
+  ): Promise<{ workspaceId: string; channelId: string; channelName: string } | undefined>;
   /* System: alerting gave up on a delivery through this channel. */
   markFailing(channelId: string): Promise<void>;
   /* How often and how patiently deliveries to this channel type are retried. */
@@ -263,7 +274,11 @@ export function createChannelsService(deps: {
       return row === undefined ? undefined : toSummary(row);
     },
 
-    async deliverDirect({ type, address, event, idempotencyKey }) {
+    async messageTarget(providerRef, incidentId) {
+      return repo.messageTarget(deps.db, providerRef, incidentId);
+    },
+
+    async deliverDirect({ type, address, event, idempotencyKey, userId }) {
       const adapter = adapters.get(type);
       if (adapter === undefined) {
         throw new ChannelDeliveryError(
@@ -329,6 +344,16 @@ export function createChannelsService(deps: {
           units: 1,
           costMicros: price.costMicros,
           ref: idempotencyKey,
+        });
+      }
+      /* A reply to a text ("1") or a keypress on a call is matched to the newest alert sent there. */
+      if (type !== "email" && event.kind === "triggered") {
+        await repo.saveDirectRef(deps.db, {
+          id: deps.newId(),
+          workspaceId: event.workspace.id,
+          incidentId: event.incident.id,
+          address,
+          userId: userId ?? null,
         });
       }
       return { providerRef };

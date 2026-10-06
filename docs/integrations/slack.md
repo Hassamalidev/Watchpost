@@ -29,3 +29,15 @@
 - [ ] Acknowledge and resolve post as thread replies, and the root message changes to the new state.
 - [ ] Removing the app from Slack makes the next alert fail at once (no retries), marks the channel
       failing and emails the workspace admins.
+
+## Buttons on alerts (Acknowledge and Resolve)
+
+The first message of every incident has **Acknowledge** and **Resolve** buttons. They disappear as they stop applying: after an acknowledgement only Resolve is left, and a resolved incident has none.
+
+Server setup, once (the person who runs the Slack app):
+
+1. In the Slack app's settings open **Interactivity & Shortcuts** and turn Interactivity on.
+2. Set the **Request URL** to `https://app.<domain>/api/integrations/slack/actions`.
+3. Copy the app's **Signing Secret** (Basic Information) into `SLACK_SIGNING_SECRET` and restart the API.
+
+A click is accepted only when Slack's signature on the request is valid and no older than five minutes, and when it comes from the message Watchpost posted for that incident. The person who clicked sees a short note that only they can see; everyone else sees the message change.

@@ -1,12 +1,11 @@
 /*
  * Chat app connections (§10). Workspace routes (admins): start a Slack install, list installations
  * and their channels, create a Telegram link. Public routes: the Slack OAuth callback (signed-in user
- * who started the install) and the Telegram bot webhook (secret header, compared in constant time).
+ * who started the install). The Telegram bot webhook is in the `actions` module, because it also
+ * carries button taps.
  */
-import { timingSafeEqual } from "node:crypto";
 import { Router, type RequestHandler } from "express";
 import { z } from "zod";
-import { UnauthorizedError } from "../../core/errors.js";
 import { sessionOf } from "../../middleware/session.js";
 import { requirePermission } from "../../middleware/roles.js";
 import { inputOf, validate } from "../../middleware/validate.js";
@@ -63,7 +62,6 @@ export function createIntegrationsPublicRouter(
   options: {
     session: RequestHandler;
     webOrigin: string;
-    telegramSecret: string | undefined;
   },
 ): Router {
   const router = Router();
@@ -94,19 +92,5 @@ export function createIntegrationsPublicRouter(
     },
   );
 
-  router.post("/api/webhooks/telegram", async (req, res) => {
-    const expected = options.telegramSecret;
-    const given = req.get("x-telegram-bot-api-secret-token") ?? "";
-    if (
-      expected === undefined ||
-      given.length !== expected.length ||
-      !timingSafeEqual(Buffer.from(given), Buffer.from(expected))
-    ) {
-      throw new UnauthorizedError("Invalid Telegram secret token.");
-    }
-    await service.telegramUpdate(req.body);
-    /* Always 200 once authenticated: Telegram retries anything else forever. */
-    res.json({ ok: true });
-  });
   return router;
 }

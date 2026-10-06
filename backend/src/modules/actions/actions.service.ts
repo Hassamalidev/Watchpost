@@ -14,7 +14,7 @@ import {
   type LinkAction,
 } from "../../infra/action-links.js";
 import type { Db } from "../../infra/db/index.js";
-import type { PhonesService } from "../channels/index.js";
+import type { ChannelsService, PhonesService } from "../channels/index.js";
 import type { IncidentsService, IncidentStatus } from "../incidents/index.js";
 import type { WorkspacesService } from "../workspaces/index.js";
 import type { ActionsRepository } from "./actions.repository.js";
@@ -34,7 +34,28 @@ export interface ActionOutcome {
   incident: { number: number; title: string; status: IncidentStatus };
 }
 
+export interface ChatActionOutcome {
+  /* What to tell the person who pressed the button. */
+  text: string;
+  result: "done" | "already" | "refused";
+}
+
 export interface ActionsService {
+  /*
+   * A press on Acknowledge or Resolve under an alert in Slack or Telegram. The caller has verified
+   * that the provider sent it; this checks that the message is one we sent for that incident (so
+   * the button can't be replayed against another incident or workspace) and acts. The incident's
+   * other messages follow through the normal follow-up alerts.
+   */
+  chatAction(input: {
+    provider: "slack" | "telegram";
+    /* The message the button is on: Slack `channel:ts`, Telegram `chat:message`. */
+    providerRef: string;
+    incidentId: string;
+    action: LinkAction;
+    externalUserId: string;
+    actorName: string | null;
+  }): Promise<ChatActionOutcome>;
   preview(token: string): Promise<ActionPreview>;
   perform(token: string): Promise<ActionOutcome>;
   /*
@@ -58,6 +79,8 @@ export function createActionsService(deps: {
   incidents: Pick<IncidentsService, "get" | "acknowledge" | "resolve">;
   workspaces: Pick<WorkspacesService, "listMembers">;
   phones?: Pick<PhonesService, "replyTarget"> | undefined;
+  /* Chat buttons; optional so tests can build the email and phone parts alone. */
+  channels?: Pick<ChannelsService, "messageTarget"> | undefined;
   clock: Clock;
 }): ActionsService {
   function claimsOf(token: string): ActionClaims {
@@ -132,6 +155,33 @@ export function createActionsService(deps: {
       return { action: claims.action, result: "done", incident: summary(after) };
     },
 
+    async chatAction({ provider, providerRef, incidentId, action, actorName }) {
+      const target = await deps.channels?.messageTarget(providerRef, incidentId);
+      if (target === undefined) {
+        return {
+          result: "refused",
+          text: "This button no longer works. Open the incident in Watchpost.",
+        };
+      }
+      /* Whoever can press a button in the channel was told about the incident on purpose. */
+      const scope = createWorkspaceScope({ workspaceId: target.workspaceId, role: "responder" });
+      const before = await deps.incidents.get(scope, incidentId);
+      const label = `#${before.number}`;
+      const who = actorName === null ? "" : ` by ${actorName}`;
+      if (before.status === "resolved") {
+        return { result: "already", text: `${label} is already resolved.` };
+      }
+      if (action === "acknowledge") {
+        if (before.status === "acknowledged") {
+          return { result: "already", text: `${label} is already acknowledged.` };
+        }
+        await deps.incidents.acknowledge(scope, incidentId, { via: provider });
+        return { result: "done", text: `${label} acknowledged${who}.` };
+      }
+      await deps.incidents.resolve(scope, incidentId, { via: provider });
+      return { result: "done", text: `${label} resolved${who}.` };
+    },
+
     async phoneReply({ phone, text, via, incidentId }) {
       const digit = text.trim().charAt(0);
       const wanted =
@@ -145,7 +195,12 @@ export function createActionsService(deps: {
       const target = await deps.phones?.replyTarget(phone, incidentId);
       if (target === undefined) return "Watchpost: there is no alert for this number to act on.";
 
-      const scope = createWorkspaceScope({ workspaceId: target.workspaceId, role: "responder" });
+      /* A reply from a person's own number acts as that person. */
+      const scope = createWorkspaceScope({
+        workspaceId: target.workspaceId,
+        role: "responder",
+        ...(target.userId ? { actorUserId: target.userId } : {}),
+      });
       const before = await deps.incidents.get(scope, target.incidentId);
       const label = `#${before.number}`;
       if (before.status === "resolved") return `Watchpost: ${label} is already resolved.`;

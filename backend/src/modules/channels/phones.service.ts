@@ -30,8 +30,11 @@ const HOUR_MS = 3_600_000;
 export interface ReplyTarget {
   workspaceId: string;
   incidentId: string;
-  channelId: string;
+  /* Null when the alert went straight to a person's own number. */
+  channelId: string | null;
   channelName: string;
+  /* Whose number it is, when the alert went to a person. */
+  userId?: string | null;
 }
 
 export interface PhonesService {
@@ -80,7 +83,7 @@ export function createPhonesService(deps: {
     };
   }
 
-  return {
+  const service: PhonesService = {
     availability: () => ({
       sms: deps.messaging !== undefined && deps.credits !== undefined,
       voice: deps.messaging?.canCall === true && deps.credits !== undefined,
@@ -185,33 +188,55 @@ export function createPhonesService(deps: {
     },
 
     async replyTarget(phone, incidentId) {
-      const workspaceIds = await repo.workspacesWithPhone(deps.db, phone);
-      if (workspaceIds.length === 0) return undefined;
-      /* Configs are encrypted, so the number is matched after reading each phone channel. */
-      const mine = (await repo.phoneChannels(deps.db, workspaceIds)).filter((row) => {
-        try {
-          const config = JSON.parse(deps.cipher.decrypt(row.configEnc, `channel:${row.id}`)) as {
-            phone?: string;
-          };
-          return config.phone === phone;
-        } catch {
-          return false;
-        }
-      });
-      if (mine.length === 0) return undefined;
-      const ref = await repo.latestRef(
-        deps.db,
-        mine.map((row) => row.id),
-        incidentId,
-      );
-      if (ref === undefined) return undefined;
-      const channel = mine.find((row) => row.id === ref.channelId);
+      const viaChannel = await channelReplyTarget(phone, incidentId);
+      const direct = await repo.latestDirectRef(deps.db, phone, incidentId);
+      if (direct === undefined) return viaChannel;
+      /* Whichever alert reached this number last is the one a reply is about. */
+      if (viaChannel !== undefined && viaChannel.at.getTime() > direct.createdAt.getTime()) {
+        return viaChannel;
+      }
       return {
-        workspaceId: ref.workspaceId,
-        incidentId: ref.incidentId,
-        channelId: ref.channelId,
-        channelName: channel?.name ?? "SMS",
+        workspaceId: direct.workspaceId,
+        incidentId: direct.incidentId,
+        channelId: null,
+        channelName: "SMS",
+        userId: direct.userId,
       };
     },
   };
+
+  async function channelReplyTarget(
+    phone: string,
+    incidentId?: string,
+  ): Promise<(ReplyTarget & { at: Date }) | undefined> {
+    const workspaceIds = await repo.workspacesWithPhone(deps.db, phone);
+    if (workspaceIds.length === 0) return undefined;
+    /* Configs are encrypted, so the number is matched after reading each phone channel. */
+    const mine = (await repo.phoneChannels(deps.db, workspaceIds)).filter((row) => {
+      try {
+        const config = JSON.parse(deps.cipher.decrypt(row.configEnc, `channel:${row.id}`)) as {
+          phone?: string;
+        };
+        return config.phone === phone;
+      } catch {
+        return false;
+      }
+    });
+    if (mine.length === 0) return undefined;
+    const ref = await repo.latestRef(
+      deps.db,
+      mine.map((row) => row.id),
+      incidentId,
+    );
+    if (ref === undefined) return undefined;
+    const channel = mine.find((row) => row.id === ref.channelId);
+    return {
+      workspaceId: ref.workspaceId,
+      incidentId: ref.incidentId,
+      channelId: ref.channelId,
+      channelName: channel?.name ?? "SMS",
+      at: ref.createdAt,
+    };
+  }
+  return service;
 }

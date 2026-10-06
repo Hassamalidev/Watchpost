@@ -1,8 +1,9 @@
 /*
  * Slack (PRODUCT.md §10): posts through the workspace's OAuth installation with Block Kit — a header
  * with the state, fields, and an "Open incident" button. Follow-ups reply in the thread of the first
- * message, and the first message is updated to the latest state. Buttons that act (acknowledge,
- * snooze, resolve) and user linking arrive in P4.
+ * message, and the first message is updated to the latest state. The first message carries
+ * Acknowledge and Resolve buttons while they apply (P4-T05); Slack posts a click to
+ * /api/integrations/slack/actions, which the `actions` module verifies and performs.
  */
 import { slackChannelConfigSchema, type SlackChannelConfig } from "@app/shared";
 import { ValidationError } from "../../../core/errors.js";
@@ -18,6 +19,33 @@ import { call, parseJson } from "./http.js";
 import { renderPlain } from "./render.js";
 
 export const SLACK_API = "https://slack.com/api";
+export const SLACK_ACK_ACTION = "watchpost_acknowledge";
+export const SLACK_RESOLVE_ACTION = "watchpost_resolve";
+
+/* What the buttons on an alert do; the incident ID travels in the button's value. */
+export function actionButtons(event: AlertEvent): unknown[] {
+  const { incident } = event;
+  if (event.kind === "test" || incident.status === "resolved") return [];
+  return [
+    ...(incident.status === "triggered"
+      ? [
+          {
+            type: "button",
+            style: "primary",
+            text: { type: "plain_text", text: "Acknowledge" },
+            action_id: SLACK_ACK_ACTION,
+            value: incident.id,
+          },
+        ]
+      : []),
+    {
+      type: "button",
+      text: { type: "plain_text", text: "Resolve" },
+      action_id: SLACK_RESOLVE_ACTION,
+      value: incident.id,
+    },
+  ];
+}
 
 /* Slack `error` values that retrying can't fix. */
 const PERMANENT_ERRORS = new Set([
@@ -90,6 +118,7 @@ export function slackBlocks(event: AlertEvent, message: RenderedMessage): unknow
     {
       type: "actions",
       elements: [
+        ...actionButtons(event),
         {
           type: "button",
           text: { type: "plain_text", text: "Open incident" },
@@ -99,6 +128,20 @@ export function slackBlocks(event: AlertEvent, message: RenderedMessage): unknow
       ],
     },
   ];
+}
+
+function withoutActionButtons(blocks: unknown): unknown {
+  if (!Array.isArray(blocks)) return blocks;
+  return blocks.map((block: { type?: string; elements?: { action_id?: string }[] }) =>
+    block.type === "actions" && Array.isArray(block.elements)
+      ? {
+          ...block,
+          elements: block.elements.filter(
+            (e) => e.action_id !== SLACK_ACK_ACTION && e.action_id !== SLACK_RESOLVE_ACTION,
+          ),
+        }
+      : block,
+  );
 }
 
 export function createSlackAdapter(deps: {
@@ -161,7 +204,8 @@ export function createSlackAdapter(deps: {
       const sent = await api(config.installationId, "chat.postMessage", {
         channel: config.channelId,
         text: message.title,
-        blocks: message.body,
+        /* Only the first message acts: it is the one kept up to date and matched to the incident. */
+        blocks: threadTs ? withoutActionButtons(message.body) : message.body,
         unfurl_links: false,
         ...(threadTs ? { thread_ts: threadTs } : {}),
       });

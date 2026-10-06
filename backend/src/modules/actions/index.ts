@@ -4,17 +4,31 @@ import { z } from "zod";
 import type { AppModule, Infra } from "../../composition/types.js";
 import { validate, inputOf } from "../../middleware/validate.js";
 import type { MessagingProvider } from "../../infra/messaging/index.js";
-import type { PhonesService } from "../channels/index.js";
+import type { ChannelsService, IntegrationsService, PhonesService } from "../channels/index.js";
+import {
+  SLACK_ACTIONS_PATH,
+  createSlackActionsRouter,
+  createTelegramWebhookRouter,
+} from "./chat.routes.js";
 import type { IncidentsService } from "../incidents/index.js";
 import type { WorkspacesService } from "../workspaces/index.js";
 import { createActionsRepository } from "./actions.repository.js";
 import { createActionsService, type ActionsService } from "./actions.service.js";
 import { createPhoneActionsRouter } from "./phone.routes.js";
 
-export type { ActionOutcome, ActionPreview, ActionsService } from "./actions.service.js";
+export type {
+  ActionOutcome,
+  ActionPreview,
+  ActionsService,
+  ChatActionOutcome,
+} from "./actions.service.js";
+export { SLACK_ACTIONS_PATH, slackSignature } from "./chat.routes.js";
 
 export interface ActionsModuleDeps {
-  infra: Pick<Infra, "db" | "clock" | "actionLinks" | "config">;
+  infra: Pick<Infra, "db" | "clock" | "actionLinks" | "config" | "http" | "logger">;
+  /* Chat buttons: which message a press came from, and the Telegram bot's other updates. */
+  channels?: Pick<ChannelsService, "messageTarget"> | undefined;
+  integrations?: Pick<IntegrationsService, "telegramUpdate" | "telegramAnswer"> | undefined;
   incidents: IncidentsService;
   workspaces: WorkspacesService;
   /* SMS replies and call keypresses; both absent when the server has no messaging provider. */
@@ -50,8 +64,11 @@ export function createActionsModule(deps: ActionsModuleDeps): ActionsModule {
     incidents: deps.incidents,
     workspaces: deps.workspaces,
     phones: deps.phones,
+    channels: deps.channels,
     clock: deps.infra.clock,
   });
+  const { config } = deps.infra;
+  const signingSecret = config.slack?.signingSecret;
   const phoneRouters =
     deps.messaging === undefined || deps.phones === undefined
       ? []
@@ -67,6 +84,35 @@ export function createActionsModule(deps: ActionsModuleDeps): ActionsModule {
   return {
     name: "actions",
     service,
-    routers: [{ path: "/", router: createActionsRouter(service) }, ...phoneRouters],
+    routers: [
+      { path: "/", router: createActionsRouter(service) },
+      ...phoneRouters,
+      ...(deps.integrations === undefined
+        ? []
+        : [
+            {
+              path: "/",
+              router: createTelegramWebhookRouter(service, {
+                secret: config.telegram?.webhookSecret,
+                integrations: deps.integrations,
+              }),
+            },
+          ]),
+    ],
+    /* Slack signs the raw body, so its clicks are read before the JSON parser. */
+    rawBodyRouters:
+      signingSecret === undefined
+        ? []
+        : [
+            {
+              path: SLACK_ACTIONS_PATH,
+              router: createSlackActionsRouter(service, {
+                signingSecret,
+                http: deps.infra.http,
+                clock: deps.infra.clock,
+                logger: deps.infra.logger.child({ module: "actions" }),
+              }),
+            },
+          ],
   };
 }
