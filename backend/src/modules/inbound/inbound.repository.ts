@@ -16,6 +16,14 @@ export function createInboundRepository() {
         .orderBy(asc(inboundSources.name), asc(inboundSources.id));
     },
 
+    async count(db: DbOrTx, scope: WorkspaceScope): Promise<number> {
+      const [row] = await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(inboundSources)
+        .where(tenantWhere(scope, inboundSources));
+      return row?.n ?? 0;
+    },
+
     async find(
       db: DbOrTx,
       scope: WorkspaceScope,

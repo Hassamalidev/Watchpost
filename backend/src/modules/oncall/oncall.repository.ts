@@ -30,6 +30,22 @@ export function createOncallRepository() {
         .orderBy(asc(schedules.name), asc(schedules.id));
     },
 
+    async countSchedules(db: DbOrTx, scope: WorkspaceScope): Promise<number> {
+      const [row] = await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(schedules)
+        .where(tenantWhere(scope, schedules));
+      return row?.n ?? 0;
+    },
+
+    async countEscalationPolicies(db: DbOrTx, scope: WorkspaceScope): Promise<number> {
+      const [row] = await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(escalationPolicies)
+        .where(tenantWhere(scope, escalationPolicies));
+      return row?.n ?? 0;
+    },
+
     async findSchedule(
       db: DbOrTx,
       scope: WorkspaceScope,

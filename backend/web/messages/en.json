@@ -934,7 +934,8 @@
       "next": "Your next shifts",
       "noUpcoming": "No shifts in the next five weeks.",
       "hint": "Times are in your own time zone. When a shift ends you get a handoff report by email: what happened and what is still open."
-    }
+    },
+    "importFromOpsgenie": "Moving from Opsgenie? Import your schedules and escalation policies."
   },
   "imports": {
     "title": "Import from another tool",
@@ -1447,7 +1448,8 @@
         "pro": "Email, 1 business day",
         "business": "Priority, 4 business hours"
       }
-    }
+    },
+    "footerOpsgenie": "Moving from Opsgenie"
   },
   "actionLink": {
     "title": "Incident action",
@@ -1609,6 +1611,74 @@
       "start": "Choose when it starts.",
       "end": "Choose an end after the start.",
       "monitors": "Choose at least one monitor, or all monitors."
+    }
+  },
+  "alternatives": {
+    "opsgenie": {
+      "metaTitle": "An Opsgenie alternative with monitoring built in",
+      "title": "Moving on from Opsgenie? Bring your schedules with you.",
+      "lead": "Watchpost has on-call schedules, escalation policies and alerts by push, email, SMS and phone call, together with the uptime monitoring that finds the problem in the first place. Import your Opsgenie schedules and escalations, run both side by side, and switch when you trust it.",
+      "cta": "Start free",
+      "guide": "Read the migration guide",
+      "noCard": "No card needed. Every workspace starts with a 14-day Pro trial.",
+      "datesTitle": "The dates, as reported",
+      "dateSales": "New Opsgenie sales ended on June 4, 2025.",
+      "dateSupport": "Support for Opsgenie ends on April 5, 2027.",
+      "dateData": "Data that has not been migrated by then is deleted.",
+      "datesNote": "Reported by the sources below, checked on {date}. Confirm the dates for your own account with Atlassian.",
+      "coversTitle": "What you get",
+      "covers": {
+        "schedules": {
+          "title": "On-call schedules",
+          "body": "Layers, daily and weekly rotations, working-hours windows and overrides, with handoffs that keep their clock time across daylight-saving changes. A private calendar link shows your shifts next to your meetings."
+        },
+        "escalation": {
+          "title": "Escalation policies",
+          "body": "Page a person or whoever is on call, then the next step after the minutes you choose, for as many rounds as you want. An acknowledgement stops it."
+        },
+        "reach": {
+          "title": "Reach people where they are",
+          "body": "Each person sets their own rules: a notification on their phone and an email at once, a text after two minutes, a call after five. Acknowledge from the notification, the text or the call."
+        },
+        "chat": {
+          "title": "Slack and Telegram, both ways",
+          "body": "Alerts carry Acknowledge and Resolve buttons, and /watchpost answers who is on call or starts a maintenance window."
+        },
+        "inbound": {
+          "title": "Alerts from your other tools",
+          "body": "Prometheus Alertmanager, Grafana, Datadog, generic JSON and email open and close incidents here, without duplicates."
+        },
+        "monitoring": {
+          "title": "Monitoring included",
+          "body": "HTTP, keyword, TCP, ping, DNS, SSL and domain expiry checks and heartbeats from several regions, with a failure confirmed before anyone is paged."
+        }
+      },
+      "stepsTitle": "How the move works",
+      "steps": {
+        "import": {
+          "title": "Import.",
+          "body": "Export your schedules and escalations with two API calls and paste them in. You see what each one becomes before anything is created."
+        },
+        "parallel": {
+          "title": "Run side by side.",
+          "body": "Watchpost can open and close alerts in Opsgenie or Jira Service Management, so your team keeps being paged the old way while you compare."
+        },
+        "switch": {
+          "title": "Switch.",
+          "body": "Choose the escalation policy your alerts page through, run an alert drill, and turn the old integration off."
+        }
+      },
+      "honestTitle": "What does not come over",
+      "honest": {
+        "heartbeats": "Opsgenie heartbeats, teams and routing rules are not imported; heartbeats and alert routes are set up here by hand.",
+        "integrations": "Opsgenie's long list of integrations is replaced by the inbound sources above plus webhooks. If a tool you need is missing, tell us.",
+        "mobile": "There is no native mobile app yet. Watchpost installs from the browser as an app with notifications; on iPhone it must be added to the Home Screen first."
+      },
+      "pricingTitle": "Flat plans, not per seat",
+      "pricingBody": "Plans have one price per workspace, not per seat. On-call schedules and escalation policies are part of the Starter plan and up; Pro and Business have no limit on members, schedules or policies. SMS and calls use prepaid alert credits.",
+      "pricingLink": "See pricing",
+      "compareLink": "Watchpost and Opsgenie compared",
+      "sourcesTitle": "Sources"
     }
   }
 }

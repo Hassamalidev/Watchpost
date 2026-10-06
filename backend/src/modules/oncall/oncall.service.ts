@@ -24,7 +24,12 @@ import {
 } from "@app/shared";
 import { createHash, randomBytes } from "node:crypto";
 import type { Clock } from "../../core/clock.js";
-import { ForbiddenError, NotFoundError, ValidationError } from "../../core/errors.js";
+import {
+  ForbiddenError,
+  NotFoundError,
+  QuotaExceededError,
+  ValidationError,
+} from "../../core/errors.js";
 import { createWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
 import type { Db } from "../../infra/db/index.js";
 import type { Outbox } from "../../infra/outbox/index.js";
@@ -136,6 +141,13 @@ export interface OncallServiceDeps {
   /* Where a person wants to hear things; optional so tests can build schedules without it. */
   contacts?: Pick<ContactsService, "fanOut"> | undefined;
   outbox?: Outbox | undefined;
+  /* How many schedules and escalation policies the workspace's plan allows (§5). */
+  limits?:
+    | ((scope: WorkspaceScope) => Promise<{
+        onCallSchedules: number | "unlimited";
+        escalationPolicies: number | "unlimited";
+      }>)
+    | undefined;
   /* What happened during a shift, for the handoff report; optional like contacts. */
   incidents?: Pick<IncidentsService, "shiftReport"> | undefined;
   clock: Clock;
@@ -160,6 +172,25 @@ export function createOncallService(deps: OncallServiceDeps): OncallService {
   }
 
   const fail = (path: string, message: string) => new ValidationError(message, [{ path, message }]);
+
+  /* Refuses one more schedule or escalation policy than the plan includes. */
+  async function checkPlan(scope: WorkspaceScope, what: "schedule" | "escalation") {
+    const limits = await deps.limits?.(scope);
+    if (limits === undefined) return;
+    const max = what === "schedule" ? limits.onCallSchedules : limits.escalationPolicies;
+    if (max === "unlimited") return;
+    const count =
+      what === "schedule"
+        ? await repo.countSchedules(deps.db, scope)
+        : await repo.countEscalationPolicies(deps.db, scope);
+    if (count < max) return;
+    const noun = what === "schedule" ? "on-call schedule" : "escalation policy";
+    throw new QuotaExceededError(
+      max === 0
+        ? `Your plan doesn't include ${what === "schedule" ? "on-call schedules" : "escalation policies"}. Upgrade to add one.`
+        : `Your plan allows ${max} ${noun}${max === 1 ? "" : what === "schedule" ? "s" : ""}. Upgrade to add more.`,
+    );
+  }
 
   function checkTimezone(timezone: string) {
     if (!isTimezone(timezone)) {
@@ -338,6 +369,7 @@ export function createOncallService(deps: OncallServiceDeps): OncallService {
     },
 
     async create(scope, input) {
+      await checkPlan(scope, "schedule");
       checkTimezone(input.timezone);
       const { pageable } = await people(scope);
       const layers = toLayers(input.layers, pageable, deps.newId);
@@ -448,6 +480,7 @@ export function createOncallService(deps: OncallServiceDeps): OncallService {
     },
 
     async createEscalationPolicy(scope, input) {
+      await checkPlan(scope, "escalation");
       await checkSteps(scope, input.steps);
       const row = await repo.insertEscalationPolicy(deps.db, scope, {
         id: deps.newId(),

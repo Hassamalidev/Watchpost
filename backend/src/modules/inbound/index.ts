@@ -1,6 +1,7 @@
 /* Public API of the inbound module. Other modules import only from this file (PRODUCT.md §7.1). */
 import type { RequestHandler } from "express";
 import type { AppModule, Infra } from "../../composition/types.js";
+import type { WorkspaceScope } from "../../core/workspace-scope.js";
 import { newId } from "../../infra/ids.js";
 import type { IncidentsService } from "../incidents/index.js";
 import { createInboundRepository } from "./inbound.repository.js";
@@ -13,6 +14,8 @@ export { parseInbound } from "./parsers.js";
 export interface InboundModuleDeps {
   infra: Pick<Infra, "db" | "clock" | "config" | "redis">;
   incidents: IncidentsService;
+  /* The plan's limit on inbound sources. */
+  limits?: (scope: WorkspaceScope) => Promise<{ inboundSources: number | "unlimited" }>;
   guards: { session: RequestHandler; workspace: RequestHandler };
 }
 
@@ -26,6 +29,7 @@ export function createInboundModule(deps: InboundModuleDeps): InboundModule {
     db: infra.db,
     repository: createInboundRepository(),
     incidents: deps.incidents,
+    limits: deps.limits,
     clock: infra.clock,
     newId,
     publicOrigin: infra.config.webOrigin,

@@ -6,6 +6,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import {
@@ -79,7 +80,11 @@ export function ImportPage() {
   const ws = workspace.id;
   const client = useQueryClient();
   const allowed = can(workspace.role, "settings:update");
-  const [source, setSource] = React.useState<ImportSource>("uptimerobot");
+  /* A link can open the page on one tool: /settings/import?source=opsgenie. */
+  const asked = useSearchParams().get("source");
+  const [source, setSource] = React.useState<ImportSource>(
+    IMPORT_SOURCES.find((option) => option === asked) ?? "uptimerobot",
+  );
   const [text, setText] = React.useState("");
   const [apiKey, setApiKey] = React.useState("");
   const [problem, setProblem] = React.useState<string | undefined>();

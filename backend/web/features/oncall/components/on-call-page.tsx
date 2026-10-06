@@ -161,6 +161,16 @@ export function OnCallPage() {
         ) : (list.data ?? []).length === 0 ? (
           <EmptyState title={t("empty")}>
             <p>{canWrite ? t("emptyHintAdmin") : t("emptyHint")}</p>
+            {canWrite && (
+              <p>
+                <Link
+                  href={`${workspaceHref(ws, "settings")}/import?source=opsgenie`}
+                  className="text-brand underline"
+                >
+                  {t("importFromOpsgenie")}
+                </Link>
+              </p>
+            )}
           </EmptyState>
         ) : (
           <ul className="divide-y rounded-lg border">

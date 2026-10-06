@@ -87,7 +87,7 @@ export const COMPETITORS: readonly Competitor[] = [
       "Existing customers until the end-of-support date; Atlassian points them to Jira Service Management.",
     differences: [
       "Watchpost can send alerts to Opsgenie or Jira Service Management today, so you can try it next to your current setup.",
-      "An Opsgenie importer and on-call schedules are planned, not available yet.",
+      "On-call schedules, escalation policies and an importer for Opsgenie schedules and escalations are included.",
       "Monitoring, alerting and status pages come in one flat plan.",
     ],
     sources: [
@@ -106,7 +106,7 @@ export const COMPETITORS: readonly Competitor[] = [
       "Watchpost is hosted, so it does not go down together with the server it is watching.",
       "Checks run from more than one region and a failure is confirmed before it alerts.",
       "No server to patch, back up or upgrade.",
-      "A one-click Uptime Kuma import and private probes for internal services are planned, not available yet.",
+      "Monitors can be imported from an Uptime Kuma backup. Private probes for internal services are planned, not available yet.",
     ],
     sources: [
       "https://github.com/louislam/uptime-kuma",

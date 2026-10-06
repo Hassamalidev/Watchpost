@@ -17,8 +17,8 @@
     "detection": ["monitors", "results", "probes", "maintenance", "incidents", "deploys"],
     "heartbeats": ["monitors", "maintenance", "incidents"],
     "expiry": ["monitors", "results", "incidents"],
-    "inbound": ["incidents", "workspaces"],
-    "oncall": ["contacts", "workspaces", "incidents", "audit"],
+    "inbound": ["incidents", "workspaces", "billing"],
+    "oncall": ["contacts", "workspaces", "incidents", "billing", "audit"],
     "alerting": ["incidents", "oncall", "contacts", "channels", "credits", "workspaces"],
     "actions": [
       "incidents",

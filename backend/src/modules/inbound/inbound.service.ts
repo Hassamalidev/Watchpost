@@ -12,7 +12,7 @@ import {
   type InboundSourceView,
 } from "@app/shared";
 import type { Clock } from "../../core/clock.js";
-import { NotFoundError } from "../../core/errors.js";
+import { NotFoundError, QuotaExceededError } from "../../core/errors.js";
 import type { WorkspaceScope } from "../../core/workspace-scope.js";
 import type { Db } from "../../infra/db/index.js";
 import type { IncidentsService } from "../incidents/index.js";
@@ -39,6 +39,9 @@ export interface InboundServiceDeps {
   db: Db;
   repository: InboundRepository;
   incidents: Pick<IncidentsService, "openInbound" | "resolveByDedupKey">;
+  /* How many inbound sources the workspace's plan allows (§5). */
+  limits?:
+    ((scope: WorkspaceScope) => Promise<{ inboundSources: number | "unlimited" }>) | undefined;
   clock: Clock;
   newId: () => string;
   /* Where the API is reached from outside. */
@@ -73,6 +76,12 @@ export function createInboundService(deps: InboundServiceDeps): InboundService {
     },
 
     async create(scope, input) {
+      const max = (await deps.limits?.(scope))?.inboundSources ?? "unlimited";
+      if (max !== "unlimited" && (await repo.count(deps.db, scope)) >= max) {
+        throw new QuotaExceededError(
+          `Your plan allows ${max} inbound source${max === 1 ? "" : "s"}. Upgrade to add more.`,
+        );
+      }
       const { token, tokenHash, tokenHint } = newToken();
       const row = await repo.insert(deps.db, scope, {
         id: deps.newId(),

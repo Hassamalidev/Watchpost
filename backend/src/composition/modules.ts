@@ -123,6 +123,7 @@ export function createModules(infra: Infra): AppModule[] {
     workspaces: workspaces.service,
     contacts: contacts.service,
     incidents: incidents.service,
+    limits: (scope) => billing.service.limits(scope),
     guards: workspaces.guards,
   });
   modules.push(oncall);
@@ -163,7 +164,12 @@ export function createModules(infra: Infra): AppModule[] {
     }),
   );
   modules.push(
-    createInboundModule({ infra, incidents: incidents.service, guards: workspaces.guards }),
+    createInboundModule({
+      infra,
+      incidents: incidents.service,
+      limits: (scope) => billing.service.limits(scope),
+      guards: workspaces.guards,
+    }),
   );
   modules.push(
     createImportsModule({

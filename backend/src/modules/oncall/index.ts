@@ -1,6 +1,7 @@
 /* Public API of the oncall module. Other modules import only from this file (PRODUCT.md §7.1). */
 import type { RequestHandler } from "express";
 import type { AppModule, Infra } from "../../composition/types.js";
+import type { WorkspaceScope } from "../../core/workspace-scope.js";
 import { newId } from "../../infra/ids.js";
 import type { ContactsService } from "../contacts/index.js";
 import type { IncidentsService } from "../incidents/index.js";
@@ -18,6 +19,11 @@ export interface OncallModuleDeps {
   workspaces: WorkspacesService;
   /* For shift start and end notices; optional so tests can build schedules without it. */
   contacts?: Pick<ContactsService, "fanOut">;
+  /* The plan's limits on schedules and escalation policies. */
+  limits?: (scope: WorkspaceScope) => Promise<{
+    onCallSchedules: number | "unlimited";
+    escalationPolicies: number | "unlimited";
+  }>;
   /* For the handoff report at shift end. */
   incidents?: Pick<IncidentsService, "shiftReport">;
   guards: { session: RequestHandler; workspace: RequestHandler };
@@ -34,6 +40,7 @@ export function createOncallModule(deps: OncallModuleDeps): OncallModule {
     workspaces: deps.workspaces,
     contacts: deps.contacts,
     incidents: deps.incidents,
+    limits: deps.limits,
     outbox: deps.infra.outbox,
     clock: deps.infra.clock,
     newId,
