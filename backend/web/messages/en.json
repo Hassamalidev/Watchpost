@@ -252,7 +252,8 @@
       "false_alarm_marked": "Marked as a false alarm",
       "false_alarm_cleared": "False-alarm mark removed",
       "flapping_started": "Started flapping",
-      "flapping_stopped": "Stopped flapping"
+      "flapping_stopped": "Stopped flapping",
+      "escalated": "Escalated to the next step"
     },
     "statuses": {
       "triggered": "Triggered",
@@ -838,6 +839,55 @@
         "participants": "Layer {number} needs at least one person.",
         "shiftHours": "Layer {number}: hours per shift must be a whole number from 1 to 672.",
         "days": "Layer {number}: choose at least one day."
+      }
+    },
+    "escalation": {
+      "title": "Escalation policies",
+      "hint": "Who is paged when an incident opens, and who is paged next if nobody acknowledges. Each person is reached through their own notification rules.",
+      "empty": "No escalation policies yet. Alerts go to your channels only.",
+      "new": "New escalation policy",
+      "create": "Create policy",
+      "cancel": "Cancel",
+      "name": "Policy name",
+      "repeat": "Repeat",
+      "repeatHint": "How often the steps run again if nobody acknowledges.",
+      "repeatTimes": "{count, plural, =0 {Don't repeat} one {Once more} other {# more times}}",
+      "step": "Step {number}",
+      "page": "Page",
+      "choose": "Choose…",
+      "schedules": "Schedules",
+      "people": "People",
+      "onCallFor": "Whoever is on call for {name}",
+      "delayFirst": "Minutes after the incident opens",
+      "delay": "Minutes after the step before",
+      "remove": "Remove",
+      "removeStep": "Remove step {number}",
+      "addStep": "Add a step",
+      "delete": "Delete",
+      "deleteNamed": "Delete {name}",
+      "inUse": "in use for alerts",
+      "someone": "someone",
+      "stepNow": "At once: {who}",
+      "stepAfter": "After {minutes, plural, one {# minute} other {# minutes}}: {who}",
+      "thenRepeat": "Then {count, plural, one {once more} other {# more times}} from the top",
+      "use": "Page through this policy when an incident opens",
+      "useHint": "Applies to the default alert route. Channels still get every alert.",
+      "useNone": "None: channels only",
+      "problems": {
+        "name": "Give the policy a name.",
+        "target": "Step {number}: choose who to page.",
+        "delay": "Step {number}: the delay must be a whole number of minutes from 0 to 1440."
+      }
+    },
+    "incident": {
+      "title": "Escalation",
+      "progress": "{name}: {run} of {total, plural, one {# step} other {# steps}} run",
+      "nextAt": "Next step at {time} unless someone acknowledges.",
+      "escalateNow": "Escalate now",
+      "finished": {
+        "acknowledged": "Stopped: someone acknowledged the incident.",
+        "resolved": "Stopped: the incident is resolved.",
+        "exhausted": "Every step has run. Nobody else will be paged."
       }
     }
   },

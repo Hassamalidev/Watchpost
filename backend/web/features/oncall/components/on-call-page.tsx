@@ -18,6 +18,7 @@ import { Loading } from "@/components/ui/skeleton";
 import { api, errorMessage, wsPath } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import { workspaceHref } from "@/lib/navigation";
+import { EscalationPolicies } from "./escalation-policies";
 import { ScheduleForm } from "./schedule-form";
 
 export const oncallKeys = {
@@ -180,6 +181,8 @@ export function OnCallPage() {
           </ul>
         )}
       </section>
+
+      <EscalationPolicies schedules={list.data ?? []} />
 
       {can(workspace.role, "contact:manage") && <FeedCard ws={ws} />}
     </div>

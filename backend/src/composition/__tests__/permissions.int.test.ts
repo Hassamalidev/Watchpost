@@ -49,7 +49,7 @@ describe("workspace route permissions", () => {
   const routes = workspaceRoutes();
 
   it("finds the workspace routes", () => {
-    expect(routes.length).toBeGreaterThanOrEqual(101);
+    expect(routes.length).toBeGreaterThanOrEqual(107);
   });
 
   it("guards every workspace route with exactly one known permission", () => {

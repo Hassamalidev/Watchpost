@@ -88,3 +88,64 @@ test("a member creates their private calendar link", async ({ page, request }) =
   expect(feed.status()).toBe(200);
   expect(await feed.text()).toContain("BEGIN:VCALENDAR");
 });
+
+test("an escalation policy pages a person and shows on the incident", async ({
+  page,
+}, testInfo) => {
+  /* It changes the workspace's default alert route, so it runs once, not once per theme. */
+  test.skip(testInfo.project.name !== "light", "changes the shared alert route");
+  test.setTimeout(120_000);
+  const ws = workspace();
+  const name = `Escalate ${testInfo.project.name} ${Date.now()}`;
+  await page.goto(`/w/${ws}/on-call`);
+  await expect(page.getByRole("heading", { name: "Escalation policies" })).toBeVisible();
+
+  await page.getByRole("button", { name: "New escalation policy" }).click();
+  await page.getByRole("button", { name: "Create policy" }).click();
+  await expect(page.getByText("Give the policy a name.")).toBeVisible();
+  await page.getByLabel("Policy name").fill(name);
+  await page.getByRole("button", { name: "Create policy" }).click();
+  await expect(page.getByText("Step 1: choose who to page.")).toBeVisible();
+  /* The first person in the list is the signed-in owner. */
+  const target = page.getByLabel("Page", { exact: true });
+  const person = await target
+    .locator('optgroup[label="People"] option')
+    .first()
+    .getAttribute("value");
+  await target.selectOption(person ?? "");
+  await noAxeViolations(page);
+  await page.getByRole("button", { name: "Create policy" }).click();
+
+  const policies = page.getByRole("list", { name: "Escalation policies" });
+  const row = policies.getByRole("listitem").filter({ hasText: name }).first();
+  await expect(row).toContainText("At once:");
+
+  /* Use it for alerts, open an incident, and see the escalation on its page. */
+  await page
+    .getByLabel("Page through this policy when an incident opens")
+    .selectOption({ label: name });
+  await expect(row).toContainText("in use for alerts");
+  const created = await page.request.post(`/api/w/${ws}/incidents`, {
+    data: { title: `Paging test ${Date.now()}`, severity: "high" },
+    headers: { origin: new URL(page.url()).origin },
+  });
+  expect(created.status()).toBe(201);
+  const incident = (await created.json()) as { number: number };
+  await page.goto(`/w/${ws}/incidents/${incident.number}`);
+  await expect(page.getByRole("heading", { name: "Escalation" })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(new RegExp(`^${name}: \\d of 1 step run$`))).toBeVisible();
+  await expect(page.getByText("Escalated to the next step")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("Every step has run. Nobody else will be paged.")).toBeVisible({
+    timeout: 20_000,
+  });
+  await noAxeViolations(page);
+
+  /* Leave the default route as it was for the other tests. */
+  await page.goto(`/w/${ws}/on-call`);
+  await page
+    .getByLabel("Page through this policy when an incident opens")
+    .selectOption({ label: "None: channels only" });
+  await expect(
+    page.getByRole("list", { name: "Escalation policies" }).getByText("in use for alerts"),
+  ).toHaveCount(0);
+});

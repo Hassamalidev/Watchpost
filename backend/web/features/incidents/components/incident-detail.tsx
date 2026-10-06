@@ -21,6 +21,7 @@ import { formatDateTime, formatDuration } from "@/lib/format";
 import { workspaceHref } from "@/lib/navigation";
 import { ChangeTimeline } from "@/features/insights/components/changes";
 import { DeliveryLog } from "@/features/insights/components/deliveries";
+import { IncidentEscalation } from "@/features/oncall/components/incident-escalation";
 import { ExplanationCard } from "@/features/insights/components/explanation";
 import { incidentsApi, useIncident, useIncidentAction } from "../api";
 import { EvidencePanel } from "./evidence-panel";
@@ -230,6 +231,8 @@ export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
         </Card>
       </div>
 
+      <IncidentEscalation ws={ws} incidentId={data.id} live={open} canRespond={canRespond} />
+
       <Card>
         <CardHeader>
           <CardTitle>{t("timeline")}</CardTitle>
@@ -248,6 +251,7 @@ export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
                 "comment",
                 "updated",
                 "delivery_failed",
+                "escalated",
                 "false_alarm_marked",
                 "false_alarm_cleared",
                 "flapping_started",
