@@ -5,8 +5,10 @@ import { tenantWhere, withWorkspace, type DbOrTx } from "../../infra/db/index.js
 import {
   alertFallbackNotices,
   alertPolicies,
+  escalations,
   notificationDeliveries,
   type AlertPolicyRow,
+  type EscalationRow,
   type DeliveryRow,
   type DeliveryStatus,
 } from "./schema/alerting.js";
@@ -226,6 +228,63 @@ export function createAlertingRepository() {
           ),
         )
         .orderBy(asc(notificationDeliveries.dueAt))
+        .limit(limit);
+    },
+
+    /* Escalations */
+
+    /* Starts an incident's escalation once; undefined when it already has one. */
+    async insertEscalation(
+      tx: DbOrTx,
+      row: Pick<
+        EscalationRow,
+        "incidentId" | "workspaceId" | "policyId" | "policyName" | "steps" | "repeat" | "nextDueAt"
+      >,
+    ): Promise<EscalationRow | undefined> {
+      const [created] = await tx.insert(escalations).values(row).onConflictDoNothing().returning();
+      return created;
+    },
+
+    async findEscalation(tx: DbOrTx, incidentId: string): Promise<EscalationRow | undefined> {
+      const rows = await tx
+        .select()
+        .from(escalations)
+        .where(eq(escalations.incidentId, incidentId))
+        .limit(1);
+      return rows[0];
+    },
+
+    /*
+     * Moves an unfinished escalation on from `step`. Returns nothing when another job already did,
+     * so a step that runs twice advances once.
+     */
+    async advanceEscalation(
+      tx: DbOrTx,
+      incidentId: string,
+      step: number,
+      patch: Pick<EscalationRow, "nextStep" | "nextDueAt" | "finishedAt" | "finishedReason">,
+    ): Promise<EscalationRow | undefined> {
+      const [row] = await tx
+        .update(escalations)
+        .set({ ...patch, updatedAt: sql`now()` })
+        .where(
+          and(
+            eq(escalations.incidentId, incidentId),
+            eq(escalations.nextStep, step),
+            isNull(escalations.finishedAt),
+          ),
+        )
+        .returning();
+      return row;
+    },
+
+    /* Unfinished escalations, for rebuilding their timer jobs. */
+    async openEscalations(tx: DbOrTx, limit: number): Promise<EscalationRow[]> {
+      return tx
+        .select()
+        .from(escalations)
+        .where(isNull(escalations.finishedAt))
+        .orderBy(asc(escalations.nextDueAt))
         .limit(limit);
     },
 

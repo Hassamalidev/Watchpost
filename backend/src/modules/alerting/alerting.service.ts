@@ -15,6 +15,7 @@ import {
   type AlertEventKind,
   type AlertPolicyInput,
   type AlertPolicyRules,
+  type IncidentEscalationView,
   urgencyOf,
 } from "@app/shared";
 import type { Clock } from "../../core/clock.js";
@@ -34,9 +35,10 @@ import {
 import type { ContactsService } from "../contacts/index.js";
 import type { CreditsService } from "../credits/index.js";
 import { explainIncident, type AlertContext, type IncidentsService } from "../incidents/index.js";
+import type { OncallService } from "../oncall/index.js";
 import type { WorkspacesService } from "../workspaces/index.js";
 import type { AlertingRepository } from "./alerting.repository.js";
-import type { AlertPolicyRow, DeliveryRow } from "./schema/alerting.js";
+import type { AlertPolicyRow, DeliveryRow, EscalationRow } from "./schema/alerting.js";
 
 export const NOTIFY_ATTEMPTS = 5;
 /* Exponential: 8 s, 16 s, 32 s, 64 s between the five attempts (about 2 minutes in all). */
@@ -45,7 +47,11 @@ export const NOTIFY_BACKOFF_MS = 8_000;
 export const STALE_DELIVERY_MS = 5 * 60_000;
 const SWEEP_BATCH = 500;
 
-export type TimerJob = { kind: "reminder"; incidentId: string; dueAt: number };
+export type TimerJob =
+  | { kind: "reminder"; incidentId: string; dueAt: number }
+  | { kind: "escalate"; incidentId: string; step: number; dueAt: number };
+
+export type EscalationOutcome = "ran" | "stale" | "stopped" | "waiting";
 
 /* Thrown to make BullMQ retry the notify job with backoff. */
 export class RetryDeliveryError extends Error {
@@ -115,6 +121,22 @@ export interface AlertingService {
    * delivery is dropped when the incident is no longer waiting for someone by then.
    */
   notifyUser(input: { incidentId: string; eventKey: string; userId: string }): Promise<number>;
+  /*
+   * Starts the escalation of a newly triggered incident, if its alert policy names an escalation
+   * policy. Returns true when one was started.
+   */
+  startEscalation(incidentId: string): Promise<boolean>;
+  /*
+   * The `escalate` timer: runs step `step` if it is still the next one and the incident is still
+   * waiting for someone, then schedules the step after it.
+   */
+  escalationDue(incidentId: string, step: number, dueAt: number): Promise<EscalationOutcome>;
+  /* "Escalate now": runs the next step at once instead of waiting for its delay. */
+  escalateNow(scope: WorkspaceScope, incidentId: string): Promise<IncidentEscalationView>;
+  /* Where an incident's escalation stands; null when it has none. */
+  escalationOf(scope: WorkspaceScope, incidentId: string): Promise<IncidentEscalationView | null>;
+  /* Recovery: re-schedule the timer of every unfinished escalation. Returns how many. */
+  recoverEscalations(): Promise<number>;
   /* One send attempt for a delivery (the notify job). Throws RetryDeliveryError to retry. */
   deliver(deliveryId: string): Promise<DeliveryOutcome>;
   /* Schedules the first reminder for a newly triggered incident, if its monitor wants reminders. */
@@ -145,6 +167,8 @@ export interface AlertingServiceDeps {
   >;
   /* Personal rules; optional so tests can build alerting without contacts. */
   contacts?: Pick<ContactsService, "fanOut"> | undefined;
+  /* Escalation policies and who is on call; optional so tests can build alerting without them. */
+  oncall?: Pick<OncallService, "escalationPolicy" | "whoIsOnCall"> | undefined;
   workspaces: Pick<WorkspacesService, "listMembers" | "workspaceName">;
   /* Returns the credits of a paid message that failed for good; optional for tests. */
   credits?: Pick<CreditsService, "refundCharge"> | undefined;
@@ -301,6 +325,75 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
         delayMs: Math.max(0, dueAt - clock.now().getTime()),
       },
     );
+
+  const escalateJob = (incidentId: string, step: number, dueAt: number) =>
+    deps.enqueueTimer(
+      { kind: "escalate", incidentId, step, dueAt },
+      {
+        jobId: buildJobId("timer", "escalate", incidentId, step, dueAt),
+        delayMs: Math.max(0, dueAt - clock.now().getTime()),
+      },
+    );
+
+  const totalSteps = (row: Pick<EscalationRow, "steps" | "repeat">) =>
+    row.steps.length * (row.repeat + 1);
+
+  const toEscalation = (row: EscalationRow): IncidentEscalationView => ({
+    policyName: row.policyName,
+    stepsRun: row.nextStep,
+    totalSteps: totalSteps(row),
+    nextStepAt:
+      row.finishedAt !== null || row.nextDueAt === null ? null : row.nextDueAt.toISOString(),
+    finished: row.finishedAt === null ? null : (row.finishedReason ?? "exhausted"),
+  });
+
+  /* Pages everyone a step names; returns who was reached, for the timeline. */
+  async function runStep(row: EscalationRow, ctx: AlertContext, step: number): Promise<string[]> {
+    const definition = row.steps[step % row.steps.length];
+    if (definition === undefined) return [];
+    const scope = system(ctx.workspaceId);
+    const eventKey = `escalation.${row.incidentId}.${step}`;
+    const members = await deps.workspaces.listMembers(scope);
+    const nameOf = (userId: string) => members.find((m) => m.userId === userId)?.name ?? null;
+    const reached: string[] = [];
+    const userIds = new Set<string>();
+    const channelIds: string[] = [];
+    for (const target of definition.targets) {
+      if (target.type === "user") userIds.add(target.id);
+      else if (target.type === "channel") channelIds.push(target.id);
+      else {
+        const onCall = await deps.oncall?.whoIsOnCall(scope, target.id, clock.now());
+        if (onCall !== undefined) userIds.add(onCall);
+      }
+    }
+    for (const userId of userIds) {
+      await service.notifyUser({ incidentId: row.incidentId, eventKey, userId });
+      const name = nameOf(userId);
+      if (name !== null) reached.push(name);
+    }
+    const channels = await deps.channels.existing(scope, channelIds);
+    const planned = await repo.insertDeliveries(
+      deps.db,
+      channels.map((c) => {
+        const retry = deps.channels.retryPolicy(c.type);
+        return {
+          id: deps.newId(),
+          workspaceId: ctx.workspaceId,
+          incidentId: row.incidentId,
+          eventKey,
+          destinationKey: `channel:${c.id}`,
+          channelId: c.id,
+          kind: "triggered" as const,
+          actorName: null,
+          maxAttempts: retry?.attempts ?? NOTIFY_ATTEMPTS,
+          backoffMs: retry?.backoffMs ?? NOTIFY_BACKOFF_MS,
+        };
+      }),
+    );
+    for (const d of planned) await notifyJob(d);
+    reached.push(...channels.map((c) => c.name));
+    return reached;
+  }
 
   /* The first reminder slot (startedAt + k·N) strictly after `after`. */
   const nextSlot = (startedAt: number, everyMs: number, after: number) =>
@@ -461,6 +554,133 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
       );
       for (const d of planned) await notifyJob(d);
       return planned.length;
+    },
+
+    async startEscalation(incidentId) {
+      if (deps.oncall === undefined) return false;
+      const ctx = await deps.incidents.alertContext(incidentId);
+      if (ctx === undefined || ctx.incident.status !== "triggered") return false;
+      const policyId = (await policyFor(ctx))?.rules.escalationPolicyId ?? null;
+      if (policyId === null) return false;
+      const policy = await deps.oncall.escalationPolicy(system(ctx.workspaceId), policyId);
+      const first = policy?.steps[0];
+      if (policy === undefined || first === undefined) return false;
+      const dueAt = new Date(clock.now().getTime() + first.delayMinutes * 60_000);
+      const row = await repo.insertEscalation(deps.db, {
+        incidentId,
+        workspaceId: ctx.workspaceId,
+        policyId: policy.id,
+        policyName: policy.name,
+        steps: policy.steps,
+        repeat: policy.repeat,
+        nextDueAt: dueAt,
+      });
+      if (row === undefined) return false;
+      await escalateJob(incidentId, 0, dueAt.getTime());
+      return true;
+    },
+
+    async escalationDue(incidentId, step, dueAt) {
+      const row = await repo.findEscalation(deps.db, incidentId);
+      /* An older job for a step that already ran, or one replaced by "escalate now". */
+      if (
+        row === undefined ||
+        row.finishedAt !== null ||
+        row.nextStep !== step ||
+        row.nextDueAt === null ||
+        row.nextDueAt.getTime() !== dueAt
+      ) {
+        return "stale";
+      }
+      const ctx = await deps.incidents.alertContext(incidentId);
+      const status = ctx?.incident.status ?? "resolved";
+      const stop = (reason: "acknowledged" | "resolved" | "exhausted") =>
+        repo.advanceEscalation(deps.db, incidentId, step, {
+          nextStep: step,
+          nextDueAt: null,
+          finishedAt: clock.now(),
+          finishedReason: reason,
+        });
+      /* Correctness never depends on removing jobs: the job runs and finds nothing to do (§9.5). */
+      if (ctx === undefined || status === "resolved" || status === "acknowledged") {
+        await stop(status === "acknowledged" ? "acknowledged" : "resolved");
+        return "stopped";
+      }
+      if (status === "snoozed") {
+        const until =
+          ctx.incident.snoozedUntil === null
+            ? clock.now().getTime() + 60_000
+            : Date.parse(ctx.incident.snoozedUntil);
+        const moved = await repo.advanceEscalation(deps.db, incidentId, step, {
+          nextStep: step,
+          nextDueAt: new Date(until),
+          finishedAt: null,
+          finishedReason: null,
+        });
+        if (moved !== undefined) await escalateJob(incidentId, step, until);
+        return "waiting";
+      }
+
+      /* Paging is idempotent (one delivery per event and destination), so a re-run is harmless. */
+      const reached = await runStep(row, ctx, step);
+      const next = step + 1;
+      const last = next >= totalSteps(row);
+      const nextDelay = row.steps[next % row.steps.length]?.delayMinutes ?? 0;
+      const nextDueAt = last ? null : new Date(clock.now().getTime() + nextDelay * 60_000);
+      const advanced = await repo.advanceEscalation(deps.db, incidentId, step, {
+        nextStep: next,
+        nextDueAt,
+        finishedAt: last ? clock.now() : null,
+        finishedReason: last ? "exhausted" : null,
+      });
+      if (advanced === undefined) return "stale";
+      await deps.incidents.addSystemEvent(incidentId, "escalated", {
+        policyName: row.policyName,
+        step: (step % row.steps.length) + 1,
+        round: Math.floor(step / row.steps.length) + 1,
+        reached,
+      });
+      if (nextDueAt !== null) await escalateJob(incidentId, next, nextDueAt.getTime());
+      return "ran";
+    },
+
+    async escalateNow(scope, incidentId) {
+      const row = await repo.findEscalation(deps.db, incidentId);
+      if (row === undefined || row.workspaceId !== scope.workspaceId) {
+        throw new ConflictError("This incident has no escalation policy.");
+      }
+      if (row.finishedAt !== null || row.nextDueAt === null) {
+        throw new ConflictError(
+          row.finishedReason === "exhausted"
+            ? "Every step of the escalation policy has already run."
+            : "The escalation has stopped: someone has taken the incident or it is resolved.",
+        );
+      }
+      const now = clock.now();
+      const moved = await repo.advanceEscalation(deps.db, incidentId, row.nextStep, {
+        nextStep: row.nextStep,
+        nextDueAt: now,
+        finishedAt: null,
+        finishedReason: null,
+      });
+      if (moved !== undefined) await service.escalationDue(incidentId, row.nextStep, now.getTime());
+      const after = await repo.findEscalation(deps.db, incidentId);
+      return toEscalation(after ?? row);
+    },
+
+    async escalationOf(scope, incidentId) {
+      const row = await repo.findEscalation(deps.db, incidentId);
+      return row === undefined || row.workspaceId !== scope.workspaceId ? null : toEscalation(row);
+    },
+
+    async recoverEscalations() {
+      const open = await repo.openEscalations(deps.db, SWEEP_BATCH);
+      for (const row of open) {
+        if (row.nextDueAt !== null) {
+          await escalateJob(row.incidentId, row.nextStep, row.nextDueAt.getTime());
+        }
+      }
+      return open.length;
     },
 
     async notifyUser({ incidentId, eventKey, userId }) {

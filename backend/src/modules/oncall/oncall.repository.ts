@@ -3,11 +3,13 @@ import { and, asc, eq, gt, inArray, lt, sql } from "drizzle-orm";
 import type { WorkspaceScope } from "../../core/workspace-scope.js";
 import { tenantWhere, withWorkspace, type DbOrTx } from "../../infra/db/index.js";
 import {
+  escalationPolicies,
   oncallFeeds,
   scheduleLayers,
   scheduleOverrides,
   schedules,
   shiftNotices,
+  type EscalationPolicyRow,
   type OncallFeedRow,
   type ScheduleLayerRow,
   type ScheduleOverrideRow,
@@ -124,6 +126,65 @@ export function createOncallRepository() {
           ),
         )
         .orderBy(asc(scheduleOverrides.startsAt), asc(scheduleOverrides.id));
+    },
+
+    async listEscalationPolicies(
+      db: DbOrTx,
+      scope: WorkspaceScope,
+    ): Promise<EscalationPolicyRow[]> {
+      return db
+        .select()
+        .from(escalationPolicies)
+        .where(tenantWhere(scope, escalationPolicies))
+        .orderBy(asc(escalationPolicies.name), asc(escalationPolicies.id));
+    },
+
+    async findEscalationPolicy(
+      db: DbOrTx,
+      scope: WorkspaceScope,
+      id: string,
+    ): Promise<EscalationPolicyRow | undefined> {
+      const rows = await db
+        .select()
+        .from(escalationPolicies)
+        .where(tenantWhere(scope, escalationPolicies, eq(escalationPolicies.id, id)))
+        .limit(1);
+      return rows[0];
+    },
+
+    async insertEscalationPolicy(
+      db: DbOrTx,
+      scope: WorkspaceScope,
+      row: Pick<EscalationPolicyRow, "id" | "name" | "repeat" | "steps" | "createdBy">,
+    ): Promise<EscalationPolicyRow> {
+      const [created] = await db
+        .insert(escalationPolicies)
+        .values(withWorkspace(scope, row))
+        .returning();
+      if (created === undefined) throw new Error("escalation policy insert returned nothing");
+      return created;
+    },
+
+    async updateEscalationPolicy(
+      db: DbOrTx,
+      scope: WorkspaceScope,
+      id: string,
+      patch: Partial<Pick<EscalationPolicyRow, "name" | "repeat" | "steps">>,
+    ): Promise<EscalationPolicyRow | undefined> {
+      const [row] = await db
+        .update(escalationPolicies)
+        .set({ ...patch, updatedAt: sql`now()` })
+        .where(tenantWhere(scope, escalationPolicies, eq(escalationPolicies.id, id)))
+        .returning();
+      return row;
+    },
+
+    async deleteEscalationPolicy(db: DbOrTx, scope: WorkspaceScope, id: string): Promise<boolean> {
+      const rows = await db
+        .delete(escalationPolicies)
+        .where(tenantWhere(scope, escalationPolicies, eq(escalationPolicies.id, id)))
+        .returning({ id: escalationPolicies.id });
+      return rows.length > 0;
     },
 
     /* System: every workspace that has a schedule, for the shift sweep. */

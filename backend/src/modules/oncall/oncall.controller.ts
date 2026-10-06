@@ -5,6 +5,9 @@ import { scopeOf } from "../../middleware/workspace.js";
 import type { OncallService } from "./oncall.service.js";
 import type {
   createOverrideBody,
+  createPolicyBody,
+  policyIdParams,
+  updatePolicyBody,
   createScheduleBody,
   onCallQuery,
   overrideIdParams,
@@ -25,7 +28,11 @@ export type OncallController = Record<
   | "timeline"
   | "feed"
   | "rotateFeed"
-  | "removeFeed",
+  | "removeFeed"
+  | "listPolicies"
+  | "createPolicy"
+  | "updatePolicy"
+  | "removePolicy",
   RequestHandler
 >;
 
@@ -70,6 +77,25 @@ export function createOncallController(service: OncallService): OncallController
           query.at === undefined ? undefined : new Date(query.at),
         ),
       );
+    },
+    listPolicies: async (req, res) => {
+      res.json({ data: await service.listEscalationPolicies(scopeOf(req, res)) });
+    },
+    createPolicy: async (req, res) => {
+      const { body } = inputOf<{ body: typeof createPolicyBody }>(req, res);
+      res.status(201).json(await service.createEscalationPolicy(scopeOf(req, res), body));
+    },
+    updatePolicy: async (req, res) => {
+      const { params, body } = inputOf<{
+        params: typeof policyIdParams;
+        body: typeof updatePolicyBody;
+      }>(req, res);
+      res.json(await service.updateEscalationPolicy(scopeOf(req, res), params.policyId, body));
+    },
+    removePolicy: async (req, res) => {
+      const { params } = inputOf<{ params: typeof policyIdParams }>(req, res);
+      await service.deleteEscalationPolicy(scopeOf(req, res), params.policyId);
+      res.status(204).end();
     },
     feed: async (req, res) => {
       res.json(await service.feed(scopeOf(req, res)));

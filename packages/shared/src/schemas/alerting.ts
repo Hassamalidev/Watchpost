@@ -241,6 +241,8 @@ export const alertPolicyRulesSchema = z
   .object({
     channelIds: z.array(z.uuid()).max(50).default([]),
     events: alertEventsSchema,
+    /* Pages people step by step until someone acknowledges (§9.5); null sends to the channels only. */
+    escalationPolicyId: z.uuid().nullable().default(null),
   })
   .strict()
   .refine((r) => new Set(r.channelIds).size === r.channelIds.length, {

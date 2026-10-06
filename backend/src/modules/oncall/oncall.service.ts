@@ -6,8 +6,12 @@
 import {
   MAX_TIMELINE_DAYS,
   roleCan,
+  type CreateEscalationPolicyInput,
   type CreateOverrideInput,
   type CreateScheduleInput,
+  type EscalationPolicyView,
+  type EscalationStep,
+  type UpdateEscalationPolicyInput,
   type OnCallNow,
   type OnCallPerson,
   type OnCallSegment,
@@ -34,7 +38,20 @@ import {
 } from "./engine.js";
 import { toICalendar, type CalendarEvent } from "./ical.js";
 import type { NewLayer, OncallRepository } from "./oncall.repository.js";
-import type { ScheduleLayerRow, ScheduleOverrideRow, ScheduleRow } from "./schema/oncall.js";
+import type {
+  EscalationPolicyRow,
+  ScheduleLayerRow,
+  ScheduleOverrideRow,
+  ScheduleRow,
+} from "./schema/oncall.js";
+
+/* What alerting needs to run a policy. */
+export interface EscalationPolicyDefinition {
+  id: string;
+  name: string;
+  repeat: number;
+  steps: EscalationStep[];
+}
 
 const DAY_MS = 86_400_000;
 /* How far ahead "who is next" looks. */
@@ -74,6 +91,22 @@ export interface OncallService {
   /* Who is on call at `at` (default now), and who takes over next. */
   onCall(scope: WorkspaceScope, id: string, at?: Date): Promise<OnCallNow>;
   timeline(scope: WorkspaceScope, id: string, from: Date, to: Date): Promise<OnCallSegment[]>;
+  listEscalationPolicies(scope: WorkspaceScope): Promise<EscalationPolicyView[]>;
+  createEscalationPolicy(
+    scope: WorkspaceScope,
+    input: CreateEscalationPolicyInput,
+  ): Promise<EscalationPolicyView>;
+  updateEscalationPolicy(
+    scope: WorkspaceScope,
+    id: string,
+    input: UpdateEscalationPolicyInput,
+  ): Promise<EscalationPolicyView>;
+  deleteEscalationPolicy(scope: WorkspaceScope, id: string): Promise<void>;
+  /* System: a policy's steps as stored; undefined when it is gone. */
+  escalationPolicy(
+    scope: WorkspaceScope,
+    id: string,
+  ): Promise<EscalationPolicyDefinition | undefined>;
   /* Whether the acting user has a calendar feed, and since when. */
   feed(scope: WorkspaceScope): Promise<{ exists: boolean; createdAt: string | null }>;
   /* Creates the acting user's feed URL, or replaces it; the URL is shown this once. */
@@ -194,6 +227,60 @@ export function createOncallService(deps: OncallServiceDeps): OncallService {
     startsAt: row.startsAt.toISOString(),
     endsAt: row.endsAt.toISOString(),
   });
+
+  /* People must be pageable and schedules must exist; channels are checked when a step runs. */
+  async function checkSteps(scope: WorkspaceScope, steps: EscalationStep[]) {
+    const [{ pageable }, schedules] = await Promise.all([
+      people(scope),
+      repo.listSchedules(deps.db, scope),
+    ]);
+    const scheduleIds = new Set(schedules.map((r) => r.id));
+    for (const [i, step] of steps.entries()) {
+      for (const [j, target] of step.targets.entries()) {
+        const path = `body.steps.${i}.targets.${j}.id`;
+        if (target.type === "user" && !pageable.has(target.id)) {
+          throw fail(
+            path,
+            "Only responders, members, admins and owners of this workspace can be paged.",
+          );
+        }
+        if (target.type === "schedule" && !scheduleIds.has(target.id)) {
+          throw fail(path, "This schedule doesn't exist.");
+        }
+      }
+    }
+  }
+
+  const toPolicyView = (
+    row: EscalationPolicyRow,
+    person: (userId: string) => OnCallPerson,
+    scheduleNames: Map<string, string>,
+  ): EscalationPolicyView => ({
+    id: row.id,
+    name: row.name,
+    repeat: row.repeat,
+    steps: row.steps.map((step) => ({
+      delayMinutes: step.delayMinutes,
+      targets: step.targets.map((target) => ({
+        ...target,
+        name:
+          target.type === "user"
+            ? person(target.id).name
+            : target.type === "schedule"
+              ? (scheduleNames.get(target.id) ?? null)
+              : null,
+      })),
+    })),
+    createdAt: row.createdAt.toISOString(),
+  });
+
+  async function viewOfPolicy(scope: WorkspaceScope, row: EscalationPolicyRow) {
+    const [schedules, { person }] = await Promise.all([
+      repo.listSchedules(deps.db, scope),
+      people(scope),
+    ]);
+    return toPolicyView(row, person, new Map(schedules.map((r) => [r.id, r.name] as const)));
+  }
 
   const service: OncallService = {
     async list(scope) {
@@ -342,6 +429,52 @@ export function createOncallService(deps: OncallServiceDeps): OncallService {
       const { engine } = await load(scope, id, from, to);
       const { person } = await people(scope);
       return engineTimeline(engine, from, to).map((s) => toSegment(s, person));
+    },
+
+    async listEscalationPolicies(scope) {
+      const [rows, schedules, { person }] = await Promise.all([
+        repo.listEscalationPolicies(deps.db, scope),
+        repo.listSchedules(deps.db, scope),
+        people(scope),
+      ]);
+      const scheduleNames = new Map(schedules.map((r) => [r.id, r.name] as const));
+      return rows.map((row) => toPolicyView(row, person, scheduleNames));
+    },
+
+    async createEscalationPolicy(scope, input) {
+      await checkSteps(scope, input.steps);
+      const row = await repo.insertEscalationPolicy(deps.db, scope, {
+        id: deps.newId(),
+        name: input.name,
+        repeat: input.repeat,
+        steps: input.steps,
+        createdBy: scope.actorUserId ?? null,
+      });
+      return viewOfPolicy(scope, row);
+    },
+
+    async updateEscalationPolicy(scope, id, input) {
+      if (input.steps !== undefined) await checkSteps(scope, input.steps);
+      const row = await repo.updateEscalationPolicy(deps.db, scope, id, {
+        ...(input.name === undefined ? {} : { name: input.name }),
+        ...(input.repeat === undefined ? {} : { repeat: input.repeat }),
+        ...(input.steps === undefined ? {} : { steps: input.steps }),
+      });
+      if (row === undefined) throw new NotFoundError("Escalation policy not found.");
+      return viewOfPolicy(scope, row);
+    },
+
+    async deleteEscalationPolicy(scope, id) {
+      if (!(await repo.deleteEscalationPolicy(deps.db, scope, id))) {
+        throw new NotFoundError("Escalation policy not found.");
+      }
+    },
+
+    async escalationPolicy(scope, id) {
+      const row = await repo.findEscalationPolicy(deps.db, scope, id);
+      return row === undefined
+        ? undefined
+        : { id: row.id, name: row.name, repeat: row.repeat, steps: row.steps };
     },
 
     async feed(scope) {

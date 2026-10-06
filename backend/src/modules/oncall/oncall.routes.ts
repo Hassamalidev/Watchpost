@@ -10,6 +10,9 @@ import type { OncallController } from "./oncall.controller.js";
 import type { OncallService } from "./oncall.service.js";
 import {
   createOverrideBody,
+  createPolicyBody,
+  policyIdParams,
+  updatePolicyBody,
   createScheduleBody,
   onCallQuery,
   overrideIdParams,
@@ -27,7 +30,32 @@ export function createOncallRouter(
   const write = requirePermission("schedule:write");
   const override = requirePermission("schedule:override");
   const id = validate({ params: scheduleIdParams });
-  router.use(["/schedules", "/me/oncall-feed"], guards.session, guards.workspace);
+  router.use(
+    ["/schedules", "/escalation-policies", "/me/oncall-feed"],
+    guards.session,
+    guards.workspace,
+  );
+
+  /* Escalation policies are defined by the same people as schedules. */
+  router.get("/escalation-policies", read, controller.listPolicies);
+  router.post(
+    "/escalation-policies",
+    write,
+    validate({ body: createPolicyBody }),
+    controller.createPolicy,
+  );
+  router.patch(
+    "/escalation-policies/:policyId",
+    write,
+    validate({ params: policyIdParams, body: updatePolicyBody }),
+    controller.updatePolicy,
+  );
+  router.delete(
+    "/escalation-policies/:policyId",
+    write,
+    validate({ params: policyIdParams }),
+    controller.removePolicy,
+  );
 
   /* Your own calendar feed: for everyone who can be on call. */
   const own = requirePermission("contact:manage");

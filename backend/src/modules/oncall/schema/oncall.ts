@@ -3,7 +3,7 @@
  * when it is edited; `position` orders them, and the highest position wins where layers overlap.
  * Participants are user IDs in rotation order. Overrides put one person on call for a stretch.
  */
-import type { Restriction, Rotation } from "@app/shared";
+import type { EscalationStep, Restriction, Rotation } from "@app/shared";
 import {
   index,
   integer,
@@ -93,6 +93,27 @@ export const oncallFeeds = pgTable(
     uniqueIndex("oncall_feeds_token_uq").on(t.tokenHash),
   ],
 );
+
+/* Who is paged, step by step, until someone acknowledges (§9.5). */
+export const escalationPolicies = pgTable(
+  "escalation_policies",
+  {
+    id: uuid("id").primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /* Extra rounds after the first. */
+    repeat: integer("repeat").notNull().default(0),
+    steps: jsonb("steps").$type<EscalationStep[]>().notNull(),
+    createdBy: uuid("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("escalation_policies_workspace_idx").on(t.workspaceId)],
+);
+
+export type EscalationPolicyRow = typeof escalationPolicies.$inferSelect;
 
 /* A shift start or end someone was told about; the unique key makes telling them idempotent. */
 export const shiftNotices = pgTable(

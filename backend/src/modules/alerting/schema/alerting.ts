@@ -3,7 +3,12 @@
  * one alert event to one destination; the unique (event_key, destination_key) pair makes planning
  * idempotent, and the row's status makes sending at most once per successful attempt.
  */
-import type { AlertEventKind, AlertPolicyRules, ContactMethodType } from "@app/shared";
+import type {
+  AlertEventKind,
+  AlertPolicyRules,
+  ContactMethodType,
+  EscalationStep,
+} from "@app/shared";
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -94,5 +99,36 @@ export const alertFallbackNotices = pgTable(
   (t) => [primaryKey({ columns: [t.workspaceId, t.hourStart] })],
 );
 
+/*
+ * One row per incident that is being escalated (§9.5). The policy's steps are copied in when the
+ * incident opens, so editing the policy doesn't change an escalation under way. `next_step` counts
+ * across rounds; the timer job for a step is rebuilt from `next_step` and `next_due_at`.
+ */
+export const escalations = pgTable(
+  "escalations",
+  {
+    incidentId: uuid("incident_id").primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    policyId: uuid("policy_id").notNull(),
+    policyName: text("policy_name").notNull(),
+    steps: jsonb("steps").$type<EscalationStep[]>().notNull(),
+    repeat: integer("repeat").notNull().default(0),
+    nextStep: integer("next_step").notNull().default(0),
+    nextDueAt: timestamp("next_due_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    finishedReason: text("finished_reason").$type<"acknowledged" | "resolved" | "exhausted">(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("escalations_unfinished_idx")
+      .on(t.nextDueAt)
+      .where(sql`${t.finishedAt} is null`),
+  ],
+);
+
+export type EscalationRow = typeof escalations.$inferSelect;
 export type AlertPolicyRow = typeof alertPolicies.$inferSelect;
 export type DeliveryRow = typeof notificationDeliveries.$inferSelect;

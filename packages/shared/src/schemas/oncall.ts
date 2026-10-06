@@ -132,3 +132,62 @@ export interface OnCallNow {
   /* The next stretch with someone else (or nobody) on call. */
   next: OnCallSegment | null;
 }
+
+/*
+ * Escalation policies (PRODUCT.md §6.5, §9.5): ordered steps, each tried a delay after the one
+ * before it, repeated `repeat` more times, until someone acknowledges.
+ */
+export const ESCALATION_TARGET_TYPES = ["user", "schedule", "channel"] as const;
+export type EscalationTargetType = (typeof ESCALATION_TARGET_TYPES)[number];
+
+export const MAX_ESCALATION_STEPS = 10;
+export const MAX_STEP_TARGETS = 10;
+export const MAX_ESCALATION_REPEATS = 9;
+export const MAX_STEP_DELAY_MINUTES = 24 * 60;
+
+export const escalationTargetSchema = z.object({
+  type: z.enum(ESCALATION_TARGET_TYPES),
+  id: z.uuid(),
+});
+export type EscalationTarget = z.infer<typeof escalationTargetSchema>;
+
+export const escalationStepSchema = z.object({
+  /* Minutes after the step before it (after the incident opened, for the first step). */
+  delayMinutes: z.number().int().min(0).max(MAX_STEP_DELAY_MINUTES),
+  targets: z.array(escalationTargetSchema).min(1).max(MAX_STEP_TARGETS),
+});
+export type EscalationStep = z.infer<typeof escalationStepSchema>;
+
+export const createEscalationPolicySchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  /* How many more times the steps run after the first round. */
+  repeat: z.number().int().min(0).max(MAX_ESCALATION_REPEATS).default(0),
+  steps: z.array(escalationStepSchema).min(1).max(MAX_ESCALATION_STEPS),
+});
+export type CreateEscalationPolicyInput = z.infer<typeof createEscalationPolicySchema>;
+export const updateEscalationPolicySchema = createEscalationPolicySchema.partial();
+export type UpdateEscalationPolicyInput = z.infer<typeof updateEscalationPolicySchema>;
+
+export interface EscalationTargetView extends EscalationTarget {
+  /* Null for a channel (named by the integrations list) or something deleted since. */
+  name: string | null;
+}
+
+export interface EscalationPolicyView {
+  id: string;
+  name: string;
+  repeat: number;
+  steps: { delayMinutes: number; targets: EscalationTargetView[] }[];
+  createdAt: string;
+}
+
+/* Where an incident's escalation stands. */
+export interface IncidentEscalationView {
+  policyName: string;
+  /* Steps run so far, and how many there are across all rounds. */
+  stepsRun: number;
+  totalSteps: number;
+  nextStepAt: string | null;
+  /* Why it stopped: someone took the incident, it was resolved, or every step ran. */
+  finished: "acknowledged" | "resolved" | "exhausted" | null;
+}

@@ -116,6 +116,13 @@ export function createModules(infra: Infra): AppModule[] {
     guards: workspaces.guards,
   });
   modules.push(contacts);
+  const oncall = createOncallModule({
+    infra,
+    workspaces: workspaces.service,
+    contacts: contacts.service,
+    guards: workspaces.guards,
+  });
+  modules.push(oncall);
   modules.push(
     createAlertingModule({
       infra,
@@ -123,6 +130,7 @@ export function createModules(infra: Infra): AppModule[] {
       channels: channels.service,
       workspaces: workspaces.service,
       contacts: contacts.service,
+      oncall: oncall.service,
       credits: credits.service,
       guards: workspaces.guards,
     }),
@@ -143,14 +151,6 @@ export function createModules(infra: Infra): AppModule[] {
       incidents: incidents.service,
       detection: detection.service,
       monitors: monitors.service,
-    }),
-  );
-  modules.push(
-    createOncallModule({
-      infra,
-      workspaces: workspaces.service,
-      contacts: contacts.service,
-      guards: workspaces.guards,
     }),
   );
   /* new-module:create */

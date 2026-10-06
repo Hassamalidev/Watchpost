@@ -53,6 +53,23 @@ export function createAlertingRouter(
     validate({ params: incidentIdParams }),
     controller.deliveries,
   );
+  /* Where the incident's escalation stands, and "escalate now" for whoever is responding. */
+  router.get(
+    "/incidents/:incidentId/escalation",
+    guards.session,
+    guards.workspace,
+    requirePermission("incident:read"),
+    validate({ params: incidentIdParams }),
+    controller.escalation,
+  );
+  router.post(
+    "/incidents/:incidentId/escalate",
+    guards.session,
+    guards.workspace,
+    requirePermission("incident:respond"),
+    validate({ params: incidentIdParams }),
+    controller.escalateNow,
+  );
   /* "Send test" lives here: alerting builds alert events (it knows the workspace name). */
   router.post(
     "/channels/:channelId/test",

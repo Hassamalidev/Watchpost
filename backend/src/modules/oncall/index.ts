@@ -9,7 +9,7 @@ import { createOncallRepository } from "./oncall.repository.js";
 import { createFeedRouter, createOncallRouter } from "./oncall.routes.js";
 import { createOncallService, type OncallService } from "./oncall.service.js";
 
-export type { OncallService, Shift } from "./oncall.service.js";
+export type { EscalationPolicyDefinition, OncallService, Shift } from "./oncall.service.js";
 export { SHIFT_NOTICE_LOOKBACK_MS } from "./oncall.service.js";
 
 export interface OncallModuleDeps {
