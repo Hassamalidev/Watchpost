@@ -28,6 +28,8 @@ export const WORKSPACE_STATEMENTS = {
   /* Integrations: alert channels, chat app installs, phone numbers. */
   channel: ["read", "manage"],
   deploy: ["read", "manage"],
+  /* On-call schedules. override: put yourself or a colleague on call for a while ("cover for me"). */
+  schedule: ["read", "write", "override"],
   /* Your own contact methods and notification rules; only people who can be paged have them. */
   contact: ["manage"],
   /* read: plan, limits, usage and credits. manage: checkout, plan changes, cancel, portal. */
@@ -51,9 +53,15 @@ const VIEWER: readonly Permission[] = [
   "alertPolicy:read",
   "channel:read",
   "deploy:read",
+  "schedule:read",
   "billing:read",
 ];
-const RESPONDER: readonly Permission[] = [...VIEWER, "incident:respond", "contact:manage"];
+const RESPONDER: readonly Permission[] = [
+  ...VIEWER,
+  "incident:respond",
+  "contact:manage",
+  "schedule:override",
+];
 const MEMBER: readonly Permission[] = [
   ...RESPONDER,
   "monitor:write",

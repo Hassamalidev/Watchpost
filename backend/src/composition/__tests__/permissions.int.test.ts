@@ -49,7 +49,7 @@ describe("workspace route permissions", () => {
   const routes = workspaceRoutes();
 
   it("finds the workspace routes", () => {
-    expect(routes.length).toBeGreaterThanOrEqual(89);
+    expect(routes.length).toBeGreaterThanOrEqual(98);
   });
 
   it("guards every workspace route with exactly one known permission", () => {
@@ -68,6 +68,8 @@ describe("workspace route permissions", () => {
         "DELETE /me/contact-methods/:methodId → contact:manage",
         "DELETE /monitor-groups/:groupId → monitor:write",
         "DELETE /monitors/:monitorId → monitor:write",
+        "DELETE /schedules/:scheduleId → schedule:write",
+        "DELETE /schedules/:scheduleId/overrides/:overrideId → schedule:override",
         "GET /alert-policies → alertPolicy:read",
         "GET /alert-tuning → incident:read",
         "GET /alert-tuning/:monitorId → incident:read",
@@ -110,6 +112,10 @@ describe("workspace route permissions", () => {
         "GET /monitors/:monitorId/uptime/days → monitor:read",
         "GET /phone-numbers/cost → channel:manage",
         "GET /probe-tasks/:taskId → monitor:read",
+        "GET /schedules → schedule:read",
+        "GET /schedules/:scheduleId → schedule:read",
+        "GET /schedules/:scheduleId/on-call → schedule:read",
+        "GET /schedules/:scheduleId/timeline → schedule:read",
         "GET /settings → settings:read",
         "GET /tags → monitor:read",
         "PATCH /alert-policies/:policyId → alertPolicy:write",
@@ -117,6 +123,7 @@ describe("workspace route permissions", () => {
         "PATCH /maintenance-windows/:windowId → maintenance:write",
         "PATCH /monitor-groups/:groupId → monitor:write",
         "PATCH /monitors/:monitorId → monitor:write",
+        "PATCH /schedules/:scheduleId → schedule:write",
         "PATCH /settings → settings:update",
         "POST /alert-policies → alertPolicy:write",
         "POST /billing/cancel → billing:manage",
@@ -149,6 +156,8 @@ describe("workspace route permissions", () => {
         "POST /monitors/:monitorId/test → monitor:write",
         "POST /phone-numbers/codes → channel:manage",
         "POST /phone-numbers/confirm → channel:manage",
+        "POST /schedules → schedule:write",
+        "POST /schedules/:scheduleId/overrides → schedule:override",
         "PUT /alert-policies/default/channels/:channelId → alertPolicy:write",
         "PUT /me/notification-rules/:urgency → contact:manage",
       ]

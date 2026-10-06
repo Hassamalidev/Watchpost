@@ -31,6 +31,9 @@ const MATRIX: Record<Permission, [boolean, boolean, boolean, boolean, boolean, b
   "channel:manage": [true, true, false, false, false, false],
   "deploy:read": [true, true, true, true, true, false],
   "deploy:manage": [true, true, false, false, false, false],
+  "schedule:read": [true, true, true, true, true, false],
+  "schedule:write": [true, true, false, false, false, false],
+  "schedule:override": [true, true, true, true, false, false],
   "contact:manage": [true, true, true, true, false, false],
   "billing:read": [true, true, true, true, true, true],
   "billing:manage": [true, true, false, false, false, true],
@@ -53,7 +56,7 @@ describe("permission matrix", () => {
 
   it("lets a responder do what a viewer does, plus respond and be reached", () => {
     const extra = ROLE_PERMISSIONS.responder.filter((p) => !ROLE_PERMISSIONS.viewer.includes(p));
-    expect(extra).toEqual(["incident:respond", "contact:manage"]);
+    expect(extra).toEqual(["incident:respond", "contact:manage", "schedule:override"]);
   });
 
   it("keeps the billing role to billing pages", () => {

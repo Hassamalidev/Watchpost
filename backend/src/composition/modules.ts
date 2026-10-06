@@ -20,6 +20,7 @@ import { createBillingModule } from "../modules/billing/index.js";
 import { createCreditsModule } from "../modules/credits/index.js";
 import { createMaintenanceModule } from "../modules/maintenance/index.js";
 import { createContactsModule } from "../modules/contacts/index.js";
+import { createOncallModule } from "../modules/oncall/index.js";
 /* new-module:imports */
 
 export function createModules(infra: Infra): AppModule[] {
@@ -142,6 +143,9 @@ export function createModules(infra: Infra): AppModule[] {
       detection: detection.service,
       monitors: monitors.service,
     }),
+  );
+  modules.push(
+    createOncallModule({ infra, workspaces: workspaces.service, guards: workspaces.guards }),
   );
   /* new-module:create */
   return modules;
