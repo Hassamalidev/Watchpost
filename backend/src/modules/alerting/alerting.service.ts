@@ -15,6 +15,7 @@ import {
   type AlertEventKind,
   type AlertPolicyInput,
   type AlertPolicyRules,
+  urgencyOf,
 } from "@app/shared";
 import type { Clock } from "../../core/clock.js";
 import { ConflictError, NotFoundError, ValidationError } from "../../core/errors.js";
@@ -30,6 +31,7 @@ import {
   type ChannelSummary,
   type ChannelsService,
 } from "../channels/index.js";
+import type { ContactsService } from "../contacts/index.js";
 import type { CreditsService } from "../credits/index.js";
 import { explainIncident, type AlertContext, type IncidentsService } from "../incidents/index.js";
 import type { WorkspacesService } from "../workspaces/index.js";
@@ -69,6 +71,10 @@ export interface DeliveryView {
   attempts: number;
   error: string | null;
   sentAt: string | null;
+  /* For a delivery to a person: who, how, and when their rule says it goes out. */
+  userId: string | null;
+  contactType: DeliveryRow["contactType"];
+  dueAt: string | null;
 }
 
 export interface DeliveryLogEntry extends DeliveryView {
@@ -103,6 +109,12 @@ export interface AlertingService {
     eventKey: string;
     actorUserId?: string | undefined;
   }): Promise<number>;
+  /*
+   * Tells one person about a triggered incident through their own contact methods, each at the
+   * delay their rules give it (§9.5). Returns how many deliveries were newly planned. A delayed
+   * delivery is dropped when the incident is no longer waiting for someone by then.
+   */
+  notifyUser(input: { incidentId: string; eventKey: string; userId: string }): Promise<number>;
   /* One send attempt for a delivery (the notify job). Throws RetryDeliveryError to retry. */
   deliver(deliveryId: string): Promise<DeliveryOutcome>;
   /* Schedules the first reminder for a newly triggered incident, if its monitor wants reminders. */
@@ -129,8 +141,10 @@ export interface AlertingServiceDeps {
   incidents: Pick<IncidentsService, "alertContext" | "openIncidentIds" | "addSystemEvent">;
   channels: Pick<
     ChannelsService,
-    "existing" | "deliver" | "markFailing" | "summary" | "retryPolicy"
+    "existing" | "deliver" | "deliverDirect" | "markFailing" | "summary" | "retryPolicy"
   >;
+  /* Personal rules; optional so tests can build alerting without contacts. */
+  contacts?: Pick<ContactsService, "fanOut"> | undefined;
   workspaces: Pick<WorkspacesService, "listMembers" | "workspaceName">;
   /* Returns the credits of a paid message that failed for good; optional for tests. */
   credits?: Pick<CreditsService, "refundCharge"> | undefined;
@@ -168,6 +182,9 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
     attempts: row.attempts,
     error: row.error,
     sentAt: row.sentAt === null ? null : row.sentAt.toISOString(),
+    userId: row.userId,
+    contactType: row.contactType,
+    dueAt: row.dueAt === null ? null : row.dueAt.toISOString(),
   });
 
   /*
@@ -204,6 +221,15 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
     if (!userId) return null;
     const members = await deps.workspaces.listMembers(system(workspaceId));
     return members.find((m) => m.userId === userId)?.name ?? null;
+  }
+
+  /* "Sara (email)": how a delivery to a person is named in logs and on the timeline. */
+  async function personLabel(
+    workspaceId: string,
+    delivery: Pick<DeliveryRow, "userId" | "contactType">,
+  ): Promise<string> {
+    const name = (await memberName(workspaceId, delivery.userId)) ?? "A former member";
+    return `${name} (${delivery.contactType === "sms" ? "SMS" : (delivery.contactType ?? "email")})`;
   }
 
   function eventFor(
@@ -255,14 +281,17 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
   }
 
   const notifyJob = (
-    d: Pick<DeliveryRow, "id" | "maxAttempts" | "backoffMs" | "attempts">,
+    d: Pick<DeliveryRow, "id" | "maxAttempts" | "backoffMs" | "attempts" | "dueAt">,
     suffix?: string,
-  ) =>
-    deps.enqueueNotify(d.id, {
+  ) => {
+    const delayMs = d.dueAt === null ? 0 : d.dueAt.getTime() - clock.now().getTime();
+    return deps.enqueueNotify(d.id, {
       jobId: suffix === undefined ? buildJobId("notify", d.id) : buildJobId("notify", d.id, suffix),
       attempts: Math.max(1, d.maxAttempts - d.attempts),
       backoffMs: d.backoffMs,
+      ...(delayMs > 0 ? { delayMs } : {}),
     });
+  };
 
   const reminderJob = (incidentId: string, dueAt: number) =>
     deps.enqueueTimer(
@@ -434,6 +463,40 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
       return planned.length;
     },
 
+    async notifyUser({ incidentId, eventKey, userId }) {
+      if (deps.contacts === undefined) return 0;
+      const ctx = await deps.incidents.alertContext(incidentId);
+      if (ctx === undefined || ctx.incident.status !== "triggered") return 0;
+      const steps = await deps.contacts.fanOut(
+        system(ctx.workspaceId),
+        userId,
+        urgencyOf(ctx.incident.severity),
+        clock.now(),
+      );
+      const planned = await repo.insertDeliveries(
+        deps.db,
+        steps.map((step) => ({
+          id: deps.newId(),
+          workspaceId: ctx.workspaceId,
+          incidentId,
+          eventKey,
+          destinationKey: `user:${userId}:method:${step.contactMethodId}`,
+          channelId: null,
+          userId,
+          contactMethodId: step.contactMethodId,
+          contactType: step.type,
+          contactAddress: step.address,
+          dueAt: step.delayMinutes === 0 ? null : step.dueAt,
+          kind: "triggered" as const,
+          actorName: null,
+          maxAttempts: NOTIFY_ATTEMPTS,
+          backoffMs: NOTIFY_BACKOFF_MS,
+        })),
+      );
+      for (const d of planned) await notifyJob(d);
+      return planned.length;
+    },
+
     async deliver(deliveryId) {
       const delivery = await repo.claim(deps.db, deliveryId);
       if (delivery === undefined) return "skipped";
@@ -441,12 +504,56 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
         repo.finish(deps.db, deliveryId, patch);
 
       const ctx = await deps.incidents.alertContext(delivery.incidentId);
-      if (ctx === undefined || delivery.channelId === null) {
+      if (ctx === undefined) {
         await finish({ status: "skipped", error: "The incident or channel no longer exists." });
         return "skipped";
       }
       const workspaceName = await deps.workspaces.workspaceName(system(ctx.workspaceId));
       const event = eventFor(delivery.kind, ctx, workspaceName, delivery.actorName);
+
+      /* To a person, through one of their own contact methods. */
+      if (delivery.contactType !== null && delivery.contactAddress !== null) {
+        if (delivery.kind === "triggered" && ctx.incident.status !== "triggered") {
+          await finish({
+            status: "skipped",
+            error: `Not needed: the incident was ${ctx.incident.status} before this step was due.`,
+          });
+          return "skipped";
+        }
+        try {
+          const { providerRef } = await deps.channels.deliverDirect({
+            type: delivery.contactType,
+            address: delivery.contactAddress,
+            event,
+            idempotencyKey: `delivery.${delivery.id}`,
+          });
+          await finish({ status: "sent", providerRef, error: null, sentAt: clock.now() });
+          return "sent";
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          const permanent = err instanceof ChannelDeliveryError && err.permanent;
+          if (!permanent && delivery.attempts < delivery.maxAttempts) {
+            await finish({ status: "retrying", error: message });
+            throw new RetryDeliveryError(message);
+          }
+          await finish({ status: "failed", error: message });
+          deps.logger.warn(
+            { deliveryId, userId: delivery.userId, attempts: delivery.attempts, err: message },
+            "delivery to a person failed permanently",
+          );
+          await deps.incidents.addSystemEvent(delivery.incidentId, "delivery_failed", {
+            channelId: null,
+            channelName: await personLabel(ctx.workspaceId, delivery),
+            kind: delivery.kind,
+            error: message,
+          });
+          return "failed";
+        }
+      }
+      if (delivery.channelId === null) {
+        await finish({ status: "skipped", error: "The incident or channel no longer exists." });
+        return "skipped";
+      }
 
       try {
         const { providerRef, skipped } = await deps.channels.deliver({
@@ -573,12 +680,19 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
       const rows = await repo.deliveriesForIncidentScoped(deps.db, scope, incidentId);
       const ids = [...new Set(rows.flatMap((r) => (r.channelId ? [r.channelId] : [])))];
       const channels = new Map((await deps.channels.existing(scope, ids)).map((c) => [c.id, c]));
+      const members = new Map(
+        rows.some((r) => r.userId !== null)
+          ? (await deps.workspaces.listMembers(scope)).map((m) => [m.userId, m.name] as const)
+          : [],
+      );
       return rows.map((row) => {
         const channel = row.channelId ? channels.get(row.channelId) : undefined;
+        /* A delivery to a person shows their name where a channel's would be. */
+        const person = row.userId === null ? null : (members.get(row.userId) ?? "A former member");
         return {
           ...toDelivery(row),
-          channelName: channel?.name ?? null,
-          channelType: channel?.type ?? null,
+          channelName: channel?.name ?? person,
+          channelType: channel?.type ?? row.contactType,
           createdAt: row.createdAt.toISOString(),
         };
       });
@@ -600,6 +714,11 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
        * failed raised `attempts`, so the next recovery gets a fresh ID.
        */
       for (const d of stale) await notifyJob(d, `r${d.attempts}`);
+      /*
+       * Delayed deliveries that aren't due yet get their delayed job again under its usual ID: a job
+       * that is still queued makes this a no-op, a lost one is replaced.
+       */
+      for (const d of await repo.scheduled(deps.db, clock.now(), SWEEP_BATCH)) await notifyJob(d);
       return stale.length;
     },
 

@@ -3,7 +3,7 @@
  * one alert event to one destination; the unique (event_key, destination_key) pair makes planning
  * idempotent, and the row's status makes sending at most once per successful attempt.
  */
-import type { AlertEventKind, AlertPolicyRules } from "@app/shared";
+import type { AlertEventKind, AlertPolicyRules, ContactMethodType } from "@app/shared";
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -50,9 +50,16 @@ export const notificationDeliveries = pgTable(
     incidentId: uuid("incident_id").notNull(),
     /* The outbox event ID, or `reminder.<incident>.<dueAt>` for reminders. */
     eventKey: text("event_key").notNull(),
-    /* `channel:<id>` now; users and contact methods join with on-call (P2). */
+    /* `channel:<id>`, or `user:<id>:method:<id>` for a person's own contact method. */
     destinationKey: text("destination_key").notNull(),
     channelId: uuid("channel_id"),
+    /* Set together for a delivery to a person: who, through which of their contact methods. */
+    userId: uuid("user_id"),
+    contactMethodId: uuid("contact_method_id"),
+    contactType: text("contact_type").$type<ContactMethodType>(),
+    contactAddress: text("contact_address"),
+    /* When a personal rule delays the delivery; null means at once. */
+    dueAt: timestamp("due_at", { withTimezone: true }),
     kind: text("kind").$type<AlertEventKind>().notNull(),
     /* Display name of whoever acted, for "Acknowledged by Sara". */
     actorName: text("actor_name"),

@@ -82,6 +82,16 @@ export interface ChannelsService {
     event: AlertEvent;
     idempotencyKey: string;
   }): Promise<{ providerRef: string | null; skipped?: string }>;
+  /*
+   * System: one alert event straight to a person's own address (a contact method), with no channel
+   * behind it. Email only for now; SMS and calls to a person follow with phone contact methods.
+   */
+  deliverDirect(input: {
+    type: "email" | "sms" | "voice";
+    address: string;
+    event: AlertEvent;
+    idempotencyKey: string;
+  }): Promise<{ providerRef: string | null }>;
   /* System: alerting gave up on a delivery through this channel. */
   markFailing(channelId: string): Promise<void>;
   /* How often and how patiently deliveries to this channel type are retried. */
@@ -251,6 +261,28 @@ export function createChannelsService(deps: {
     async summary(channelId) {
       const row = await repo.findById(deps.db, channelId);
       return row === undefined ? undefined : toSummary(row);
+    },
+
+    async deliverDirect({ type, address, event, idempotencyKey }) {
+      const adapter = adapters.get("email");
+      if (type !== "email" || adapter === undefined) {
+        throw new ChannelDeliveryError(
+          "Text messages and calls to a person aren't available yet.",
+          true,
+        );
+      }
+      try {
+        const config = adapter.parseConfig({ to: [address] });
+        const sent = await adapter.send(config, adapter.render(event), {
+          idempotencyKey,
+          threadRef: null,
+        });
+        return { providerRef: sent.providerRef ?? null };
+      } catch (err) {
+        throw err instanceof ChannelDeliveryError
+          ? err
+          : new ChannelDeliveryError(err instanceof Error ? err.message : String(err));
+      }
     },
 
     async deliver({ channelId, event, idempotencyKey }) {
