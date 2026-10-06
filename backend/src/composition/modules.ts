@@ -21,6 +21,7 @@ import { createCreditsModule } from "../modules/credits/index.js";
 import { createMaintenanceModule } from "../modules/maintenance/index.js";
 import { createContactsModule } from "../modules/contacts/index.js";
 import { createOncallModule } from "../modules/oncall/index.js";
+import { createInboundModule } from "../modules/inbound/index.js";
 /* new-module:imports */
 
 export function createModules(infra: Infra): AppModule[] {
@@ -158,6 +159,9 @@ export function createModules(infra: Infra): AppModule[] {
       detection: detection.service,
       monitors: monitors.service,
     }),
+  );
+  modules.push(
+    createInboundModule({ infra, incidents: incidents.service, guards: workspaces.guards }),
   );
   /* new-module:create */
   return modules;

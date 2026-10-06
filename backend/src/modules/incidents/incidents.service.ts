@@ -169,6 +169,16 @@ export interface ExpiryIncidentInput {
   evidence: Record<string, unknown>;
 }
 
+export interface InboundIncidentInput {
+  workspaceId: string;
+  /* One open incident per key; the inbound module scopes it to its source. */
+  dedupKey: string;
+  title: string;
+  severity: IncidentSeverity;
+  /* Where it came from and what the tool said, shown on the incident. */
+  evidence: Record<string, unknown>;
+}
+
 export interface IncidentSummary {
   days: number;
   incidents: number;
@@ -228,7 +238,15 @@ export interface IncidentsService {
     tx: Tx,
     input: ExpiryIncidentInput,
   ): Promise<{ incident: IncidentRow; created: boolean }>;
-  /* System: resolves the open incident with this key (after a renewal). */
+  /*
+   * System: opens an incident for an alert from another tool, unless one with the same key is
+   * already open (then `created` is false and nothing changes: no second alert for a repeat).
+   */
+  openInbound(
+    tx: Tx,
+    input: InboundIncidentInput,
+  ): Promise<{ incident: IncidentRow; created: boolean }>;
+  /* System: resolves the open incident with this key (after a renewal, or the tool's recovery). */
   resolveByDedupKey(tx: Tx, workspaceId: string, dedupKey: string): Promise<boolean>;
   /*
    * Alert accuracy for the last `days` days: incidents, false alarms (marked by people), accuracy and
@@ -650,6 +668,36 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
         throw new Error(`an open incident with key ${input.dedupKey} appeared concurrently`);
       }
       await announceTriggered(tx, created, { causeCode: input.causeCode });
+      return { incident: created, created: true };
+    },
+
+    async openInbound(tx, input) {
+      const existing = await repo.findOpenByDedupKey(tx, input.workspaceId, input.dedupKey);
+      if (existing !== undefined) return { incident: existing, created: false };
+      const number = await deps.workspaces.nextIncidentNumber(
+        tx,
+        createWorkspaceScope({ workspaceId: input.workspaceId }),
+      );
+      const created = await repo.insertDeduplicated(tx, {
+        id: deps.newId(),
+        workspaceId: input.workspaceId,
+        number,
+        source: "inbound",
+        monitorId: null,
+        dedupKey: input.dedupKey,
+        title: input.title,
+        severity: input.severity,
+        failingRegions: [],
+        evidence: input.evidence,
+        startedAt: clock.now(),
+      });
+      /* Two deliveries of the same alert at once: the other one opened it. */
+      if (created === undefined) {
+        const winner = await repo.findOpenByDedupKey(tx, input.workspaceId, input.dedupKey);
+        if (winner === undefined) throw new Error(`incident ${input.dedupKey} vanished`);
+        return { incident: winner, created: false };
+      }
+      await announceTriggered(tx, created, {});
       return { incident: created, created: true };
     },
 

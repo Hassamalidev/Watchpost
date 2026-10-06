@@ -691,7 +691,40 @@
     "phoneSendCode": "Send code by SMS ({credits, plural, one {# credit} other {# credits}})",
     "phoneCode": "6-digit code",
     "phoneConfirm": "Verify number",
-    "phoneVerified": "Number verified. You can save now."
+    "phoneVerified": "Number verified. You can save now.",
+    "inbound": {
+      "title": "Inbound alerts",
+      "hint": "Let your other tools open and close incidents here: Prometheus Alertmanager, Grafana, Datadog, anything that can post JSON, or email. A repeat of an open alert adds nothing, and the tool's recovery closes the incident.",
+      "empty": "No inbound sources yet.",
+      "name": "Name",
+      "namePlaceholder": "Production Prometheus",
+      "kind": "Sends",
+      "add": "Add source",
+      "url": "URL for {name}",
+      "shownOnce": "Copy it now. It is shown only once; anyone who has it can open incidents in this workspace. \"New URL\" replaces it.",
+      "setup": {
+        "generic": "POST JSON with at least a title. Use status \"trigger\" or \"resolve\" and the same dedup_key on both.",
+        "alertmanager": "In alertmanager.yml add a receiver with webhook_configs: url set to this URL, and send_resolved: true.",
+        "grafana": "In Grafana add a contact point of type Webhook with this URL, and leave \"Disable resolved message\" off.",
+        "datadog": "In Datadog's Webhooks integration add a webhook with this URL and this payload, then mention it in a monitor's message:",
+        "email": "Point your inbound-mail provider's webhook at this URL. It should post JSON with from, subject and text; a subject starting with RECOVERY, RESOLVED or OK closes the incident."
+      },
+      "never": "nothing received yet",
+      "lastReceived": "last alert {when}",
+      "tryPayload": "Try a payload",
+      "newUrl": "New URL",
+      "delete": "Delete",
+      "deleteNamed": "Delete {name}",
+      "payload": "Payload",
+      "payloadHint": "Paste what the tool sends, as JSON. Nothing is opened: this only shows what would happen.",
+      "check": "Check payload",
+      "sampleTrigger": "Sample: firing",
+      "sampleResolve": "Sample: resolved",
+      "notJson": "That isn't valid JSON.",
+      "result": "What this payload would do",
+      "wouldOpen": "Would open “{title}” ({severity})",
+      "wouldResolve": "Would resolve “{title}”"
+    }
   },
   "heartbeats": {
     "title": "Heartbeats",

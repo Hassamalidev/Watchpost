@@ -19,6 +19,7 @@ import { Loading } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/api";
 import { relativeTime } from "@/lib/format";
 import { workspaceHref } from "@/lib/navigation";
+import { InboundSources } from "./inbound-sources";
 import { DeployHookCard } from "@/features/insights/components/deploy-hook";
 import { DrillCard } from "@/features/insights/components/drill";
 import { addToDefaultPolicy, integrationKeys, integrationsApi, type Channel } from "../api";
@@ -182,6 +183,7 @@ export function IntegrationsPage() {
       </section>
       {isAdmin && <IntegrationGallery ws={ws} availability={availability} />}
       {isAdmin && list.length > 0 && <DrillCard ws={ws} />}
+      <InboundSources ws={ws} canManage={isAdmin} />
       <DeployHookCard ws={ws} canManage={isAdmin} />
     </div>
   );

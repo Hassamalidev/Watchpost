@@ -88,6 +88,21 @@ export {
   type UpdateScheduleInput,
 } from "./schemas/oncall.js";
 export {
+  DATADOG_PAYLOAD_TEMPLATE,
+  INBOUND_KINDS,
+  INBOUND_KIND_LABELS,
+  INBOUND_SAMPLES,
+  MAX_INBOUND_EVENTS,
+  createInboundSourceSchema,
+  genericInboundSchema,
+  testInboundPayloadSchema,
+  type CreateInboundSourceInput,
+  type InboundEvent,
+  type InboundKind,
+  type InboundResult,
+  type InboundSourceView,
+} from "./schemas/inbound.js";
+export {
   CHECK_ERRORS,
   CHECK_ERROR_CODES,
   checkErrorImpact,
