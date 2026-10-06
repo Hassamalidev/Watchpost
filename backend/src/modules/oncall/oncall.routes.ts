@@ -7,6 +7,7 @@ import { Router, type RequestHandler } from "express";
 import { requirePermission } from "../../middleware/roles.js";
 import { validate } from "../../middleware/validate.js";
 import type { OncallController } from "./oncall.controller.js";
+import type { OncallService } from "./oncall.service.js";
 import {
   createOverrideBody,
   createScheduleBody,
@@ -26,7 +27,13 @@ export function createOncallRouter(
   const write = requirePermission("schedule:write");
   const override = requirePermission("schedule:override");
   const id = validate({ params: scheduleIdParams });
-  router.use("/schedules", guards.session, guards.workspace);
+  router.use(["/schedules", "/me/oncall-feed"], guards.session, guards.workspace);
+
+  /* Your own calendar feed: for everyone who can be on call. */
+  const own = requirePermission("contact:manage");
+  router.get("/me/oncall-feed", own, controller.feed);
+  router.post("/me/oncall-feed", own, controller.rotateFeed);
+  router.delete("/me/oncall-feed", own, controller.removeFeed);
 
   router.get("/schedules", read, controller.list);
   router.post("/schedules", write, validate({ body: createScheduleBody }), controller.create);
@@ -64,5 +71,30 @@ export function createOncallRouter(
     validate({ params: overrideIdParams }),
     controller.removeOverride,
   );
+  return router;
+}
+
+const FEED_TOKEN = /^[A-Za-z0-9_-]{20,64}$/;
+
+/*
+ * Token URL /api/oncall/ical/<token>.ics: the calendar a person subscribes to from their calendar
+ * app. No session; the token is the secret (stored hashed, replaceable).
+ */
+export function createFeedRouter(service: Pick<OncallService, "calendar">): Router {
+  const router = Router();
+  router.get("/ical/:file", async (req, res) => {
+    const file = String(req.params.file);
+    const token = file.endsWith(".ics") ? file.slice(0, -4) : file;
+    const body = FEED_TOKEN.test(token) ? await service.calendar(token) : undefined;
+    if (body === undefined) {
+      res.status(404).type("text/plain").send("Not found\n");
+      return;
+    }
+    res
+      .status(200)
+      .set("Cache-Control", "private, max-age=300")
+      .type("text/calendar; charset=utf-8")
+      .send(body);
+  });
   return router;
 }

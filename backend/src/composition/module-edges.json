@@ -8,7 +8,7 @@
     "credits": ["billing"],
     "monitors": ["workspaces", "billing", "audit"],
     "maintenance": ["monitors", "audit"],
-    "contacts": ["workspaces", "audit"],
+    "contacts": ["workspaces", "channels", "audit"],
     "channels": ["credits", "audit"],
     "results": ["monitors"],
     "probes": ["monitors", "results"],

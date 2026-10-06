@@ -22,7 +22,10 @@ export type OncallController = Record<
   | "addOverride"
   | "removeOverride"
   | "onCall"
-  | "timeline",
+  | "timeline"
+  | "feed"
+  | "rotateFeed"
+  | "removeFeed",
   RequestHandler
 >;
 
@@ -67,6 +70,16 @@ export function createOncallController(service: OncallService): OncallController
           query.at === undefined ? undefined : new Date(query.at),
         ),
       );
+    },
+    feed: async (req, res) => {
+      res.json(await service.feed(scopeOf(req, res)));
+    },
+    rotateFeed: async (req, res) => {
+      res.status(201).json(await service.rotateFeed(scopeOf(req, res)));
+    },
+    removeFeed: async (req, res) => {
+      await service.removeFeed(scopeOf(req, res));
+      res.status(204).end();
     },
     timeline: async (req, res) => {
       const { query } = inputOf<{ query: typeof timelineQuery }>(req, res);

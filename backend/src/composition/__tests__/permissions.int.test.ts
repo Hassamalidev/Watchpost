@@ -49,7 +49,7 @@ describe("workspace route permissions", () => {
   const routes = workspaceRoutes();
 
   it("finds the workspace routes", () => {
-    expect(routes.length).toBeGreaterThanOrEqual(98);
+    expect(routes.length).toBeGreaterThanOrEqual(101);
   });
 
   it("guards every workspace route with exactly one known permission", () => {
@@ -66,6 +66,7 @@ describe("workspace route permissions", () => {
         "DELETE /channels/:channelId → channel:manage",
         "DELETE /maintenance-windows/:windowId → maintenance:write",
         "DELETE /me/contact-methods/:methodId → contact:manage",
+        "DELETE /me/oncall-feed → contact:manage",
         "DELETE /monitor-groups/:groupId → monitor:write",
         "DELETE /monitors/:monitorId → monitor:write",
         "DELETE /schedules/:scheduleId → schedule:write",
@@ -98,6 +99,7 @@ describe("workspace route permissions", () => {
         "GET /me → settings:read",
         "GET /me/contact-methods → contact:manage",
         "GET /me/notification-rules → contact:manage",
+        "GET /me/oncall-feed → contact:manage",
         "GET /members → roster:read",
         "GET /monitor-groups → monitor:read",
         "GET /monitor-states → monitor:read",
@@ -149,6 +151,7 @@ describe("workspace route permissions", () => {
         "POST /me/contact-methods → contact:manage",
         "POST /me/contact-methods/:methodId/code → contact:manage",
         "POST /me/contact-methods/:methodId/confirm → contact:manage",
+        "POST /me/oncall-feed → contact:manage",
         "POST /monitor-groups → monitor:write",
         "POST /monitors → monitor:write",
         "POST /monitors/:monitorId/pause → monitor:write",

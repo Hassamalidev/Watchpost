@@ -4,7 +4,16 @@
  * Participants are user IDs in rotation order. Overrides put one person on call for a stretch.
  */
 import type { Restriction, Rotation } from "@app/shared";
-import { index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { organization } from "../../../infra/auth/schema.js";
 
 export const schedules = pgTable(
@@ -67,6 +76,25 @@ export const scheduleOverrides = pgTable(
   (t) => [index("schedule_overrides_schedule_idx").on(t.scheduleId, t.endsAt)],
 );
 
+/* A person's calendar feed URL: the token is stored hashed and can be replaced. */
+export const oncallFeeds = pgTable(
+  "oncall_feeds",
+  {
+    id: uuid("id").primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("oncall_feeds_user_uq").on(t.workspaceId, t.userId),
+    uniqueIndex("oncall_feeds_token_uq").on(t.tokenHash),
+  ],
+);
+
+export type OncallFeedRow = typeof oncallFeeds.$inferSelect;
 export type ScheduleRow = typeof schedules.$inferSelect;
 export type ScheduleLayerRow = typeof scheduleLayers.$inferSelect;
 export type ScheduleOverrideRow = typeof scheduleOverrides.$inferSelect;

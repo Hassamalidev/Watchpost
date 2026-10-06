@@ -5,13 +5,13 @@ import { newId } from "../../infra/ids.js";
 import type { WorkspacesService } from "../workspaces/index.js";
 import { createOncallController } from "./oncall.controller.js";
 import { createOncallRepository } from "./oncall.repository.js";
-import { createOncallRouter } from "./oncall.routes.js";
+import { createFeedRouter, createOncallRouter } from "./oncall.routes.js";
 import { createOncallService, type OncallService } from "./oncall.service.js";
 
-export type { OncallService } from "./oncall.service.js";
+export type { OncallService, Shift } from "./oncall.service.js";
 
 export interface OncallModuleDeps {
-  infra: Pick<Infra, "db" | "clock">;
+  infra: Pick<Infra, "db" | "clock" | "config">;
   workspaces: WorkspacesService;
   guards: { session: RequestHandler; workspace: RequestHandler };
 }
@@ -27,6 +27,7 @@ export function createOncallModule(deps: OncallModuleDeps): OncallModule {
     workspaces: deps.workspaces,
     clock: deps.infra.clock,
     newId,
+    webOrigin: deps.infra.config.webOrigin,
   });
   return {
     name: "oncall",
@@ -36,6 +37,7 @@ export function createOncallModule(deps: OncallModuleDeps): OncallModule {
         path: "/api/w/:workspaceId",
         router: createOncallRouter(createOncallController(service), deps.guards),
       },
+      { path: "/api/oncall", router: createFeedRouter(service) },
     ],
   };
 }

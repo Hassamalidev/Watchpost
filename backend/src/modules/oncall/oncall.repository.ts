@@ -3,9 +3,11 @@ import { and, asc, eq, gt, inArray, lt, sql } from "drizzle-orm";
 import type { WorkspaceScope } from "../../core/workspace-scope.js";
 import { tenantWhere, withWorkspace, type DbOrTx } from "../../infra/db/index.js";
 import {
+  oncallFeeds,
   scheduleLayers,
   scheduleOverrides,
   schedules,
+  type OncallFeedRow,
   type ScheduleLayerRow,
   type ScheduleOverrideRow,
   type ScheduleRow,
@@ -121,6 +123,50 @@ export function createOncallRepository() {
           ),
         )
         .orderBy(asc(scheduleOverrides.startsAt), asc(scheduleOverrides.id));
+    },
+
+    async findFeed(
+      db: DbOrTx,
+      scope: WorkspaceScope,
+      userId: string,
+    ): Promise<OncallFeedRow | undefined> {
+      const rows = await db
+        .select()
+        .from(oncallFeeds)
+        .where(tenantWhere(scope, oncallFeeds, eq(oncallFeeds.userId, userId)))
+        .limit(1);
+      return rows[0];
+    },
+
+    /* Token URLs carry no workspace; the hash is unique across all of them. */
+    async findFeedByHash(db: DbOrTx, tokenHash: string): Promise<OncallFeedRow | undefined> {
+      const rows = await db
+        .select()
+        .from(oncallFeeds)
+        .where(eq(oncallFeeds.tokenHash, tokenHash))
+        .limit(1);
+      return rows[0];
+    },
+
+    /* One feed per person and workspace: a new token replaces the old one. */
+    async saveFeed(
+      db: DbOrTx,
+      scope: WorkspaceScope,
+      row: { id: string; userId: string; tokenHash: string },
+    ): Promise<void> {
+      await db
+        .insert(oncallFeeds)
+        .values(withWorkspace(scope, row))
+        .onConflictDoUpdate({
+          target: [oncallFeeds.workspaceId, oncallFeeds.userId],
+          set: { tokenHash: row.tokenHash, createdAt: sql`now()` },
+        });
+    },
+
+    async deleteFeed(db: DbOrTx, scope: WorkspaceScope, userId: string): Promise<void> {
+      await db
+        .delete(oncallFeeds)
+        .where(tenantWhere(scope, oncallFeeds, eq(oncallFeeds.userId, userId)));
     },
 
     async insertOverride(
