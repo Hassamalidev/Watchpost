@@ -449,6 +449,33 @@ export const EMAIL_TEMPLATES = {
     subject: (d: { subject: string }) => d.subject,
     component: AlertEmail,
   },
+  "contact-code": {
+    data: z.object({ code: z.string().regex(/^\d{6}$/), workspaceName: z.string() }),
+    subject: (d: { code: string }) => `${d.code} is your Watchpost code`,
+    component: (d: { code: string; workspaceName: string }) => (
+      <EmailLayout
+        preview={`Your code is ${d.code}`}
+        footer="You get this email because someone added this address as a contact method."
+      >
+        <Heading as="h1" className="wp-text" style={styles.heading}>
+          Confirm this address for alerts
+        </Heading>
+        <Text className="wp-text" style={styles.text}>
+          Enter this code in Watchpost to get {d.workspaceName} alerts at this address:
+        </Text>
+        <Text
+          className="wp-text"
+          style={{ ...styles.text, fontSize: "28px", fontWeight: 700, letterSpacing: "4px" }}
+        >
+          {d.code}
+        </Text>
+        <Text className="wp-muted" style={styles.muted}>
+          The code expires in 10 minutes. If you didn&apos;t ask for it, ignore this email and
+          nothing will be sent here.
+        </Text>
+      </EmailLayout>
+    ),
+  },
   "channel-failing": {
     data: z.object({
       workspaceName: z.string(),

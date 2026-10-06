@@ -46,6 +46,7 @@ const SAMPLES: Record<EmailTemplate, Record<string, unknown>> = {
       resolve: "https://app.example.com/a/resolve-token",
     },
   },
+  "contact-code": { code: "048213", workspaceName: "Acme" },
   "channel-failing": {
     workspaceName: "Acme",
     channelName: "Ops hook",

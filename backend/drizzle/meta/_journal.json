@@ -162,6 +162,13 @@
       "when": 1791210305029,
       "tag": "0022_maintenance_windows",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791282116798,
+      "tag": "0023_contacts",
+      "breakpoints": true
     }
   ]
 }

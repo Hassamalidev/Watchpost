@@ -28,6 +28,8 @@ export const WORKSPACE_STATEMENTS = {
   /* Integrations: alert channels, chat app installs, phone numbers. */
   channel: ["read", "manage"],
   deploy: ["read", "manage"],
+  /* Your own contact methods and notification rules; only people who can be paged have them. */
+  contact: ["manage"],
   /* read: plan, limits, usage and credits. manage: checkout, plan changes, cancel, portal. */
   billing: ["read", "manage"],
 } as const;
@@ -51,7 +53,7 @@ const VIEWER: readonly Permission[] = [
   "deploy:read",
   "billing:read",
 ];
-const RESPONDER: readonly Permission[] = [...VIEWER, "incident:respond"];
+const RESPONDER: readonly Permission[] = [...VIEWER, "incident:respond", "contact:manage"];
 const MEMBER: readonly Permission[] = [
   ...RESPONDER,
   "monitor:write",

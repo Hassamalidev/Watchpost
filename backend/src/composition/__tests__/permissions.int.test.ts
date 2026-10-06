@@ -49,7 +49,7 @@ describe("workspace route permissions", () => {
   const routes = workspaceRoutes();
 
   it("finds the workspace routes", () => {
-    expect(routes.length).toBeGreaterThanOrEqual(82);
+    expect(routes.length).toBeGreaterThanOrEqual(89);
   });
 
   it("guards every workspace route with exactly one known permission", () => {
@@ -65,6 +65,7 @@ describe("workspace route permissions", () => {
         "DELETE /alert-policies/:policyId → alertPolicy:write",
         "DELETE /channels/:channelId → channel:manage",
         "DELETE /maintenance-windows/:windowId → maintenance:write",
+        "DELETE /me/contact-methods/:methodId → contact:manage",
         "DELETE /monitor-groups/:groupId → monitor:write",
         "DELETE /monitors/:monitorId → monitor:write",
         "GET /alert-policies → alertPolicy:read",
@@ -93,6 +94,8 @@ describe("workspace route permissions", () => {
         "GET /maintenance-windows → maintenance:read",
         "GET /maintenance-windows/:windowId → maintenance:read",
         "GET /me → settings:read",
+        "GET /me/contact-methods → contact:manage",
+        "GET /me/notification-rules → contact:manage",
         "GET /members → roster:read",
         "GET /monitor-groups → monitor:read",
         "GET /monitor-states → monitor:read",
@@ -136,6 +139,9 @@ describe("workspace route permissions", () => {
         "POST /incidents/:incidentRef/resolve → incident:respond",
         "POST /incidents/drill → incident:drill",
         "POST /maintenance-windows → maintenance:write",
+        "POST /me/contact-methods → contact:manage",
+        "POST /me/contact-methods/:methodId/code → contact:manage",
+        "POST /me/contact-methods/:methodId/confirm → contact:manage",
         "POST /monitor-groups → monitor:write",
         "POST /monitors → monitor:write",
         "POST /monitors/:monitorId/pause → monitor:write",
@@ -144,6 +150,7 @@ describe("workspace route permissions", () => {
         "POST /phone-numbers/codes → channel:manage",
         "POST /phone-numbers/confirm → channel:manage",
         "PUT /alert-policies/default/channels/:channelId → alertPolicy:write",
+        "PUT /me/notification-rules/:urgency → contact:manage",
       ]
     `);
   });
