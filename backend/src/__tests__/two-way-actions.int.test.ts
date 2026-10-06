@@ -238,7 +238,7 @@ describe("alerts that can be answered", () => {
     expect(said).toMatchObject({ response_type: "ephemeral", replace_original: false });
     /* Sara hasn't linked her Slack user yet, so she is shown how. */
     expect(said.text).toMatch(
-      new RegExp(`^#${incident.number} resolved by Sara\. Link your Slack user .*link=`),
+      new RegExp(`^#${incident.number} resolved by Sara[.] Link your Slack user .*link=`),
     );
 
     await follow(incident.id, "resolved");
