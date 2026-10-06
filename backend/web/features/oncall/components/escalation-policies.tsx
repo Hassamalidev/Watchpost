@@ -233,10 +233,11 @@ export function EscalationPolicies({ schedules }: { schedules: ScheduleSummary[]
   const route = (routes.data ?? []).find((r) => r.isDefault);
   const current = route?.rules.escalationPolicyId ?? null;
   const link = useMutation({
+    /* One setting, set on the server: the route's channels are never re-sent from this page. */
     mutationFn: (policyId: string | null) =>
-      api(wsPath(ws, `/alert-policies/${route?.id ?? ""}`), {
-        method: "PATCH",
-        body: { rules: { ...route?.rules, escalationPolicyId: policyId } },
+      api(wsPath(ws, "/alert-policies/default/escalation"), {
+        method: "PUT",
+        body: { escalationPolicyId: policyId },
       }),
     onSuccess: () => client.invalidateQueries({ queryKey: keys.routes(ws) }),
   });

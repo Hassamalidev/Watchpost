@@ -26,6 +26,7 @@ export type OncallController = Record<
   | "removeOverride"
   | "onCall"
   | "timeline"
+  | "mine"
   | "feed"
   | "rotateFeed"
   | "removeFeed"
@@ -96,6 +97,9 @@ export function createOncallController(service: OncallService): OncallController
       const { params } = inputOf<{ params: typeof policyIdParams }>(req, res);
       await service.deleteEscalationPolicy(scopeOf(req, res), params.policyId);
       res.status(204).end();
+    },
+    mine: async (req, res) => {
+      res.json(await service.mine(scopeOf(req, res)));
     },
     feed: async (req, res) => {
       res.json(await service.feed(scopeOf(req, res)));

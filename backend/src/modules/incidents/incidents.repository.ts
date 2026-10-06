@@ -166,6 +166,45 @@ export function createIncidentsRepository() {
         .groupBy(incidents.monitorId);
     },
 
+    /* Incidents that started in [from, to), newest first (drills and expiry warnings left out). */
+    async startedBetween(
+      tx: DbOrTx,
+      workspaceId: string,
+      from: Date,
+      to: Date,
+      limit: number,
+    ): Promise<IncidentRow[]> {
+      return tx
+        .select()
+        .from(incidents)
+        .where(
+          and(
+            eq(incidents.workspaceId, workspaceId),
+            notInArray(incidents.source, ["expiry", "drill"]),
+            sql`${incidents.startedAt} >= ${from.toISOString()}::timestamptz`,
+            sql`${incidents.startedAt} < ${to.toISOString()}::timestamptz`,
+          ),
+        )
+        .orderBy(desc(incidents.startedAt))
+        .limit(limit);
+    },
+
+    /* Incidents nobody has resolved yet, oldest first. */
+    async stillOpen(tx: DbOrTx, workspaceId: string, limit: number): Promise<IncidentRow[]> {
+      return tx
+        .select()
+        .from(incidents)
+        .where(
+          and(
+            eq(incidents.workspaceId, workspaceId),
+            ne(incidents.status, "resolved"),
+            notInArray(incidents.source, ["expiry", "drill"]),
+          ),
+        )
+        .orderBy(asc(incidents.startedAt))
+        .limit(limit);
+    },
+
     async stats(tx: DbOrTx, workspaceId: string, from: Date, to: Date) {
       const [row] = await tx
         .select({

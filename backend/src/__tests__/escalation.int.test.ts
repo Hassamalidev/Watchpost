@@ -109,14 +109,12 @@ beforeAll(async () => {
   expect(view.steps[1]?.targets[0]).toMatchObject({ type: "schedule", name: "Backup" });
 
   /* The default alert route pages through the policy. */
-  const routes = await api(alice, "get", "/alert-policies");
-  const route = (routes.body.data as { id: string; isDefault: boolean; rules: object }[]).find(
-    (p) => p.isDefault,
-  );
-  const linked = await api(alice, "patch", `/alert-policies/${route?.id}`).send({
-    rules: { ...route?.rules, escalationPolicyId: policyId },
-  });
+  const linked = await alice
+    .put(`/api/w/${ws}/alert-policies/default/escalation`)
+    .set("Origin", WEB_ORIGIN)
+    .send({ escalationPolicyId: policyId });
   expect(linked.status, linked.text).toBe(200);
+  expect(linked.body.rules.escalationPolicyId).toBe(policyId);
 }, 120_000);
 
 afterAll(async () => {
@@ -252,13 +250,26 @@ describe("an escalating incident", () => {
   });
 
   it("doesn't escalate when the alert route names no policy", async () => {
-    const routes = await api(alice, "get", "/alert-policies");
-    const route = (routes.body.data as { id: string; isDefault: boolean; rules: object }[]).find(
-      (p) => p.isDefault,
+    const setEscalation = (body: object, agent = alice) =>
+      agent
+        .put(`/api/w/${ws}/alert-policies/default/escalation`)
+        .set("Origin", WEB_ORIGIN)
+        .send(body);
+    /* Only admins choose it, an unknown policy is refused, and the channels stay as they were. */
+    expect((await setEscalation({ escalationPolicyId: policyId }, bob)).status).toBe(403);
+    expect(
+      (await setEscalation({ escalationPolicyId: "0190e2e0-0000-7000-8000-00000000ffff" })).status,
+    ).toBe(404);
+    const before = (await api(alice, "get", "/alert-policies")).body.data as {
+      isDefault: boolean;
+      rules: { channelIds: string[] };
+    }[];
+    const cleared = await setEscalation({ escalationPolicyId: null });
+    expect(cleared.status, cleared.text).toBe(200);
+    expect(cleared.body.rules.channelIds).toEqual(
+      before.find((p) => p.isDefault)?.rules.channelIds,
     );
-    await api(alice, "patch", `/alert-policies/${route?.id}`).send({
-      rules: { ...route?.rules, escalationPolicyId: null },
-    });
+    expect(cleared.body.rules.escalationPolicyId).toBeNull();
     const created = await api(alice, "post", "/incidents").send({
       title: "Quiet",
       severity: "high",

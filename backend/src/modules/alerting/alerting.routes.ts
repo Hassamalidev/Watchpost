@@ -8,6 +8,7 @@ import { validate } from "../../middleware/validate.js";
 import type { AlertingController } from "./alerting.controller.js";
 import {
   channelIdParams,
+  defaultEscalationBody,
   createPolicyBody,
   incidentIdParams,
   policyIdParams,
@@ -31,6 +32,13 @@ export function createAlertingRouter(
     admin,
     validate({ params: channelIdParams }),
     controller.routeToDefault,
+  );
+  /* Which escalation policy the default route pages through: one setting, changed atomically. */
+  router.put(
+    "/alert-policies/default/escalation",
+    admin,
+    validate({ body: defaultEscalationBody }),
+    controller.setDefaultEscalation,
   );
   router.patch(
     "/alert-policies/:policyId",

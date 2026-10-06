@@ -33,6 +33,7 @@ import type {
   IncidentEventRow,
   IncidentRow,
   IncidentSeverity,
+  IncidentStatus,
 } from "./schema/incidents.js";
 
 export interface OpenForMonitorInput {
@@ -179,6 +180,24 @@ export interface InboundIncidentInput {
   evidence: Record<string, unknown>;
 }
 
+/* An incident in one line, for a handoff report. */
+export interface IncidentBrief {
+  number: number;
+  title: string;
+  severity: IncidentSeverity;
+  status: IncidentStatus;
+  startedAt: string;
+}
+
+export interface ShiftReport {
+  /* Incidents that started during the shift, newest first. */
+  started: IncidentBrief[];
+  /* How many of those are resolved. */
+  resolved: number;
+  /* Everything still open when the shift ended: what the next person inherits. */
+  open: IncidentBrief[];
+}
+
 export interface IncidentSummary {
   days: number;
   incidents: number;
@@ -265,6 +284,8 @@ export interface IncidentsService {
     from: Date,
     to: Date,
   ): Promise<{ opened: number; resolved: number; mttrMinutes: number | null }>;
+  /* System: what happened in a workspace between two moments, for an on-call handoff. */
+  shiftReport(workspaceId: string, from: Date, to: Date): Promise<ShiftReport>;
   /* System: IDs of open incidents, paged by ID (reminder recovery). */
   openIncidentIds(options: { afterId?: string; limit: number }): Promise<string[]>;
   /* System: a timeline entry written by the platform (for example `delivery_failed`). */
@@ -706,6 +727,25 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
       if (open === undefined) return false;
       await markResolved(tx, open, { auto: true });
       return true;
+    },
+
+    async shiftReport(workspaceId, from, to) {
+      const brief = (row: IncidentRow): IncidentBrief => ({
+        number: row.number,
+        title: row.title,
+        severity: row.severity,
+        status: row.status,
+        startedAt: row.startedAt.toISOString(),
+      });
+      const [started, open] = await Promise.all([
+        repo.startedBetween(deps.db, workspaceId, from, to, 50),
+        repo.stillOpen(deps.db, workspaceId, 20),
+      ]);
+      return {
+        started: started.map(brief),
+        resolved: started.filter((row) => row.status === "resolved").length,
+        open: open.map(brief),
+      };
     },
 
     async addSystemEvent(incidentId, type, data) {

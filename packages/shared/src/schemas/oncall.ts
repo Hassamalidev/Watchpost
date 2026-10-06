@@ -191,3 +191,20 @@ export interface IncidentEscalationView {
   /* Why it stopped: someone took the incident, it was resolved, or every step ran. */
   finished: "acknowledged" | "resolved" | "exhausted" | null;
 }
+
+/* One stretch during which you are on call for a schedule. */
+export interface MyShiftView {
+  scheduleId: string;
+  scheduleName: string;
+  timezone: string;
+  startsAt: string;
+  endsAt: string;
+  source: "override" | "layer";
+}
+
+export interface MyOnCallView {
+  /* Shifts you are in right now. */
+  current: MyShiftView[];
+  /* Your next shifts in the coming five weeks, soonest first. */
+  upcoming: MyShiftView[];
+}

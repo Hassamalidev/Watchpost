@@ -19,6 +19,7 @@ import { api, errorMessage, wsPath } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import { workspaceHref } from "@/lib/navigation";
 import { EscalationPolicies } from "./escalation-policies";
+import { MyOnCall } from "./my-on-call";
 import { ScheduleForm } from "./schedule-form";
 
 export const oncallKeys = {
@@ -108,6 +109,7 @@ export function OnCallPage() {
     onSuccess: async () => {
       setAdding(false);
       await client.invalidateQueries({ queryKey: oncallKeys.list(ws) });
+      await client.invalidateQueries({ queryKey: ["my-on-call", ws] });
     },
   });
 
@@ -124,6 +126,8 @@ export function OnCallPage() {
           </Button>
         )}
       </div>
+
+      {can(workspace.role, "contact:manage") && <MyOnCall ws={ws} />}
 
       {adding && (
         <Card>

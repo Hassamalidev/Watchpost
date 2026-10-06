@@ -9,6 +9,7 @@ import {
   type CreateEscalationPolicyInput,
   type CreateOverrideInput,
   type CreateScheduleInput,
+  type MyOnCallView,
   type EscalationPolicyView,
   type EscalationStep,
   type UpdateEscalationPolicyInput,
@@ -28,6 +29,7 @@ import { createWorkspaceScope, type WorkspaceScope } from "../../core/workspace-
 import type { Db } from "../../infra/db/index.js";
 import type { Outbox } from "../../infra/outbox/index.js";
 import type { ContactsService } from "../contacts/index.js";
+import type { IncidentsService } from "../incidents/index.js";
 import type { WorkspacesService } from "../workspaces/index.js";
 import {
   isTimezone,
@@ -107,6 +109,8 @@ export interface OncallService {
     scope: WorkspaceScope,
     id: string,
   ): Promise<EscalationPolicyDefinition | undefined>;
+  /* The acting user's own shifts: the ones they are in now, and the next five weeks. */
+  mine(scope: WorkspaceScope): Promise<MyOnCallView>;
   /* Whether the acting user has a calendar feed, and since when. */
   feed(scope: WorkspaceScope): Promise<{ exists: boolean; createdAt: string | null }>;
   /* Creates the acting user's feed URL, or replaces it; the URL is shown this once. */
@@ -132,6 +136,8 @@ export interface OncallServiceDeps {
   /* Where a person wants to hear things; optional so tests can build schedules without it. */
   contacts?: Pick<ContactsService, "fanOut"> | undefined;
   outbox?: Outbox | undefined;
+  /* What happened during a shift, for the handoff report; optional like contacts. */
+  incidents?: Pick<IncidentsService, "shiftReport"> | undefined;
   clock: Clock;
   newId: () => string;
   /* Where the API is reached from outside, for feed URLs. */
@@ -477,6 +483,33 @@ export function createOncallService(deps: OncallServiceDeps): OncallService {
         : { id: row.id, name: row.name, repeat: row.repeat, steps: row.steps };
     },
 
+    async mine(scope) {
+      if (scope.actorUserId === undefined) return { current: [], upcoming: [] };
+      const now = clock.now();
+      const shifts = await service.shiftsOf(
+        scope,
+        scope.actorUserId,
+        now,
+        new Date(now.getTime() + NEXT_HORIZON_MS),
+      );
+      const zones = new Map(
+        (await repo.listSchedules(deps.db, scope)).map((r) => [r.id, r.timezone] as const),
+      );
+      const views = shifts.map((shift) => ({
+        scheduleId: shift.scheduleId,
+        scheduleName: shift.scheduleName,
+        timezone: zones.get(shift.scheduleId) ?? "UTC",
+        startsAt: shift.startsAt.toISOString(),
+        endsAt: shift.endsAt.toISOString(),
+        source: shift.source,
+      }));
+      /* A shift that has begun starts at "now" in this window. */
+      return {
+        current: views.filter((v) => Date.parse(v.startsAt) <= now.getTime()),
+        upcoming: views.filter((v) => Date.parse(v.startsAt) > now.getTime()).slice(0, 10),
+      };
+    },
+
     async feed(scope) {
       if (scope.actorUserId === undefined) return { exists: false, createdAt: null };
       const row = await repo.findFeed(deps.db, scope, scope.actorUserId);
@@ -598,6 +631,39 @@ export function createOncallService(deps: OncallServiceDeps): OncallService {
                 ? []
                 : [{ userId: leaving, kind: "end" as const, other: arriving, until: undefined }]),
             ];
+            /*
+             * The handoff report (§6.5): what happened while the person leaving was on call, and
+             * what is still open. Both people get it: one to close their shift, one to start theirs.
+             */
+            let report:
+              | {
+                  from: string;
+                  started: number;
+                  resolved: number;
+                  open: { number: number; title: string }[];
+                }
+              | undefined;
+            if (leaving !== undefined && deps.incidents !== undefined) {
+              /* The lookback window may cut the shift; its real start is found further back. */
+              const earlier = engineTimeline(
+                engineOf(row, layers, overrides),
+                new Date(at.getTime() - NEXT_HORIZON_MS),
+                at,
+              );
+              const from =
+                earlier.at(-1)?.onCall?.userId === leaving ? earlier.at(-1)?.startsAt : undefined;
+              const summary = await deps.incidents.shiftReport(
+                workspaceId,
+                from ?? before.startsAt,
+                at,
+              );
+              report = {
+                from: (from ?? before.startsAt).toISOString(),
+                started: summary.started.length,
+                resolved: summary.resolved,
+                open: summary.open.slice(0, 10).map((i) => ({ number: i.number, title: i.title })),
+              };
+            }
             for (const notice of notices) {
               const steps = (await contacts.fanOut(scope, notice.userId, "low", at)).filter(
                 (step) => step.type === "email",
@@ -630,6 +696,8 @@ export function createOncallService(deps: OncallServiceDeps): OncallService {
                         ...(notice.other === undefined
                           ? {}
                           : { otherName: person(notice.other).name ?? "A former member" }),
+                        ...(report === undefined ? {} : { report }),
+                        incidentsUrl: `${deps.webOrigin}/w/${workspaceId}/incidents`,
                         url: `${deps.webOrigin}/w/${workspaceId}/on-call/${row.id}`,
                       },
                       idempotencyKey: `shift.${row.id}.${notice.userId}.${notice.kind}.${at.getTime()}.${step.contactMethodId}`,

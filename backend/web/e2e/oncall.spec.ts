@@ -43,8 +43,14 @@ test("an admin builds a schedule and sees who is on call", async ({ page }, test
   await noAxeViolations(page);
   await page.getByRole("button", { name: "Create schedule" }).click();
 
-  const row = page.getByRole("listitem").filter({ hasText: name });
+  const row = page
+    .getByRole("region", { name: "Schedules" })
+    .getByRole("listitem")
+    .filter({ hasText: name });
   await expect(row).toContainText("On call now:");
+  /* The person who was just put on the schedule sees it under My on-call. */
+  const mine = page.getByRole("list", { name: "On call now" });
+  await expect(mine.getByRole("link", { name })).toBeVisible();
   await row.getByRole("link", { name }).click();
 
   await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
@@ -70,16 +76,24 @@ test("an admin builds a schedule and sees who is on call", async ({ page }, test
   await expect(page.getByRole("heading", { level: 1, name: `${name} v2` })).toBeVisible();
 
   await page.getByRole("link", { name: "All schedules" }).click();
-  await expect(page.getByRole("link", { name: `${name} v2` })).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Schedules" }).getByRole("link", { name: `${name} v2` }),
+  ).toBeVisible();
 });
 
-test("a member creates their private calendar link", async ({ page, request }) => {
+test("a member creates their private calendar link", async ({ page, request }, testInfo) => {
+  /* Each person has one link; a second run at the same time would replace it under this one. */
+  test.skip(testInfo.project.name !== "light", "one link per person");
+  /* Give it room next to the heavier tests on a busy runner. */
+  test.setTimeout(90_000);
   await page.goto(`/w/${workspace()}/on-call`);
   await expect(page.getByRole("heading", { name: "Your on-call calendar" })).toBeVisible();
   const create = page.getByRole("button", { name: /Create my calendar link|Replace the link/ });
   await create.click();
   const link = page.getByRole("textbox", { name: "Calendar link" });
-  await expect(link).toHaveValue(/\/api\/oncall\/ical\/[A-Za-z0-9_-]+\.ics$/);
+  await expect(link).toHaveValue(/\/api\/oncall\/ical\/[A-Za-z0-9_-]+\.ics$/, {
+    timeout: 45_000,
+  });
   await noAxeViolations(page);
 
   /* The link works without a session, as a calendar app would fetch it. */

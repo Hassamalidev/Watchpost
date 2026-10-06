@@ -31,7 +31,7 @@ export function createOncallRouter(
   const override = requirePermission("schedule:override");
   const id = validate({ params: scheduleIdParams });
   router.use(
-    ["/schedules", "/escalation-policies", "/me/oncall-feed"],
+    ["/schedules", "/escalation-policies", "/me/oncall-feed", "/me/on-call"],
     guards.session,
     guards.workspace,
   );
@@ -59,6 +59,7 @@ export function createOncallRouter(
 
   /* Your own calendar feed: for everyone who can be on call. */
   const own = requirePermission("contact:manage");
+  router.get("/me/on-call", own, controller.mine);
   router.get("/me/oncall-feed", own, controller.feed);
   router.post("/me/oncall-feed", own, controller.rotateFeed);
   router.delete("/me/oncall-feed", own, controller.removeFeed);

@@ -4,6 +4,7 @@ import { inputOf } from "../../middleware/validate.js";
 import { scopeOf } from "../../middleware/workspace.js";
 import type { AlertingService } from "./alerting.service.js";
 import type {
+  defaultEscalationBody,
   channelIdParams,
   createPolicyBody,
   incidentIdParams,
@@ -17,6 +18,7 @@ export type AlertingController = Record<
   | "update"
   | "remove"
   | "routeToDefault"
+  | "setDefaultEscalation"
   | "sendTest"
   | "deliveries"
   | "escalation"
@@ -51,6 +53,10 @@ export function createAlertingController(service: AlertingService): AlertingCont
     deliveries: async (req, res) => {
       const { params } = inputOf<{ params: typeof incidentIdParams }>(req, res);
       res.json({ data: await service.deliveryLog(scopeOf(req, res), params.incidentId) });
+    },
+    setDefaultEscalation: async (req, res) => {
+      const { body } = inputOf<{ body: typeof defaultEscalationBody }>(req, res);
+      res.json(await service.setDefaultEscalation(scopeOf(req, res), body.escalationPolicyId));
     },
     routeToDefault: async (req, res) => {
       const { params } = inputOf<{ params: typeof channelIdParams }>(req, res);

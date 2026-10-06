@@ -105,6 +105,14 @@ export interface AlertingService {
    * idempotent: two admins adding channels at once both end up routed.
    */
   routeToDefault(scope: WorkspaceScope, channelId: string): Promise<AlertPolicyView>;
+  /*
+   * Says which escalation policy the default route pages through (null: channels only). Atomic like
+   * `routeToDefault`: it changes that one setting and never the channels someone else just added.
+   */
+  setDefaultEscalation(
+    scope: WorkspaceScope,
+    escalationPolicyId: string | null,
+  ): Promise<AlertPolicyView>;
   /* Creates the workspace's default policy once (workspace.created). */
   ensureDefaultPolicy(workspaceId: string): Promise<boolean>;
 
@@ -505,6 +513,22 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
         }
         const row = await repo.updatePolicy(tx, scope, policy.id, {
           rules: { ...policy.rules, channelIds: [...live, channelId] },
+        });
+        return toPolicy(row ?? policy);
+      });
+    },
+
+    async setDefaultEscalation(scope, escalationPolicyId) {
+      if (escalationPolicyId !== null) {
+        const exists = await deps.oncall?.escalationPolicy(scope, escalationPolicyId);
+        if (exists === undefined) throw new NotFoundError("Escalation policy not found.");
+      }
+      await service.ensureDefaultPolicy(scope.workspaceId);
+      return deps.db.transaction(async (tx) => {
+        const policy = await repo.findDefaultPolicy(tx, scope, true);
+        if (policy === undefined) throw new NotFoundError("Alert policy not found.");
+        const row = await repo.updatePolicy(tx, scope, policy.id, {
+          rules: { ...policy.rules, escalationPolicyId },
         });
         return toPolicy(row ?? policy);
       });

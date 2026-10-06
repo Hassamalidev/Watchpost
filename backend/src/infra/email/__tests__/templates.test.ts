@@ -55,6 +55,13 @@ const SAMPLES: Record<EmailTemplate, Record<string, unknown>> = {
     at: "2026-10-12T07:00:00.000Z",
     until: "2026-10-19T07:00:00.000Z",
     otherName: "Sara",
+    report: {
+      from: "2026-10-05T07:00:00.000Z",
+      started: 3,
+      resolved: 2,
+      open: [{ number: 482, title: "Checkout API is down" }],
+    },
+    incidentsUrl: "https://app.example.com/w/1/incidents",
     url: "https://app.example.com/w/1/on-call/2",
   },
   "channel-failing": {

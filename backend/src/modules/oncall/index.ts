@@ -3,6 +3,7 @@ import type { RequestHandler } from "express";
 import type { AppModule, Infra } from "../../composition/types.js";
 import { newId } from "../../infra/ids.js";
 import type { ContactsService } from "../contacts/index.js";
+import type { IncidentsService } from "../incidents/index.js";
 import type { WorkspacesService } from "../workspaces/index.js";
 import { createOncallController } from "./oncall.controller.js";
 import { createOncallRepository } from "./oncall.repository.js";
@@ -17,6 +18,8 @@ export interface OncallModuleDeps {
   workspaces: WorkspacesService;
   /* For shift start and end notices; optional so tests can build schedules without it. */
   contacts?: Pick<ContactsService, "fanOut">;
+  /* For the handoff report at shift end. */
+  incidents?: Pick<IncidentsService, "shiftReport">;
   guards: { session: RequestHandler; workspace: RequestHandler };
 }
 
@@ -30,6 +33,7 @@ export function createOncallModule(deps: OncallModuleDeps): OncallModule {
     repository: createOncallRepository(),
     workspaces: deps.workspaces,
     contacts: deps.contacts,
+    incidents: deps.incidents,
     outbox: deps.infra.outbox,
     clock: deps.infra.clock,
     newId,

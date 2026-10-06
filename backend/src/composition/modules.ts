@@ -122,6 +122,7 @@ export function createModules(infra: Infra): AppModule[] {
     infra,
     workspaces: workspaces.service,
     contacts: contacts.service,
+    incidents: incidents.service,
     guards: workspaces.guards,
   });
   modules.push(oncall);

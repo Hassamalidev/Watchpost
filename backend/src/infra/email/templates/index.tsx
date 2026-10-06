@@ -485,12 +485,24 @@ export const EMAIL_TEMPLATES = {
       at: z.iso.datetime({ offset: true }),
       until: z.iso.datetime({ offset: true }).optional(),
       otherName: z.string().optional(),
+      /* The handoff report: what happened during the shift that just ended. */
+      report: z
+        .object({
+          from: z.iso.datetime({ offset: true }),
+          started: z.number().int().min(0),
+          resolved: z.number().int().min(0),
+          open: z.array(z.object({ number: z.number().int(), title: z.string() })).max(10),
+        })
+        .optional(),
+      incidentsUrl: z.url().optional(),
       url,
     }),
-    subject: (d: { kind: "start" | "end"; scheduleName: string }) =>
+    subject: (d: { kind: "start" | "end"; scheduleName: string; report?: unknown }) =>
       d.kind === "start"
         ? `You are on call for ${d.scheduleName}`
-        : `Your on-call shift for ${d.scheduleName} has ended`,
+        : d.report === undefined
+          ? `Your on-call shift for ${d.scheduleName} has ended`
+          : `Handoff report: your shift for ${d.scheduleName} has ended`,
     component: (d: {
       kind: "start" | "end";
       scheduleName: string;
@@ -499,6 +511,15 @@ export const EMAIL_TEMPLATES = {
       at: string;
       until?: string | undefined;
       otherName?: string | undefined;
+      report?:
+        | {
+            from: string;
+            started: number;
+            resolved: number;
+            open: { number: number; title: string }[];
+          }
+        | undefined;
+      incidentsUrl?: string | undefined;
       url: string;
     }) => {
       const when = (iso: string) =>
@@ -536,7 +557,39 @@ export const EMAIL_TEMPLATES = {
                 : `${d.otherName} is on call now.`}
             </Text>
           )}
-          <Action href={d.url}>Open the schedule</Action>
+          {d.report !== undefined && (
+            <>
+              <Heading as="h2" className="wp-text" style={{ ...styles.heading, fontSize: "16px" }}>
+                {d.kind === "end" ? "Your shift in short" : "What you are taking over"}
+              </Heading>
+              <Text className="wp-text" style={styles.text}>
+                {d.report.started === 0
+                  ? `No incidents since ${when(d.report.from)}.`
+                  : `${d.report.started} incident${d.report.started === 1 ? "" : "s"} since ${when(
+                      d.report.from,
+                    )}, ${d.report.resolved} resolved.`}
+              </Text>
+              {d.report.open.length === 0 ? (
+                <Text className="wp-text" style={styles.text}>
+                  Nothing is open right now.
+                </Text>
+              ) : (
+                <>
+                  <Text className="wp-text" style={{ ...styles.text, fontWeight: 700 }}>
+                    Still open:
+                  </Text>
+                  {d.report.open.map((incident) => (
+                    <Text key={incident.number} className="wp-text" style={styles.text}>
+                      #{incident.number} {incident.title}
+                    </Text>
+                  ))}
+                </>
+              )}
+            </>
+          )}
+          <Action href={d.report !== undefined && d.incidentsUrl ? d.incidentsUrl : d.url}>
+            {d.report !== undefined && d.incidentsUrl ? "Open incidents" : "Open the schedule"}
+          </Action>
           <Fallback href={d.url} />
         </EmailLayout>
       );

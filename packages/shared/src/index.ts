@@ -64,6 +64,8 @@ export {
   type EscalationTargetType,
   type EscalationTargetView,
   type IncidentEscalationView,
+  type MyOnCallView,
+  type MyShiftView,
   type UpdateEscalationPolicyInput,
   MAX_RESTRICTIONS,
   MAX_TIMELINE_DAYS,

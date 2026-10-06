@@ -33,10 +33,15 @@ const oncall = () =>
 const api = (agent: TestAgent, method: "get" | "post", path: string) =>
   agent[method](`/api/w/${ws}${path}`).set("Origin", WEB_ORIGIN);
 
-async function notices(to: string): Promise<{ kind: string; at: string; otherName?: string }[]> {
-  const rows = await ctx.container.infra.pool.query<{
-    data: { kind: string; at: string; otherName?: string };
-  }>(
+interface Notice {
+  kind: string;
+  at: string;
+  otherName?: string;
+  report?: { from: string; started: number; resolved: number; open: { title: string }[] };
+}
+
+async function notices(to: string): Promise<Notice[]> {
+  const rows = await ctx.container.infra.pool.query<{ data: Notice }>(
     `select payload->'data' as data from outbox_events
      where type = 'email.requested' and payload->>'to' = $1 and payload->>'template' = 'shift-notice'
      order by created_at`,
@@ -96,6 +101,41 @@ describe("shift notices", () => {
     expect(await kinds(bobEmail)).toEqual([]);
   });
 
+  it("shows each person their own shifts: the one they are in, and the next ones", async () => {
+    const mine = await api(alice, "get", "/me/on-call");
+    expect(mine.status, mine.text).toBe(200);
+    expect(mine.body.current).toEqual([
+      expect.objectContaining({
+        scheduleName: "Primary",
+        endsAt: "2026-10-12T09:00:00.000Z",
+        source: "layer",
+      }),
+    ]);
+    expect((mine.body.upcoming as { startsAt: string }[]).map((s) => s.startsAt)).toEqual([
+      "2026-10-19T09:00:00.000Z",
+      "2026-11-02T09:00:00.000Z",
+    ]);
+    const theirs = await api(bob, "get", "/me/on-call");
+    expect(theirs.body.current).toEqual([]);
+    expect(theirs.body.upcoming[0]).toMatchObject({ startsAt: "2026-10-12T09:00:00.000Z" });
+  });
+
+  it("opens two incidents during the shift, and resolves one", async () => {
+    const first = await api(alice, "post", "/incidents").send({
+      title: "Checkout down",
+      severity: "critical",
+    });
+    expect(first.status, first.text).toBe(201);
+    clock.advance(20 * 60_000);
+    const resolved = await api(alice, "post", `/incidents/${first.body.number}/resolve`);
+    expect(resolved.status, resolved.text).toBe(200);
+    const second = await api(alice, "post", "/incidents").send({
+      title: "Search is slow",
+      severity: "high",
+    });
+    expect(second.status, second.text).toBe(201);
+  });
+
   it("tells both people at the handoff, once", async () => {
     clock.set("2026-10-12T09:00:30Z");
     await oncall().notifyShifts();
@@ -105,6 +145,17 @@ describe("shift notices", () => {
     const [started] = await notices(bobEmail);
     expect(started).toMatchObject({ scheduleName: "Primary", until: "2026-10-19T09:00:00.000Z" });
     expect(started?.otherName).toBeTruthy();
+
+    /* The handoff report: Alice's whole shift, counted from its real start a week ago. */
+    const [ended] = await notices(aliceEmail);
+    expect(ended?.report).toEqual({
+      from: "2026-10-05T09:00:00.000Z",
+      started: 2,
+      resolved: 1,
+      open: [expect.objectContaining({ title: "Search is slow" })],
+    });
+    /* Bob starts knowing what is still open. */
+    expect(started?.report?.open.map((i) => i.title)).toEqual(["Search is slow"]);
 
     /* The sweep runs every minute and looks half an hour back; nothing is said twice. */
     clock.advance(60_000);

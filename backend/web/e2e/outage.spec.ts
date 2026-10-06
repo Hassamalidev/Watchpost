@@ -26,12 +26,24 @@ async function switchTarget(page: Page, state: "ok" | "fail") {
   expect(res.ok()).toBe(true);
 }
 
-/* This workspace's hooks only: monitors left by earlier local runs may alert to the same receiver. */
+/*
+ * This workspace's hooks about this test's incident only: monitors left by earlier local runs may
+ * alert to the same receiver, and other tests open incidents in the same workspace.
+ */
+const INCIDENT_TITLE = "Checkout is down";
 async function hooksOfType(page: Page, type: string): Promise<Hook[]> {
   const hooks = (await (await page.request.get(`${RECEIVER}/hooks`)).json()) as Hook[];
   return hooks.filter((h) => {
-    const body = JSON.parse(h.body) as { type: string; workspace?: { id: string } };
-    return body.type === type && body.workspace?.id === workspace();
+    const body = JSON.parse(h.body) as {
+      type: string;
+      workspace?: { id: string };
+      incident?: { title?: string };
+    };
+    return (
+      body.type === type &&
+      body.workspace?.id === workspace() &&
+      body.incident?.title === INCIDENT_TITLE
+    );
   });
 }
 

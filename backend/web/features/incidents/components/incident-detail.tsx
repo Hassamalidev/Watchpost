@@ -101,7 +101,14 @@ export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
       </div>
 
       {canRespond && (
-        <div className="flex flex-wrap gap-2">
+        <div
+          role="toolbar"
+          aria-label={t("commandBar", { number: data.number })}
+          className="sticky top-0 z-10 -mx-2 flex flex-wrap items-center gap-2 border-b bg-background/95 px-2 py-2 backdrop-blur"
+        >
+          <span className="mr-1 text-sm font-medium text-muted-foreground">
+            #{data.number} · {t(`statuses.${data.status}`)}
+          </span>
           {data.status === "triggered" && (
             <Button
               className="h-11 px-6"

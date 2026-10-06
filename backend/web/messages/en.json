@@ -287,7 +287,8 @@
       "bodyStart": "Start of the response body",
       "expired": "The stored evidence for this region is no longer available. It is kept for 30 days.",
       "note": "Recorded when the incident opened and kept privately for 30 days."
-    }
+    },
+    "commandBar": "Actions for incident #{number}"
   },
   "integrations": {
     "title": "Integrations",
@@ -922,6 +923,17 @@
         "resolved": "Stopped: the incident is resolved.",
         "exhausted": "Every step has run. Nobody else will be paged."
       }
+    },
+    "mine": {
+      "title": "My on-call",
+      "notNow": "You are not on call right now.",
+      "now": "On call now",
+      "onCallFor": "You are on call for",
+      "until": "until {time}.",
+      "untilOverride": "by override until {time}.",
+      "next": "Your next shifts",
+      "noUpcoming": "No shifts in the next five weeks.",
+      "hint": "Times are in your own time zone. When a shift ends you get a handoff report by email: what happened and what is still open."
     }
   },
   "imports": {

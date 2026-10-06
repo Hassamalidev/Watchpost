@@ -49,7 +49,7 @@ describe("workspace route permissions", () => {
   const routes = workspaceRoutes();
 
   it("finds the workspace routes", () => {
-    expect(routes.length).toBeGreaterThanOrEqual(120);
+    expect(routes.length).toBeGreaterThanOrEqual(122);
   });
 
   it("guards every workspace route with exactly one known permission", () => {
@@ -108,6 +108,7 @@ describe("workspace route permissions", () => {
         "GET /me/chat-links/preview → contact:manage",
         "GET /me/contact-methods → contact:manage",
         "GET /me/notification-rules → contact:manage",
+        "GET /me/on-call → contact:manage",
         "GET /me/oncall-feed → contact:manage",
         "GET /me/push → contact:manage",
         "GET /members → roster:read",
@@ -181,6 +182,7 @@ describe("workspace route permissions", () => {
         "POST /schedules → schedule:write",
         "POST /schedules/:scheduleId/overrides → schedule:override",
         "PUT /alert-policies/default/channels/:channelId → alertPolicy:write",
+        "PUT /alert-policies/default/escalation → alertPolicy:write",
         "PUT /me/notification-rules/:urgency → contact:manage",
       ]
     `);
