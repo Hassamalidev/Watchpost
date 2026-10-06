@@ -166,7 +166,7 @@ export interface AlertingServiceDeps {
     "existing" | "deliver" | "deliverDirect" | "markFailing" | "summary" | "retryPolicy"
   >;
   /* Personal rules; optional so tests can build alerting without contacts. */
-  contacts?: Pick<ContactsService, "fanOut"> | undefined;
+  contacts?: Pick<ContactsService, "fanOut" | "pushSubscription" | "dropPush"> | undefined;
   /* Escalation policies and who is on call; optional so tests can build alerting without them. */
   oncall?: Pick<OncallService, "escalationPolicy" | "whoIsOnCall"> | undefined;
   workspaces: Pick<WorkspacesService, "listMembers" | "workspaceName">;
@@ -253,7 +253,13 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
     delivery: Pick<DeliveryRow, "userId" | "contactType">,
   ): Promise<string> {
     const name = (await memberName(workspaceId, delivery.userId)) ?? "A former member";
-    return `${name} (${delivery.contactType === "sms" ? "SMS" : (delivery.contactType ?? "email")})`;
+    const how =
+      delivery.contactType === "sms"
+        ? "SMS"
+        : delivery.contactType === "push"
+          ? "device"
+          : (delivery.contactType ?? "email");
+    return `${name} (${how})`;
   }
 
   function eventFor(
@@ -710,8 +716,12 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
           kind: "triggered" as const,
           actorName: null,
           /* A text or a call that arrives late is noise; they retry like their channels do. */
-          maxAttempts: deps.channels.retryPolicy(step.type)?.attempts ?? NOTIFY_ATTEMPTS,
-          backoffMs: deps.channels.retryPolicy(step.type)?.backoffMs ?? NOTIFY_BACKOFF_MS,
+          maxAttempts:
+            (step.type === "push" ? undefined : deps.channels.retryPolicy(step.type)?.attempts) ??
+            NOTIFY_ATTEMPTS,
+          backoffMs:
+            (step.type === "push" ? undefined : deps.channels.retryPolicy(step.type)?.backoffMs) ??
+            NOTIFY_BACKOFF_MS,
         })),
       );
       for (const d of planned) await notifyJob(d);
@@ -741,6 +751,24 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
           });
           return "skipped";
         }
+        /* A device's keys are read now: a device removed since planning gets nothing. */
+        let push: { p256dh: string; auth: string; recipientEmail: string | null } | undefined;
+        if (delivery.contactType === "push") {
+          const subscription =
+            delivery.contactMethodId === null
+              ? undefined
+              : await deps.contacts?.pushSubscription(ctx.workspaceId, delivery.contactMethodId);
+          if (subscription === undefined) {
+            await finish({ status: "skipped", error: "The device was removed." });
+            return "skipped";
+          }
+          const members = await deps.workspaces.listMembers(system(ctx.workspaceId));
+          push = {
+            p256dh: subscription.p256dh,
+            auth: subscription.auth,
+            recipientEmail: members.find((m) => m.userId === delivery.userId)?.email ?? null,
+          };
+        }
         try {
           const { providerRef } = await deps.channels.deliverDirect({
             type: delivery.contactType,
@@ -748,6 +776,7 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
             event,
             idempotencyKey: `delivery.${delivery.id}`,
             userId: delivery.userId,
+            push,
           });
           await finish({ status: "sent", providerRef, error: null, sentAt: clock.now() });
           return "sent";
@@ -759,6 +788,10 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
             throw new RetryDeliveryError(message);
           }
           await finish({ status: "failed", error: message });
+          /* A browser that dropped its subscription is forgotten, so it isn't tried again. */
+          if (delivery.contactType === "push" && permanent && delivery.contactMethodId !== null) {
+            await deps.contacts?.dropPush(ctx.workspaceId, delivery.contactMethodId);
+          }
           /* A paid text or call that never went out gives its credits back. */
           await deps.credits
             ?.refundCharge(system(ctx.workspaceId), `delivery.${delivery.id}`)

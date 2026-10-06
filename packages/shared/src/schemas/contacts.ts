@@ -6,7 +6,8 @@
 import { z } from "zod";
 import type { Severity } from "../constants/regions.js";
 
-export const CONTACT_METHOD_TYPES = ["email", "sms", "voice"] as const;
+/* `push` is a browser or installed app on one device (web push). */
+export const CONTACT_METHOD_TYPES = ["email", "sms", "voice", "push"] as const;
 export type ContactMethodType = (typeof CONTACT_METHOD_TYPES)[number];
 
 export const URGENCIES = ["high", "low"] as const;
@@ -29,12 +30,21 @@ export const DEFAULT_RULE_DELAYS: Record<ContactMethodType, Record<Urgency, numb
   email: { high: 0, low: 0 },
   sms: { high: 2, low: undefined },
   voice: { high: 5, low: undefined },
+  push: { high: 0, low: 0 },
 };
 
 export const createContactMethodSchema = z.object({
   type: z.enum(CONTACT_METHOD_TYPES),
-  address: z.string().trim().min(3).max(254),
+  /* An email address, a phone number, or a push subscription's endpoint URL. */
+  address: z.string().trim().min(3).max(1_000),
   label: z.string().trim().min(1).max(60).optional(),
+  /* Push only: the browser's keys from `PushSubscription.toJSON()`. */
+  push: z
+    .object({
+      p256dh: z.string().regex(/^[A-Za-z0-9_-]{80,100}$/),
+      auth: z.string().regex(/^[A-Za-z0-9_-]{16,32}$/),
+    })
+    .optional(),
 });
 export type CreateContactMethodInput = z.infer<typeof createContactMethodSchema>;
 
@@ -79,7 +89,7 @@ export interface FanOutStep {
   delayMinutes: number;
 }
 
-const TYPE_ORDER: Record<ContactMethodType, number> = { email: 0, sms: 1, voice: 2 };
+const TYPE_ORDER: Record<ContactMethodType, number> = { email: 0, push: 1, sms: 2, voice: 3 };
 
 /*
  * Who-hears-when for one user and one urgency: one step per verified contact method that has a rule,

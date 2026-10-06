@@ -5,7 +5,16 @@
  * is tried, per urgency.
  */
 import type { ContactMethodType, Urgency } from "@app/shared";
-import { index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import {
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { organization } from "../../../infra/auth/schema.js";
 
 export const contactMethods = pgTable(
@@ -17,9 +26,11 @@ export const contactMethods = pgTable(
       .references(() => organization.id, { onDelete: "cascade" }),
     userId: uuid("user_id").notNull(),
     type: text("type").$type<ContactMethodType>().notNull(),
-    /* Lower-case email, or an E.164 phone number. */
+    /* Lower-case email, an E.164 phone number, or a push subscription's endpoint URL. */
     address: text("address").notNull(),
     label: text("label"),
+    /* Push only: the browser's keys; `address` is the subscription's endpoint. */
+    pushKeys: jsonb("push_keys").$type<{ p256dh: string; auth: string }>(),
     verifiedAt: timestamp("verified_at", { withTimezone: true }),
     codeHash: text("code_hash"),
     codeExpiresAt: timestamp("code_expires_at", { withTimezone: true }),

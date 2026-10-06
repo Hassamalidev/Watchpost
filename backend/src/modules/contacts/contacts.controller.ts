@@ -22,6 +22,7 @@ export type ContactsController = Record<
   | "confirm"
   | "rules"
   | "replaceRules"
+  | "pushConfig"
   | "chatLinks"
   | "chatLinkPreview"
   | "claimChatLink"
@@ -51,6 +52,9 @@ export function createContactsController(service: ContactsService): ContactsCont
     confirm: async (req, res) => {
       const { body } = inputOf<{ body: typeof confirmBody }>(req, res);
       res.json(await service.confirm(scopeOf(req, res), idOf(req, res), body.code));
+    },
+    pushConfig: (_req, res) => {
+      res.json(service.pushConfig());
     },
     chatLinks: async (req, res) => {
       res.json({ data: await service.listChatLinks(scopeOf(req, res)) });

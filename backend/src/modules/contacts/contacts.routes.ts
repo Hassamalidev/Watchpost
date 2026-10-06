@@ -26,10 +26,13 @@ export function createContactsRouter(
   const own = requirePermission("contact:manage");
   const id = validate({ params: methodIdParams });
   router.use(
-    ["/me/contact-methods", "/me/notification-rules", "/me/chat-links"],
+    ["/me/contact-methods", "/me/notification-rules", "/me/chat-links", "/me/push"],
     guards.session,
     guards.workspace,
   );
+
+  /* Whether this server can notify devices, and the key a browser subscribes with. */
+  router.get("/me/push", own, controller.pushConfig);
 
   /* Chat app users linked to you, so a button press in Slack is recorded as yours. */
   router.get("/me/chat-links", own, controller.chatLinks);

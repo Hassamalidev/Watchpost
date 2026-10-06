@@ -31,7 +31,7 @@ export interface AlertingModuleDeps {
   channels: ChannelsService;
   workspaces: WorkspacesService;
   /* Personal contact methods and rules (§9.5); optional so tests can build alerting without them. */
-  contacts?: Pick<ContactsService, "fanOut">;
+  contacts?: Pick<ContactsService, "fanOut" | "pushSubscription" | "dropPush">;
   /* Escalation policies and who is on call (§9.5); optional like contacts. */
   oncall?: Pick<OncallService, "escalationPolicy" | "whoIsOnCall">;
   /* False-alarm refunds (§5); optional so tests can build alerting without credits. */

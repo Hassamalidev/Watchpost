@@ -14,6 +14,7 @@ import type { Logger } from "../infra/logger.js";
 import type { Outbox } from "../infra/outbox/index.js";
 import type { PaddleClient } from "../infra/paddle/index.js";
 import type { ObjectStore } from "../infra/storage/index.js";
+import type { WebPush } from "../infra/webpush.js";
 import type { JobProcessor, QueueName, Queues, RecoverySweep } from "../infra/queues/index.js";
 import type { RedisClient } from "../infra/redis.js";
 import type { ModuleName } from "./architecture.js";
@@ -42,6 +43,8 @@ export interface Infra {
   actionLinks: ActionLinks;
   /* Paddle Billing; undefined until the owner adds keys. */
   paddle: PaddleClient | undefined;
+  /* Web push to browsers and installed apps; undefined until VAPID keys are set. */
+  webPush: WebPush | undefined;
   /* Private object storage (R2; a folder in development); undefined when none is configured. */
   objects: ObjectStore | undefined;
 }

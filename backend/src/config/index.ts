@@ -53,6 +53,8 @@ export interface AppConfig {
         endpoint: string | undefined;
       }
     | undefined;
+  /* Web push keys; undefined until the owner generates a pair (no device notifications then). */
+  webPush: { publicKey: string; privateKey: string; subject: string } | undefined;
   twilio:
     | {
         accountSid: string;
@@ -155,6 +157,14 @@ export function toAppConfig(env: Env): AppConfig {
             secretAccessKey: env.R2_SECRET_ACCESS_KEY,
             bucket: env.R2_BUCKET,
             endpoint: env.R2_ENDPOINT,
+          }
+        : undefined,
+    webPush:
+      env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY && env.VAPID_SUBJECT
+        ? {
+            publicKey: env.VAPID_PUBLIC_KEY,
+            privateKey: env.VAPID_PRIVATE_KEY,
+            subject: env.VAPID_SUBJECT,
           }
         : undefined,
     twilio:

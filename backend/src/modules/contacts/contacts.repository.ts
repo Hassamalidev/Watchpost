@@ -58,6 +58,7 @@ export function createContactsRepository() {
         address: string;
         label: string | null;
         verifiedAt: Date | null;
+        pushKeys?: { p256dh: string; auth: string } | null;
       },
     ): Promise<ContactMethodRow | undefined> {
       const [created] = await db
@@ -95,6 +96,20 @@ export function createContactsRepository() {
         .update(contactMethods)
         .set({ codeAttempts: sql`${contactMethods.codeAttempts} + 1`, updatedAt: sql`now()` })
         .where(tenantWhere(scope, contactMethods, eq(contactMethods.id, id)));
+    },
+
+    /* System: a method by ID, whoever owns it (delivery reads a push subscription this way). */
+    async findMethodById(
+      db: DbOrTx,
+      scope: WorkspaceScope,
+      id: string,
+    ): Promise<ContactMethodRow | undefined> {
+      const rows = await db
+        .select()
+        .from(contactMethods)
+        .where(tenantWhere(scope, contactMethods, eq(contactMethods.id, id)))
+        .limit(1);
+      return rows[0];
     },
 
     async deleteMethod(db: DbOrTx, scope: WorkspaceScope, id: string): Promise<void> {

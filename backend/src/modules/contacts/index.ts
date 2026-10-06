@@ -20,7 +20,7 @@ export type {
 export { CODE_TTL_MS, MAX_CODES_PER_HOUR, MAX_CODE_ATTEMPTS } from "./contacts.service.js";
 
 export interface ContactsModuleDeps {
-  infra: Pick<Infra, "db" | "outbox" | "clock" | "config">;
+  infra: Pick<Infra, "db" | "outbox" | "clock" | "config" | "webPush">;
   workspaces: WorkspacesService;
   /* Phone verification (SMS codes, alert credits); without it only email methods can be added. */
   phones?: Pick<PhonesService, "requestCode" | "confirm" | "isVerified">;
@@ -42,6 +42,7 @@ export function createContactsModule(deps: ContactsModuleDeps): ContactsModule {
     outbox: deps.infra.outbox,
     clock: deps.infra.clock,
     newId,
+    pushPublicKey: deps.infra.webPush?.publicKey,
     linkSigner: createTokenSigner(deps.infra.config.auth.secret, "chat-link"),
     webOrigin: deps.infra.config.webOrigin,
     ...(deps.newCode === undefined ? {} : { newCode: deps.newCode }),

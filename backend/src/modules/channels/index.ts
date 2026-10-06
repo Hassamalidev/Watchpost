@@ -69,6 +69,7 @@ export interface ChannelsModuleDeps {
     | "http"
     | "config"
     | "actionLinks"
+    | "webPush"
   >;
   guards: { session: RequestHandler; workspace: RequestHandler };
   /* Replaces the built-in adapters (tests use fakes). */
@@ -185,6 +186,8 @@ export function createChannelsModule(deps: ChannelsModuleDeps): ChannelsModule {
     logger: infra.logger.child({ module: "channels" }),
     newId,
     credits: deps.credits,
+    webPush: infra.webPush,
+    actionLinks: infra.actionLinks,
   });
   return {
     name: "channels",

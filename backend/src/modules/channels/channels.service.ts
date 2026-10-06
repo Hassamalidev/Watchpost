@@ -19,10 +19,13 @@ import {
 import type { Clock } from "../../core/clock.js";
 import { NotFoundError, ValidationError } from "../../core/errors.js";
 import { createWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
+import type { ActionLinks } from "../../infra/action-links.js";
 import type { TokenCipher } from "../../infra/crypto.js";
 import type { Db } from "../../infra/db/index.js";
 import type { Logger } from "../../infra/logger.js";
 import type { Outbox } from "../../infra/outbox/index.js";
+import type { WebPush } from "../../infra/webpush.js";
+import { renderPlain } from "./adapters/render.js";
 import type { ChannelsRepository } from "./channels.repository.js";
 import type { PaidSends } from "./phones.service.js";
 import type { ChannelRow } from "./schema/channels.js";
@@ -87,10 +90,12 @@ export interface ChannelsService {
    * behind it. A text or a call is charged to the workspace's alert credits first, like a channel's.
    */
   deliverDirect(input: {
-    type: "email" | "sms" | "voice";
+    type: "email" | "sms" | "voice" | "push";
     address: string;
     event: AlertEvent;
     idempotencyKey: string;
+    /* Push only: the browser's keys, and whose device it is (their acknowledge link is theirs). */
+    push?: { p256dh: string; auth: string; recipientEmail: string | null } | undefined;
     /* Whose address it is, so their reply acts as them. */
     userId?: string | null | undefined;
   }): Promise<{ providerRef: string | null }>;
@@ -127,6 +132,9 @@ export function createChannelsService(deps: {
   newId: () => string;
   /* Charges and meters paid channels; without it they can't send. */
   credits?: PaidSends | undefined;
+  /* Notifications to a person's devices, with a signed acknowledge link. */
+  webPush?: WebPush | undefined;
+  actionLinks?: ActionLinks | undefined;
 }): ChannelsService {
   const { repository: repo, clock } = deps;
   const adapters = new Map(deps.adapters.map((a) => [a.type, a]));
@@ -278,7 +286,50 @@ export function createChannelsService(deps: {
       return repo.messageTarget(deps.db, providerRef, incidentId);
     },
 
-    async deliverDirect({ type, address, event, idempotencyKey, userId }) {
+    async deliverDirect({ type, address, event, idempotencyKey, userId, push }) {
+      if (type === "push") {
+        if (deps.webPush === undefined || push === undefined) {
+          throw new ChannelDeliveryError(
+            "Notifications on devices aren't set up on this server.",
+            true,
+          );
+        }
+        const { incident } = event;
+        const plain = renderPlain(event);
+        /* A signed, single-use link, so "Acknowledge" on the notification needs no session. */
+        const acknowledgeUrl =
+          deps.actionLinks !== undefined &&
+          push.recipientEmail !== null &&
+          event.kind !== "test" &&
+          incident.status === "triggered"
+            ? deps.actionLinks.url({
+                workspaceId: event.workspace.id,
+                incidentId: incident.id,
+                action: "acknowledge",
+                recipient: push.recipientEmail,
+              })
+            : null;
+        const outcome = await deps.webPush.send(
+          { endpoint: address, p256dh: push.p256dh, auth: push.auth },
+          {
+            title: plain.title,
+            body: event.explanation?.headline ?? incident.title,
+            url: incident.url,
+            /* One notification per incident on the device: a later one replaces it. */
+            tag: `incident-${incident.id}`,
+            incidentNumber: incident.number,
+            kind: event.kind,
+            acknowledgeUrl,
+          },
+        );
+        if (outcome.ok) return { providerRef: null };
+        throw new ChannelDeliveryError(
+          outcome.gone
+            ? "This device no longer accepts notifications; it was removed."
+            : `The push service answered HTTP ${outcome.status}.`,
+          outcome.gone,
+        );
+      }
       const adapter = adapters.get(type);
       if (adapter === undefined) {
         throw new ChannelDeliveryError(

@@ -1,0 +1,1 @@
+ALTER TABLE "contact_methods" ADD COLUMN "push_keys" jsonb;

@@ -96,6 +96,15 @@ export interface ContactsService {
   claimChatLink(scope: WorkspaceScope, token: string): Promise<ChatLinkView[]>;
   listChatLinks(scope: WorkspaceScope): Promise<ChatLinkView[]>;
   removeChatLink(scope: WorkspaceScope, id: string): Promise<void>;
+  /* Whether this server can send to devices, and the key a browser subscribes with. */
+  pushConfig(): { available: boolean; publicKey: string | null };
+  /* System: the push subscription behind a contact method; undefined when it is gone. */
+  pushSubscription(
+    workspaceId: string,
+    methodId: string,
+  ): Promise<{ endpoint: string; p256dh: string; auth: string } | undefined>;
+  /* System: forgets a device whose browser dropped the subscription. */
+  dropPush(workspaceId: string, methodId: string): Promise<void>;
   /* System: who-hears-when for a member, counted from `from`. Empty for someone who left. */
   fanOut(
     scope: WorkspaceScope,
@@ -117,6 +126,8 @@ export interface ContactsServiceDeps {
   outbox: Outbox;
   clock: Clock;
   newId: () => string;
+  /* The VAPID public key, when this server can send web push. */
+  pushPublicKey?: string | undefined;
   /* Signs "link this chat user" tokens; the page they open is under `webOrigin`. */
   linkSigner: TokenSigner<ChatLinkClaims>;
   webOrigin: string;
@@ -221,6 +232,22 @@ export function createContactsService(deps: ContactsServiceDeps): ContactsServic
   }
 
   function normalize(input: CreateContactMethodInput): string {
+    if (input.type === "push") {
+      /* A subscription the browser just gave us: its endpoint at the push service, and its keys. */
+      const ok =
+        input.push !== undefined &&
+        /^https:\/\//.test(input.address) &&
+        URL.canParse(input.address);
+      if (!ok) {
+        const message = "This doesn't look like a browser's push subscription.";
+        throw new ValidationError(message, [{ path: "body.address", message }]);
+      }
+      if (deps.pushPublicKey === undefined) {
+        const message = "Notifications on devices aren't set up on this server yet.";
+        throw new ValidationError(message, [{ path: "body.type", message }]);
+      }
+      return input.address;
+    }
     if (input.type !== "email") {
       const phone = phoneNumberSchema.safeParse(input.address);
       if (!phone.success) {
@@ -257,8 +284,9 @@ export function createContactsService(deps: ContactsServiceDeps): ContactsServic
        * A number the workspace verified before (your SMS method, when you add calls to it) is ready
        * at once. Otherwise the code goes out first: if it can't be sent, nothing is added.
        */
-      let verifiedAt: Date | null = null;
-      if (input.type !== "email") {
+      /* The signed-in person's own browser handed us the subscription: nothing to prove. */
+      let verifiedAt: Date | null = input.type === "push" ? clock.now() : null;
+      if (input.type === "sms" || input.type === "voice") {
         const phones = phonesOrFail();
         if (await phones.isVerified(scope.workspaceId, address)) verifiedAt = clock.now();
         else await phones.requestCode(scope, address);
@@ -271,6 +299,7 @@ export function createContactsService(deps: ContactsServiceDeps): ContactsServic
           address,
           label: input.label ?? null,
           verifiedAt,
+          pushKeys: input.type === "push" ? (input.push ?? null) : null,
         });
         if (row !== undefined && verifiedAt !== null) await addDefaultRules(tx, scope, row);
         return row;
@@ -286,7 +315,7 @@ export function createContactsService(deps: ContactsServiceDeps): ContactsServic
       const others = (await repo.listMethods(deps.db, scope, userId)).filter(
         (m) => m.id !== id && m.verifiedAt !== null,
       );
-      if (row.verifiedAt !== null && others.length === 0) {
+      if (row.verifiedAt !== null && others.length === 0 && row.type !== "push") {
         throw new ConflictError(
           "This is your only verified contact method. Add and verify another one first, or alerts couldn't reach you.",
         );
@@ -297,7 +326,7 @@ export function createContactsService(deps: ContactsServiceDeps): ContactsServic
     async requestCode(scope, id) {
       const row = await ownMethod(scope, id);
       if (row.verifiedAt !== null) throw new ConflictError("This contact method is verified.");
-      if (row.type !== "email") {
+      if (row.type === "sms" || row.type === "voice") {
         const sent = await phonesOrFail().requestCode(scope, row.address);
         return { expiresAt: sent.expiresAt };
       }
@@ -341,7 +370,11 @@ export function createContactsService(deps: ContactsServiceDeps): ContactsServic
           { path: "body.code", message: "That code isn't right or has expired." },
         ]);
       const phone = await repo.findMethod(deps.db, scope, userId, id);
-      if (phone !== undefined && phone.type !== "email" && phone.verifiedAt === null) {
+      if (
+        phone !== undefined &&
+        (phone.type === "sms" || phone.type === "voice") &&
+        phone.verifiedAt === null
+      ) {
         /* Throws when the code is wrong, expired or guessed too often. */
         await phonesOrFail().confirm(scope, phone.address, code);
         const verifiedAt = clock.now();
@@ -484,6 +517,30 @@ export function createContactsService(deps: ContactsServiceDeps): ContactsServic
       if (!(await repo.deleteChatLink(deps.db, scope, actorOf(scope), id))) {
         throw new NotFoundError("Linked account not found.");
       }
+    },
+
+    pushConfig() {
+      return {
+        available: deps.pushPublicKey !== undefined,
+        publicKey: deps.pushPublicKey ?? null,
+      };
+    },
+
+    async pushSubscription(workspaceId, methodId) {
+      const row = await repo.findMethodById(
+        deps.db,
+        createWorkspaceScope({ workspaceId }),
+        methodId,
+      );
+      if (row === undefined || row.type !== "push" || row.pushKeys === null) return undefined;
+      return { endpoint: row.address, ...row.pushKeys };
+    },
+
+    async dropPush(workspaceId, methodId) {
+      const scope = createWorkspaceScope({ workspaceId });
+      const row = await repo.findMethodById(deps.db, scope, methodId);
+      if (row !== undefined && row.type === "push")
+        await repo.deleteMethod(deps.db, scope, methodId);
     },
 
     async fanOut(scope, userId, urgency, from) {
