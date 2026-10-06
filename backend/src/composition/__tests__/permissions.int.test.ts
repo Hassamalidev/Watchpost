@@ -49,7 +49,7 @@ describe("workspace route permissions", () => {
   const routes = workspaceRoutes();
 
   it("finds the workspace routes", () => {
-    expect(routes.length).toBeGreaterThanOrEqual(116);
+    expect(routes.length).toBeGreaterThanOrEqual(119);
   });
 
   it("guards every workspace route with exactly one known permission", () => {
@@ -90,6 +90,7 @@ describe("workspace route permissions", () => {
         "GET /expiry/:monitorId → monitor:read",
         "GET /heartbeats → monitor:read",
         "GET /heartbeats/:monitorId → monitor:read",
+        "GET /imports → settings:update",
         "GET /inbound-sources → channel:read",
         "GET /incidents → incident:read",
         "GET /incidents/:incidentId/deliveries → incident:read",
@@ -151,6 +152,8 @@ describe("workspace route permissions", () => {
         "POST /escalation-policies → schedule:write",
         "POST /expiry/:monitorId/check → monitor:write",
         "POST /heartbeats/:monitorId/token → monitor:write",
+        "POST /imports → settings:update",
+        "POST /imports/dry-run → settings:update",
         "POST /inbound-sources → channel:manage",
         "POST /inbound-sources/:sourceId/rotate → channel:manage",
         "POST /inbound-sources/:sourceId/test → channel:manage",

@@ -103,6 +103,18 @@ export {
   type InboundSourceView,
 } from "./schemas/inbound.js";
 export {
+  IMPORT_SOURCES,
+  IMPORT_SOURCE_LABELS,
+  MAX_IMPORT_ITEMS,
+  importRequestSchema,
+  type ImportItemKind,
+  type ImportItemView,
+  type ImportPlanView,
+  type ImportRequest,
+  type ImportRunView,
+  type ImportSource,
+} from "./schemas/imports.js";
+export {
   CHECK_ERRORS,
   CHECK_ERROR_CODES,
   checkErrorImpact,

@@ -924,6 +924,48 @@
       }
     }
   },
+  "imports": {
+    "title": "Import from another tool",
+    "lead": "Preview first: you see what every monitor, schedule and escalation policy would become here, and what can't come over and why. Nothing is created until you say so.",
+    "back": "Settings",
+    "adminsOnly": "Importing creates monitors and schedules in bulk, so it is for admins and owners.",
+    "step1": "1. Where from",
+    "step2": "2. What would be imported",
+    "source": "Tool",
+    "how": {
+      "uptimerobot": "Give a read-only API key (UptimeRobot → Integrations & API → Read-only API key), or paste the JSON answer of the getMonitors API.",
+      "uptime_kuma": "In Uptime Kuma open Settings → Backup, export, and paste the file's contents.",
+      "better_stack": "Paste the JSON answer of Better Stack's monitors API (GET /api/v2/monitors). To bring heartbeats too, paste an object with \"monitors\" and \"heartbeats\", each holding that API's answer.",
+      "opsgenie": "Paste an object with \"schedules\" and \"escalations\", each holding the data list from Opsgenie's API (GET /v2/schedules?expand=rotation and GET /v2/escalations). People are matched to members here by email, so invite them first."
+    },
+    "apiKey": "Read-only API key",
+    "apiKeyHint": "Used once for this import and never stored.",
+    "export": "Export (JSON)",
+    "exportOr": "Or paste the export (JSON)",
+    "exportHint": "It is read for the preview and the import, and not kept.",
+    "needExport": "Paste the export first.",
+    "needExportOrKey": "Give an API key or paste the export first.",
+    "notJson": "That isn't valid JSON.",
+    "preview": "Preview",
+    "coverage": "{mapped} of {total} can be imported ({percent}%).",
+    "itemsCaption": "What each object becomes",
+    "item": "In the other tool",
+    "outcome": "Here",
+    "kinds": {
+      "monitor": "Monitor",
+      "schedule": "Schedule",
+      "escalation": "Escalation policy"
+    },
+    "skipped": "Not imported:",
+    "failed": "Failed:",
+    "created": "Created:",
+    "apply": "Import {count, plural, one {# item} other {# items}}",
+    "done": "Import finished",
+    "result": "{created, plural, one {# item was} other {# items were}} created{failed, plural, =0 {.} one {; # could not be created (see below).} other {; # could not be created (see below).}}",
+    "history": "Earlier imports",
+    "noHistory": "No imports yet.",
+    "historyLine": "{created} of {total} created"
+  },
   "notifications": {
     "title": "My notifications",
     "lead": "How Watchpost reaches you when an incident is yours to handle. These settings are yours alone; teammates set their own.",
@@ -993,7 +1035,10 @@
     "title": "Settings",
     "timezone": "Time zone",
     "timezoneHint": "Used for schedules, reports and dates.",
-    "saved": "Settings saved."
+    "saved": "Settings saved.",
+    "importTitle": "Moving from another tool?",
+    "importHint": "Bring your monitors from UptimeRobot, Uptime Kuma or Better Stack, and your schedules and escalation policies from Opsgenie.",
+    "importLink": "Import from another tool"
   },
   "billing": {
     "title": "Billing",

@@ -32,7 +32,7 @@
     "ai": ["incidents", "results", "monitors", "billing", "credits"],
     "statuspages": ["monitors", "detection", "incidents", "results", "maintenance", "ai"],
     "reports": ["monitors", "detection", "incidents", "results", "statuspages", "workspaces"],
-    "imports": ["monitors", "channels", "contacts", "oncall", "statuspages"],
+    "imports": ["monitors", "channels", "contacts", "oncall", "statuspages", "workspaces"],
     "badges": ["monitors", "detection", "results"],
     "admin": ["*"]
   }
