@@ -164,12 +164,17 @@ describe("contact methods", () => {
     expect(confirmed.status, confirmed.text).toBe(200);
   });
 
-  it("refuses phone methods until SMS and voice arrive, and anything that isn't an email", async () => {
+  it("refuses a phone method on a server without SMS, and anything that isn't an email", async () => {
     const sms = await api(owner, "post", "/me/contact-methods").send({
       type: "sms",
       address: "+14155550123",
     });
     expect(sms.status).toBe(400);
+    const malformed = await api(owner, "post", "/me/contact-methods").send({
+      type: "voice",
+      address: "0300 1234567",
+    });
+    expect(malformed.status).toBe(400);
     const bad = await api(owner, "post", "/me/contact-methods").send({
       type: "email",
       address: "not-an-email",

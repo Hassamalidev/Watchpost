@@ -489,8 +489,9 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
           dueAt: step.delayMinutes === 0 ? null : step.dueAt,
           kind: "triggered" as const,
           actorName: null,
-          maxAttempts: NOTIFY_ATTEMPTS,
-          backoffMs: NOTIFY_BACKOFF_MS,
+          /* A text or a call that arrives late is noise; they retry like their channels do. */
+          maxAttempts: deps.channels.retryPolicy(step.type)?.attempts ?? NOTIFY_ATTEMPTS,
+          backoffMs: deps.channels.retryPolicy(step.type)?.backoffMs ?? NOTIFY_BACKOFF_MS,
         })),
       );
       for (const d of planned) await notifyJob(d);
@@ -537,6 +538,15 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
             throw new RetryDeliveryError(message);
           }
           await finish({ status: "failed", error: message });
+          /* A paid text or call that never went out gives its credits back. */
+          await deps.credits
+            ?.refundCharge(system(ctx.workspaceId), `delivery.${delivery.id}`)
+            .catch((refundErr: unknown) =>
+              deps.logger.error(
+                { deliveryId, err: refundErr },
+                "refunding an unsent message failed",
+              ),
+            );
           deps.logger.warn(
             { deliveryId, userId: delivery.userId, attempts: delivery.attempts, err: message },
             "delivery to a person failed permanently",

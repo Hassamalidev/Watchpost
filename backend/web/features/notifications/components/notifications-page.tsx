@@ -8,7 +8,9 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import {
+  CONTACT_METHOD_TYPES,
   URGENCIES,
+  type ContactMethodType,
   type ContactMethodView,
   type NotificationRulesView,
   type Urgency,
@@ -98,6 +100,7 @@ function VerifyForm({ ws, method }: { ws: string; method: ContactMethodView }) {
 function MethodsCard({ ws, methods }: { ws: string; methods: ContactMethodView[] }) {
   const t = useTranslations("notifications");
   const client = useQueryClient();
+  const [type, setType] = React.useState<ContactMethodType>("email");
   const [address, setAddress] = React.useState("");
   const [label, setLabel] = React.useState("");
   const refresh = async () => {
@@ -109,7 +112,7 @@ function MethodsCard({ ws, methods }: { ws: string; methods: ContactMethodView[]
       api(wsPath(ws, "/me/contact-methods"), {
         method: "POST",
         body: {
-          type: "email",
+          type,
           address: address.trim(),
           ...(label.trim() === "" ? {} : { label: label.trim() }),
         },
@@ -171,10 +174,31 @@ function MethodsCard({ ws, methods }: { ws: string; methods: ContactMethodView[]
         >
           <h3 className="text-sm font-semibold">{t("add")}</h3>
           {add.isError && <Alert tone="error">{errorMessage(add.error)}</Alert>}
-          <Field label={t("address")} htmlFor="method-address" hint={t("addressHint")}>
+          <Field label={t("kind")} htmlFor="method-type">
+            <Select
+              id="method-type"
+              value={type}
+              onChange={(e) => {
+                setType(e.target.value as ContactMethodType);
+                setAddress("");
+              }}
+            >
+              {CONTACT_METHOD_TYPES.map((option) => (
+                <option key={option} value={option}>
+                  {t(`types.${option}`)}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field
+            label={type === "email" ? t("address") : t("phone")}
+            htmlFor="method-address"
+            hint={type === "email" ? t("addressHint") : t("phoneHint")}
+          >
             <Input
               id="method-address"
-              type="email"
+              type={type === "email" ? "email" : "tel"}
+              autoComplete={type === "email" ? "email" : "tel"}
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               required

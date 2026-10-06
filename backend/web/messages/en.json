@@ -845,7 +845,7 @@
     "title": "My notifications",
     "lead": "How Watchpost reaches you when an incident is yours to handle. These settings are yours alone; teammates set their own.",
     "methods": "Contact methods",
-    "methodsHint": "An address is used only after you enter the code we send to it. Your account email is ready to use.",
+    "methodsHint": "An address or number is used only after you enter the code we send to it. Your account email is ready to use.",
     "types": {
       "email": "Email",
       "sms": "SMS",
@@ -860,7 +860,7 @@
     "verify": "Verify",
     "resend": "Send a new code",
     "codeSent": "A new code is on its way to {address}.",
-    "add": "Add an email address",
+    "add": "Add a contact method",
     "address": "Email address",
     "addressHint": "We'll email a code to confirm it's yours.",
     "label": "Label (optional)",
@@ -884,7 +884,10 @@
     },
     "pickOne": "Choose at least one contact method, or these incidents couldn't reach you.",
     "saveRules": "Save rules",
-    "rulesSaved": "Rules saved."
+    "rulesSaved": "Rules saved.",
+    "kind": "Type",
+    "phone": "Phone number",
+    "phoneHint": "International format, like +14155550123. The verification text and every alert text or call use the workspace's alert credits."
   },
   "settings": {
     "title": "Settings",

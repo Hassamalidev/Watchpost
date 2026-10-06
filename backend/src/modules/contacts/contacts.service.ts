@@ -17,6 +17,7 @@ import {
   type NotificationRuleInput,
   type NotificationRulesView,
   type Urgency,
+  phoneNumberSchema,
 } from "@app/shared";
 import { z } from "zod";
 import type { Clock } from "../../core/clock.js";
@@ -30,6 +31,7 @@ import {
 import type { WorkspaceScope } from "../../core/workspace-scope.js";
 import type { Db, DbOrTx } from "../../infra/db/index.js";
 import type { Outbox } from "../../infra/outbox/index.js";
+import type { PhonesService } from "../channels/index.js";
 import type { WorkspacesService } from "../workspaces/index.js";
 import type { ContactsRepository } from "./contacts.repository.js";
 import type { ContactMethodRow } from "./schema/contacts.js";
@@ -70,6 +72,11 @@ export interface ContactsServiceDeps {
   db: Db;
   repository: ContactsRepository;
   workspaces: Pick<WorkspacesService, "listMembers" | "workspaceName">;
+  /*
+   * Phone numbers are verified per workspace by `channels` (an SMS code, charged in alert credits);
+   * without it only email methods can be added.
+   */
+  phones?: Pick<PhonesService, "requestCode" | "confirm" | "isVerified"> | undefined;
   outbox: Outbox;
   clock: Clock;
   newId: () => string;
@@ -164,12 +171,23 @@ export function createContactsService(deps: ContactsServiceDeps): ContactsServic
     return view;
   }
 
+  function phonesOrFail(): NonNullable<ContactsServiceDeps["phones"]> {
+    if (deps.phones === undefined) {
+      throw new ValidationError("Text messages and calls aren't set up on this server yet.", [
+        { path: "body.type", message: "Text messages and calls aren't set up on this server yet." },
+      ]);
+    }
+    return deps.phones;
+  }
+
   function normalize(input: CreateContactMethodInput): string {
     if (input.type !== "email") {
-      /* SMS and voice methods arrive with P4-T02b (they need the workspace's alert credits). */
-      throw new ValidationError("Only email contact methods can be added for now.", [
-        { path: "body.type", message: "Only email contact methods can be added for now." },
-      ]);
+      const phone = phoneNumberSchema.safeParse(input.address);
+      if (!phone.success) {
+        const message = "Use the international format, like +14155550123.";
+        throw new ValidationError(message, [{ path: "body.address", message }]);
+      }
+      return phone.data;
     }
     const parsed = emailAddress.safeParse(input.address.toLowerCase());
     if (!parsed.success) {
@@ -192,16 +210,33 @@ export function createContactsService(deps: ContactsServiceDeps): ContactsServic
       if (existing.length >= MAX_CONTACT_METHODS) {
         throw new ValidationError(`You can have at most ${MAX_CONTACT_METHODS} contact methods.`);
       }
-      const created = await repo.insertMethod(deps.db, scope, {
-        id: deps.newId(),
-        userId,
-        type: input.type,
-        address,
-        label: input.label ?? null,
-        verifiedAt: null,
+      if (existing.some((m) => m.type === input.type && m.address === address)) {
+        throw new ConflictError("You already have this contact method.");
+      }
+      /*
+       * A number the workspace verified before (your SMS method, when you add calls to it) is ready
+       * at once. Otherwise the code goes out first: if it can't be sent, nothing is added.
+       */
+      let verifiedAt: Date | null = null;
+      if (input.type !== "email") {
+        const phones = phonesOrFail();
+        if (await phones.isVerified(scope.workspaceId, address)) verifiedAt = clock.now();
+        else await phones.requestCode(scope, address);
+      }
+      const created = await deps.db.transaction(async (tx) => {
+        const row = await repo.insertMethod(tx, scope, {
+          id: deps.newId(),
+          userId,
+          type: input.type,
+          address,
+          label: input.label ?? null,
+          verifiedAt,
+        });
+        if (row !== undefined && verifiedAt !== null) await addDefaultRules(tx, scope, row);
+        return row;
       });
       if (created === undefined) throw new ConflictError("You already have this contact method.");
-      await service.requestCode(scope, created.id);
+      if (input.type === "email") await service.requestCode(scope, created.id);
       return toView(created);
     },
 
@@ -222,6 +257,10 @@ export function createContactsService(deps: ContactsServiceDeps): ContactsServic
     async requestCode(scope, id) {
       const row = await ownMethod(scope, id);
       if (row.verifiedAt !== null) throw new ConflictError("This contact method is verified.");
+      if (row.type !== "email") {
+        const sent = await phonesOrFail().requestCode(scope, row.address);
+        return { expiresAt: sent.expiresAt };
+      }
       const now = clock.now();
       const windowOpen =
         row.codeWindowStart !== null && now.getTime() - row.codeWindowStart.getTime() < HOUR_MS;
@@ -261,6 +300,17 @@ export function createContactsService(deps: ContactsServiceDeps): ContactsServic
         new ValidationError("That code isn't right or has expired.", [
           { path: "body.code", message: "That code isn't right or has expired." },
         ]);
+      const phone = await repo.findMethod(deps.db, scope, userId, id);
+      if (phone !== undefined && phone.type !== "email" && phone.verifiedAt === null) {
+        /* Throws when the code is wrong, expired or guessed too often. */
+        await phonesOrFail().confirm(scope, phone.address, code);
+        const verifiedAt = clock.now();
+        await deps.db.transaction(async (tx) => {
+          await repo.updateMethod(tx, scope, id, { verifiedAt });
+          await addDefaultRules(tx, scope, { ...phone, verifiedAt });
+        });
+        return toView({ ...phone, verifiedAt });
+      }
       const outcome = await deps.db.transaction(async (tx) => {
         const row = await repo.findMethod(tx, scope, userId, id, true);
         if (row === undefined) return "missing" as const;

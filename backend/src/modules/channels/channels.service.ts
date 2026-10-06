@@ -84,7 +84,7 @@ export interface ChannelsService {
   }): Promise<{ providerRef: string | null; skipped?: string }>;
   /*
    * System: one alert event straight to a person's own address (a contact method), with no channel
-   * behind it. Email only for now; SMS and calls to a person follow with phone contact methods.
+   * behind it. A text or a call is charged to the workspace's alert credits first, like a channel's.
    */
   deliverDirect(input: {
     type: "email" | "sms" | "voice";
@@ -264,25 +264,74 @@ export function createChannelsService(deps: {
     },
 
     async deliverDirect({ type, address, event, idempotencyKey }) {
-      const adapter = adapters.get("email");
-      if (type !== "email" || adapter === undefined) {
+      const adapter = adapters.get(type);
+      if (adapter === undefined) {
         throw new ChannelDeliveryError(
-          "Text messages and calls to a person aren't available yet.",
+          type === "email"
+            ? 'No adapter for "email" channels.'
+            : "Text messages and calls aren't set up on this server.",
           true,
         );
       }
+      const wrap = (err: unknown) =>
+        err instanceof ChannelDeliveryError
+          ? err
+          : new ChannelDeliveryError(err instanceof Error ? err.message : String(err), true);
+      let config: unknown;
       try {
-        const config = adapter.parseConfig({ to: [address] });
+        config = adapter.parseConfig(type === "email" ? { to: [address] } : { phone: address });
+      } catch (err) {
+        throw wrap(err);
+      }
+      if (adapter.skip?.(event) === true) return { providerRef: null };
+
+      /* Paid messages: take the credits first; a refusal means nothing is sent (§11). */
+      const scope = createWorkspaceScope({ workspaceId: event.workspace.id });
+      let price: ReturnType<NonNullable<typeof adapter.cost>> | undefined;
+      try {
+        price = adapter.cost?.(config);
+      } catch (err) {
+        throw wrap(err);
+      }
+      if (price !== undefined) {
+        if (deps.credits === undefined) {
+          throw new ChannelDeliveryError("Paid messages aren't set up on this server.", true);
+        }
+        const charged = await deps.credits.charge(scope, {
+          credits: price.credits,
+          refId: idempotencyKey,
+          incidentId: event.kind === "test" ? undefined : event.incident.id,
+        });
+        if (!charged.ok) {
+          throw new ChannelDeliveryError(
+            `Not sent: this message costs ${price.credits} alert credit${price.credits === 1 ? "" : "s"} and the workspace has ${charged.balance}. Add credits under Billing.`,
+            true,
+          );
+        }
+      }
+      let providerRef: string | null;
+      try {
         const sent = await adapter.send(config, adapter.render(event), {
           idempotencyKey,
           threadRef: null,
         });
-        return { providerRef: sent.providerRef ?? null };
+        providerRef = sent.providerRef ?? null;
       } catch (err) {
+        /* Alerting returns the credits when it gives up on the delivery. */
         throw err instanceof ChannelDeliveryError
           ? err
           : new ChannelDeliveryError(err instanceof Error ? err.message : String(err));
       }
+      if (price !== undefined) {
+        await deps.credits?.recordUsage(scope, {
+          provider: "twilio",
+          kind: price.kind,
+          units: 1,
+          costMicros: price.costMicros,
+          ref: idempotencyKey,
+        });
+      }
+      return { providerRef };
     },
 
     async deliver({ channelId, event, idempotencyKey }) {

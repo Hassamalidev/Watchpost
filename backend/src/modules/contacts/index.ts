@@ -2,6 +2,7 @@
 import type { RequestHandler } from "express";
 import type { AppModule, Infra } from "../../composition/types.js";
 import { newId } from "../../infra/ids.js";
+import type { PhonesService } from "../channels/index.js";
 import type { WorkspacesService } from "../workspaces/index.js";
 import { createContactsController } from "./contacts.controller.js";
 import { createContactsRepository } from "./contacts.repository.js";
@@ -14,6 +15,8 @@ export { CODE_TTL_MS, MAX_CODES_PER_HOUR, MAX_CODE_ATTEMPTS } from "./contacts.s
 export interface ContactsModuleDeps {
   infra: Pick<Infra, "db" | "outbox" | "clock">;
   workspaces: WorkspacesService;
+  /* Phone verification (SMS codes, alert credits); without it only email methods can be added. */
+  phones?: Pick<PhonesService, "requestCode" | "confirm" | "isVerified">;
   guards: { session: RequestHandler; workspace: RequestHandler };
   /* Tests fix the verification code. */
   newCode?: () => string;
@@ -28,6 +31,7 @@ export function createContactsModule(deps: ContactsModuleDeps): ContactsModule {
     db: deps.infra.db,
     repository: createContactsRepository(),
     workspaces: deps.workspaces,
+    phones: deps.phones,
     outbox: deps.infra.outbox,
     clock: deps.infra.clock,
     newId,

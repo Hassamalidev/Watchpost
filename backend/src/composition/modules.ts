@@ -112,6 +112,7 @@ export function createModules(infra: Infra): AppModule[] {
   const contacts = createContactsModule({
     infra,
     workspaces: workspaces.service,
+    phones: channels.phones,
     guards: workspaces.guards,
   });
   modules.push(contacts);
