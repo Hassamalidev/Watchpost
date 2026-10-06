@@ -11,6 +11,9 @@ export const metadata: Metadata = {
   title: { default: "Watchpost", template: "%s · Watchpost" },
   description:
     "Uptime monitoring, on-call and status pages that only page you for confirmed outages.",
+  /* Installable as an app (manifest from app/manifest.ts); iOS reads its own tags. */
+  appleWebApp: { capable: true, title: "Watchpost", statusBarStyle: "black-translucent" },
+  icons: { apple: "/icons/apple-touch-icon.png" },
 };
 
 export const viewport: Viewport = {

@@ -974,7 +974,8 @@
     "types": {
       "email": "Email",
       "sms": "SMS",
-      "voice": "Phone call"
+      "voice": "Phone call",
+      "push": "Device notification"
     },
     "verified": "Verified",
     "unverified": "Not verified yet",
@@ -1029,6 +1030,18 @@
       "expired": "This link has expired or isn't for this workspace. Type /watchpost link in Slack for a new one.",
       "since": "linked {date}",
       "unlink": "Unlink"
+    },
+    "device": {
+      "title": "Notifications on this device",
+      "hint": "Get alerts as notifications on this phone or computer, with an Acknowledge button on them. It is the fastest way to be reached and costs no credits.",
+      "turnOn": "Turn on for this device",
+      "turnOff": "Turn off for this device",
+      "on": "On for {name}.",
+      "thisDevice": "this device",
+      "unsupported": "This browser can't show notifications from websites. On iPhone and iPad, add Watchpost to the Home Screen first (Share, then Add to Home Screen) and open it from there.",
+      "notConfigured": "Notifications on devices aren't set up on this server yet.",
+      "denied": "Notifications are blocked for this site. Allow them in the browser's site settings, then come back.",
+      "install": "Tip: add Watchpost to your phone's home screen (the browser menu, then Add to Home screen or Install app) so alerts arrive even when the browser is closed."
     }
   },
   "settings": {

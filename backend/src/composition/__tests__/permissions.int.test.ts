@@ -49,7 +49,7 @@ describe("workspace route permissions", () => {
   const routes = workspaceRoutes();
 
   it("finds the workspace routes", () => {
-    expect(routes.length).toBeGreaterThanOrEqual(119);
+    expect(routes.length).toBeGreaterThanOrEqual(120);
   });
 
   it("guards every workspace route with exactly one known permission", () => {
@@ -109,6 +109,7 @@ describe("workspace route permissions", () => {
         "GET /me/contact-methods → contact:manage",
         "GET /me/notification-rules → contact:manage",
         "GET /me/oncall-feed → contact:manage",
+        "GET /me/push → contact:manage",
         "GET /members → roster:read",
         "GET /monitor-groups → monitor:read",
         "GET /monitor-states → monitor:read",

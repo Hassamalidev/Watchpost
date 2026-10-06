@@ -63,3 +63,41 @@ test("a member verifies a second address and sets when it is used", async ({ pag
   const again = page.locator("form").filter({ hasText: "something is down" });
   await expect(again.getByLabel(second)).toHaveValue("5");
 });
+
+test("the app can be installed, and says so when device notifications aren't set up", async ({
+  page,
+}) => {
+  const manifest = await page.request.get("/manifest.webmanifest");
+  expect(manifest.status()).toBe(200);
+  const body = (await manifest.json()) as {
+    display: string;
+    start_url: string;
+    icons: { src: string; sizes: string; purpose: string }[];
+  };
+  expect(body).toMatchObject({ display: "standalone", start_url: "/w" });
+  expect(body.icons.map((i) => `${i.sizes} ${i.purpose}`)).toEqual([
+    "192x192 any",
+    "512x512 any",
+    "512x512 maskable",
+  ]);
+  for (const icon of body.icons) {
+    const res = await page.request.get(icon.src);
+    expect(res.status(), icon.src).toBe(200);
+    expect(res.headers()["content-type"]).toBe("image/png");
+  }
+  const worker = await page.request.get("/sw.js");
+  expect(worker.status()).toBe(200);
+  expect(await worker.text()).toContain("notificationclick");
+
+  await page.goto(`/w/${workspace()}/notifications`);
+  await expect(page.locator('link[rel="manifest"]')).toHaveAttribute(
+    "href",
+    "/manifest.webmanifest",
+  );
+  await expect(page.getByRole("heading", { name: "Notifications on this device" })).toBeVisible();
+  /* The test server has no push keys: the page says so instead of offering a dead button. */
+  await expect(
+    page.getByText("Notifications on devices aren't set up on this server yet."),
+  ).toBeVisible();
+  await noAxeViolations(page);
+});

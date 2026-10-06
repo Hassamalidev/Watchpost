@@ -24,6 +24,7 @@ import { Input, Select } from "@/components/ui/input";
 import { Loading } from "@/components/ui/skeleton";
 import { api, errorMessage, wsPath } from "@/lib/api";
 import { ChatLinksCard } from "./chat-links";
+import { DeviceCard } from "./device-card";
 
 /* Minutes after the incident reaches you; "off" leaves the method out. */
 const DELAYS = [0, 1, 2, 5, 10, 15, 30, 60] as const;
@@ -142,10 +143,12 @@ function MethodsCard({ ws, methods }: { ws: string; methods: ContactMethodView[]
             <li key={m.id} className="grid gap-3 px-3 py-3">
               <div className="flex flex-wrap items-center gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium break-all">{m.address}</p>
+                  <p className="font-medium break-all">
+                    {m.type === "push" ? (m.label ?? t("types.push")) : m.address}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     {t(`types.${m.type}`)}
-                    {m.label ? ` · ${m.label}` : ""}
+                    {m.label && m.type !== "push" ? ` · ${m.label}` : ""}
                   </p>
                 </div>
                 <span className="text-sm font-medium">
@@ -157,7 +160,9 @@ function MethodsCard({ ws, methods }: { ws: string; methods: ContactMethodView[]
                   variant="outline"
                   disabled={remove.isPending}
                   onClick={() => remove.mutate(m.id)}
-                  aria-label={t("removeAddress", { address: m.address })}
+                  aria-label={t("removeAddress", {
+                    address: m.type === "push" ? (m.label ?? t("types.push")) : m.address,
+                  })}
                 >
                   {t("remove")}
                 </Button>
@@ -184,7 +189,8 @@ function MethodsCard({ ws, methods }: { ws: string; methods: ContactMethodView[]
                 setAddress("");
               }}
             >
-              {CONTACT_METHOD_TYPES.map((option) => (
+              {/* A device is added with its own button below, not typed in. */}
+              {CONTACT_METHOD_TYPES.filter((option) => option !== "push").map((option) => (
                 <option key={option} value={option}>
                   {t(`types.${option}`)}
                 </option>
@@ -290,7 +296,12 @@ function RulesCard({
             const options: Choice[] = ["off", ...DELAYS.map((d) => String(d) as Choice)];
             if (!options.includes(current)) options.push(current);
             return (
-              <Field key={m.id} label={m.address} htmlFor={id} className="max-w-md">
+              <Field
+                key={m.id}
+                label={m.type === "push" ? (m.label ?? t("types.push")) : m.address}
+                htmlFor={id}
+                className="max-w-md"
+              >
                 <Select
                   id={id}
                   value={current}
@@ -349,6 +360,7 @@ export function NotificationsPage() {
       ) : (
         <>
           <MethodsCard ws={ws} methods={methods.data} />
+          <DeviceCard ws={ws} methods={methods.data} />
           <React.Suspense fallback={null}>
             <ChatLinksCard ws={ws} />
           </React.Suspense>
