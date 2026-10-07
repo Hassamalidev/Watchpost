@@ -230,7 +230,21 @@
     "alertRegional": "Also alert on regional issues",
     "alertRegionalHint": "When it fails from fewer regions than that and the others are healthy, open a low-severity incident instead of only showing the monitor as degraded.",
     "reducedConfirmation": "Our checks from {regions} aren't reliable right now because of a problem on our side, so they don't count. This monitor is still checked from its other regions, with fewer of them to confirm an outage. You don't need to do anything.",
-    "notWatched": "This monitor is only checked from {regions}, and our checks from there aren't working right now because of a problem on our side. It isn't being watched until that is fixed. We have been alerted and are on it."
+    "notWatched": "This monitor is only checked from {regions}, and our checks from there aren't working right now because of a problem on our side. It isn't being watched until that is fixed. We have been alerted and are on it.",
+    "badges": {
+      "title": "Badges",
+      "intro": "A small live image of this monitor for a README, a wiki or a dashboard.",
+      "kind": "Badge",
+      "kinds": {
+        "status": "Status",
+        "uptime": "Uptime",
+        "latency": "Response time"
+      },
+      "previewAlt": "{kind} badge of {name}",
+      "markdown": "Markdown",
+      "imageUrl": "Image URL",
+      "hint": "Anyone with the URL can see what the badge shows, so share it only where that is fine. It updates within a minute. Add ?days=7 or ?days=90 to an uptime badge, or ?label=Your text to change the label."
+    }
   },
   "incidents": {
     "title": "Incidents",

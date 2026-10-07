@@ -13,7 +13,7 @@ import {
 import { describe, expect, it } from "vitest";
 import { createFakeClock } from "../../core/clock.js";
 import type { OutboundRequest } from "../http/outbound.js";
-import { createWebPush, encryptPush, generateVapidKeys } from "../webpush.js";
+import { createWebPush, encryptPush, generateVapidKeys, scalar32 } from "../webpush.js";
 
 function hkdf(salt: Buffer, ikm: Buffer, info: Buffer, length: number): Buffer {
   const prk = createHmac("sha256", salt).update(ikm).digest();
@@ -103,6 +103,20 @@ describe("createWebPush", () => {
   it("makes keys in the form browsers use", () => {
     expect(Buffer.from(keys.publicKey, "base64url")).toHaveLength(65);
     expect(Buffer.from(keys.privateKey, "base64url")).toHaveLength(32);
+  });
+
+  it("pads a private key that starts with zero bytes to 32 bytes", () => {
+    const short = Buffer.from("ab".repeat(30), "hex");
+    const padded = scalar32(short);
+    expect(padded).toHaveLength(32);
+    expect(padded.subarray(0, 2)).toEqual(Buffer.alloc(2));
+    expect(padded.subarray(2)).toEqual(short);
+    const full = Buffer.alloc(32, 7);
+    expect(scalar32(full)).toBe(full);
+    /* Every generated key has the full length, however many are made. */
+    for (let i = 0; i < 600; i += 1) {
+      expect(Buffer.from(generateVapidKeys().privateKey, "base64url")).toHaveLength(32);
+    }
   });
 
   it("posts the encrypted message with a VAPID header the push service can verify", async () => {

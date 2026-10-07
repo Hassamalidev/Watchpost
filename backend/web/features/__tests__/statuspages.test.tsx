@@ -5,6 +5,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it } from "vitest";
 import type { PublicStatusPage } from "@app/shared";
 import messages from "@/messages/en.json";
+import { badgeMarkdown } from "@/features/monitors/components/badges-card";
 import { slugFromName } from "@/features/statuspages/api";
 import {
   StatusPageView,
@@ -114,6 +115,24 @@ const show = (
       <StatusPageView data={data} {...(feedBase === undefined ? {} : { feedBase })} {...extra} />
     </NextIntlClientProvider>,
   );
+
+describe("badges", () => {
+  it("builds the Markdown to paste: the image, linking back to us", () => {
+    expect(
+      badgeMarkdown(
+        "API status",
+        "https://app.acme.io/api/public/badges/x.y/status.svg",
+        "https://acme.io",
+      ),
+    ).toBe(
+      "[![API status](https://app.acme.io/api/public/badges/x.y/status.svg)](https://acme.io)",
+    );
+    /* Brackets in a monitor's name can't break the link. */
+    expect(badgeMarkdown("API [eu] status", "https://a.test/b.svg", "https://a.test")).toBe(
+      "[![API eu status](https://a.test/b.svg)](https://a.test)",
+    );
+  });
+});
 
 describe("status hosts", () => {
   it("maps a subdomain of the base domain to its page, and nothing else", () => {

@@ -16,6 +16,7 @@ import { can, useWorkspace } from "@/components/app/workspace-context";
 import { Alert } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { BadgesCard } from "./badges-card";
 import { Loading } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/api";
 import { formatDateTime, formatPercent } from "@/lib/format";
@@ -280,6 +281,8 @@ export function MonitorDetail({ monitorId }: { monitorId: string }) {
         </h2>
         <IncidentList ws={ws} monitorId={data.id} />
       </section>
+
+      {data.type !== "heartbeat" && <BadgesCard ws={ws} monitorId={data.id} name={data.name} />}
     </div>
   );
 }

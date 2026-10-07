@@ -44,10 +44,19 @@ export interface WebPush {
 const b64u = (data: Buffer) => data.toString("base64url");
 const fromB64u = (text: string) => Buffer.from(text, "base64url");
 
+/*
+ * A P-256 private key as the 32 bytes browsers and JWK expect. Node hands it back without leading
+ * zero bytes, so about one key in 256 would otherwise come out a byte short.
+ */
+export function scalar32(key: Buffer): Buffer {
+  if (key.length >= 32) return key;
+  return Buffer.concat([Buffer.alloc(32 - key.length), key]);
+}
+
 export function generateVapidKeys(): { publicKey: string; privateKey: string } {
   const ecdh = createECDH("prime256v1");
   ecdh.generateKeys();
-  return { publicKey: b64u(ecdh.getPublicKey()), privateKey: b64u(ecdh.getPrivateKey()) };
+  return { publicKey: b64u(ecdh.getPublicKey()), privateKey: b64u(scalar32(ecdh.getPrivateKey())) };
 }
 
 /* HKDF (RFC 5869) with SHA-256, for outputs of at most 32 bytes. */

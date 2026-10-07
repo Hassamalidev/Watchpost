@@ -238,6 +238,21 @@ test("a status page is public at once, follows its monitor within 10 s, and show
   ).toBeVisible({ timeout: 20_000 });
   expect((await getWithHost("/", "status.corner-shop.test")).status).toBe(404);
 
+  /* A badge for the failing monitor: the image says "down", and there is Markdown to paste. */
+  await page.goto(`/w/${ws}/monitors/${failing}`);
+  const markdown = page.getByLabel("Markdown");
+  await expect(markdown).toHaveValue(/^\[!\[Payments status\]\(http.*\/status\.svg\)\]\(http/, {
+    timeout: 20_000,
+  });
+  const imageUrl = await page.getByLabel("Image URL").inputValue();
+  /* With its own label, so the answer isn't the image cached when the monitor was new. */
+  const image = await page.request.get(`${new URL(imageUrl).pathname}?label=Payments`);
+  expect(image.status()).toBe(200);
+  expect(image.headers()["content-type"]).toContain("image/svg+xml");
+  expect(await image.text()).toContain('aria-label="Payments: down"');
+  await page.getByLabel("Badge", { exact: true }).selectOption("uptime");
+  await expect(markdown).toHaveValue(/uptime\.svg/);
+
   /* The editor itself is accessible, and an unknown page is a 404. */
   await page.goto(editorUrl);
   await expect(page.getByTestId("status-preview")).toBeVisible();

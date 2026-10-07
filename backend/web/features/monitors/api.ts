@@ -20,6 +20,14 @@ export interface Monitor {
   createdAt: string;
 }
 
+/* Signed image URLs of a monitor's badges, and where a badge should link to. */
+export interface BadgeLinks {
+  status: string;
+  uptime: string;
+  latency: string;
+  link: string;
+}
+
 export interface MonitorGroup {
   id: string;
   name: string;
@@ -107,6 +115,7 @@ export const monitorsApi = {
     }),
   remove: (ws: string, id: string) =>
     api<void>(wsPath(ws, `/monitors/${id}`), { method: "DELETE" }),
+  badges: (ws: string, id: string) => api<BadgeLinks>(wsPath(ws, `/monitors/${id}/badges`)),
   groups: (ws: string) => api<{ data: MonitorGroup[] }>(wsPath(ws, "/monitor-groups")),
   createGroup: (ws: string, body: { name: string; groupAlerts: boolean }) =>
     api<MonitorGroup>(wsPath(ws, "/monitor-groups"), { method: "POST", body }),

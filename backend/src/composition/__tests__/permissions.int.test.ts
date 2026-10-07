@@ -120,6 +120,7 @@ describe("workspace route permissions", () => {
         "GET /monitor-usage → billing:read",
         "GET /monitors → monitor:read",
         "GET /monitors/:monitorId → monitor:read",
+        "GET /monitors/:monitorId/badges → monitor:read",
         "GET /monitors/:monitorId/changes → monitor:read",
         "GET /monitors/:monitorId/checks → monitor:read",
         "GET /monitors/:monitorId/error-budget → monitor:read",
