@@ -146,6 +146,29 @@ export const customDomainSchema = z
 
 export const setStatusDomainSchema = z.object({ domain: customDomainSchema.nullable() }).strict();
 
+/* A visitor asks for updates by email; they get nothing until they confirm (double opt-in). */
+export const subscribeStatusSchema = z.object({
+  /* Tidied first, then checked: " Ada@Example.org " is a fine address once trimmed. */
+  email: z.string().trim().toLowerCase().max(320).pipe(z.email()),
+});
+
+export interface StatusSubscriberView {
+  id: string;
+  email: string;
+  /* Null until the visitor opened the confirmation link. */
+  confirmedAt: string | null;
+  createdAt: string;
+}
+
+export interface StatusSubscribersView {
+  confirmed: number;
+  pending: number;
+  /* How many confirmed subscribers the plan allows; 0 means the plan has none. */
+  limit: number;
+  /* The newest ones, confirmed or not. */
+  data: StatusSubscriberView[];
+}
+
 export const createStatusPageSchema = z
   .object({
     name: z.string().trim().min(1).max(120),

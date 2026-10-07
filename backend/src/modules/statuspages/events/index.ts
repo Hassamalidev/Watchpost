@@ -14,8 +14,10 @@ export function createStatuspagesEventHandlers(service: StatuspagesService): Eve
       const unlinked = await service.onMonitorDeleted(monitorId);
       if (unlinked > 0) meta.logger.info({ monitorId, unlinked }, "status components unlinked");
     },
-    "status_page.update_published": async ({ statusPageId }) => {
+    "status_page.update_published": async ({ statusPageId, updateId }, meta) => {
       await service.onUpdatePublished(statusPageId);
+      const emailed = await service.notifySubscribers(updateId);
+      if (emailed > 0) meta.logger.info({ statusPageId, updateId, emailed }, "subscribers emailed");
     },
     "monitor.created": nothing,
     "monitor.updated": nothing,

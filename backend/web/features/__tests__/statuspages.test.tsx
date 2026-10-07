@@ -1,4 +1,5 @@
 /* Status pages: host names, the address suggested for a name, and what the public page renders. */
+import type * as React from "react";
 import { render, screen, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it } from "vitest";
@@ -103,10 +104,14 @@ const page = (patch: Partial<PublicStatusPage> = {}): PublicStatusPage => ({
   ...patch,
 });
 
-const show = (data: PublicStatusPage, feedBase?: string) =>
+const show = (
+  data: PublicStatusPage,
+  feedBase?: string,
+  extra: Partial<React.ComponentProps<typeof StatusPageView>> = {},
+) =>
   render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <StatusPageView data={data} {...(feedBase === undefined ? {} : { feedBase })} />
+      <StatusPageView data={data} {...(feedBase === undefined ? {} : { feedBase })} {...extra} />
     </NextIntlClientProvider>,
   );
 
@@ -200,6 +205,25 @@ describe("the public page", () => {
     expect(screen.getByRole("link", { name: "Powered by Watchpost" }).getAttribute("href")).toBe(
       "https://watchpost.example.net",
     );
+  });
+
+  it("offers the subscribe form only when the page takes subscribers, and says what happened", () => {
+    const taking = page();
+    taking.page.subscribe = true;
+    const { unmount } = show(taking, undefined, {
+      subscribeAction: "/api/public/status/acme/subscribers",
+      notice: "sent",
+    });
+    const email = screen.getByLabelText("Email address") as HTMLInputElement;
+    expect(email.form?.getAttribute("action")).toBe("/api/public/status/acme/subscribers");
+    expect(email.form?.method).toBe("post");
+    expect(email.name).toBe("email");
+    expect(screen.getByRole("status").textContent).toContain("Check your inbox");
+    unmount();
+
+    show(page(), undefined, { subscribeAction: "/api/public/status/acme/subscribers" });
+    expect(screen.queryByLabelText("Email address")).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("a quiet page says so, and the preview has no feed links", () => {

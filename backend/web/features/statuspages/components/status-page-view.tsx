@@ -40,6 +40,9 @@ const DAY_FILL: Record<PublicUptimeDay["status"], string> = {
   none: "var(--border)",
 };
 
+export const SUBSCRIBE_NOTICES = ["sent", "confirmed", "removed"] as const;
+export type SubscribeNotice = (typeof SUBSCRIBE_NOTICES)[number];
+
 /* Dates are written in UTC with fixed formats, so the server and the browser print the same text. */
 const dateTime = new Intl.DateTimeFormat("en-GB", {
   day: "numeric",
@@ -191,12 +194,18 @@ export function StatusPageView({
   data,
   feedBase,
   embedded = false,
+  subscribeAction,
+  notice,
 }: {
   data: PublicStatusPage;
   /* Where the page's JSON and feeds are served; omitted in the editor's preview. */
   feedBase?: string;
   /* Inside another page (the editor's preview): the title is not that page's main heading. */
   embedded?: boolean;
+  /* Where the subscribe form posts; the form is shown when the page takes subscribers. */
+  subscribeAction?: string;
+  /* What just happened with the visitor's subscription, to say so at the top. */
+  notice?: SubscribeNotice | undefined;
 }): React.ReactElement {
   const t = useTranslations("statusPage");
   const { page } = data;
@@ -223,6 +232,12 @@ export function StatusPageView({
           <p className="text-muted-foreground">{page.branding.description}</p>
         )}
       </header>
+
+      {notice && (
+        <p role="status" className="rounded-lg border bg-muted p-3 text-sm">
+          {t(`subscribe.notice.${notice}`)}
+        </p>
+      )}
 
       <section
         aria-label={t("current")}
@@ -289,6 +304,38 @@ export function StatusPageView({
           ))
         )}
       </section>
+
+      {page.subscribe && subscribeAction && (
+        <section
+          aria-labelledby="sp-subscribe"
+          className="grid gap-2 rounded-lg border bg-card p-4"
+        >
+          <h2 id="sp-subscribe" className="text-lg font-semibold">
+            {t("subscribe.title")}
+          </h2>
+          <p className="text-sm text-muted-foreground">{t("subscribe.intro")}</p>
+          {/* A plain form post: subscribing works without JavaScript. */}
+          <form method="post" action={subscribeAction} className="flex flex-wrap items-end gap-2">
+            <label className="grid min-w-0 flex-1 gap-1 text-sm font-medium">
+              {t("subscribe.email")}
+              <input
+                type="email"
+                name="email"
+                required
+                autoComplete="email"
+                maxLength={320}
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-normal"
+              />
+            </label>
+            <button
+              type="submit"
+              className="h-9 rounded-md bg-foreground px-4 text-sm font-medium text-background"
+            >
+              {t("subscribe.button")}
+            </button>
+          </form>
+        </section>
+      )}
 
       <footer className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t pt-4 text-sm text-muted-foreground">
         <p>

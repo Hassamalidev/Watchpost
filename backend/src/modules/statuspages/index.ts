@@ -14,6 +14,7 @@ import {
   createInternalTlsRouter,
   createPublicStatusRouter,
   createStatuspagesRouter,
+  createSubscriptionLinksRouter,
 } from "./statuspages.routes.js";
 import { createStatuspagesService, type StatuspagesService } from "./statuspages.service.js";
 
@@ -30,6 +31,7 @@ export interface StatuspagesModuleDeps {
 }
 
 const DOMAIN_SWEEP_MS = 5 * 60_000;
+const AUTO_INCIDENT_SWEEP_MS = 30_000;
 
 export interface StatuspagesModule extends AppModule {
   service: StatuspagesService;
@@ -61,6 +63,10 @@ export function createStatuspagesModule(deps: StatuspagesModuleDeps): Statuspage
     routers: [
       { path: "/api/w/:workspaceId", router: createStatuspagesRouter(controller, deps.guards) },
       { path: "/api/public/status", router: createPublicStatusRouter(controller) },
+      {
+        path: "/api/public/status-subscriptions",
+        router: createSubscriptionLinksRouter(controller),
+      },
       { path: "/api/internal/tls", router: createInternalTlsRouter(controller) },
     ],
     processors: createStatuspagesProcessors(service, deps.infra.db),
@@ -71,6 +77,17 @@ export function createStatuspagesModule(deps: StatuspagesModuleDeps): Statuspage
         async run(logger) {
           const checked = await service.checkDomains();
           if (checked > 0) logger.info({ checked }, "status page domains checked");
+        },
+      },
+      {
+        /* Opens a page incident once a monitor has been down as long as the page allows. */
+        kind: "status-auto-incidents",
+        everyMs: AUTO_INCIDENT_SWEEP_MS,
+        async run(logger) {
+          const { opened, resolved } = await service.autoIncidents();
+          if (opened + resolved > 0) {
+            logger.info({ opened, resolved }, "automatic status page incidents");
+          }
         },
       },
     ],

@@ -83,6 +83,20 @@ const SAMPLES: Record<EmailTemplate, Record<string, unknown>> = {
     planName: "Pro",
     date: "14 October 2026",
   },
+  "status-confirm": {
+    pageName: "Acme",
+    pageUrl: "https://acme.status.example.net",
+    url: "https://app.example.com/api/public/status-subscriptions/confirm?token=abc",
+  },
+  "status-update": {
+    pageName: "Acme",
+    pageUrl: "https://acme.status.example.net",
+    title: "Card payments are failing",
+    status: "identified",
+    message: "A provider is having trouble.\nWe are switching to the backup.",
+    components: ["Payments"],
+    unsubscribeUrl: "https://app.example.com/api/public/status-subscriptions/unsubscribe?token=abc",
+  },
   digest: {
     workspaceName: "Acme",
     weekStart: "2026-09-21",

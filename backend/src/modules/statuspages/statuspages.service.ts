@@ -24,6 +24,7 @@ import {
   type StatusComponentView,
   type StatusIncidentView,
   type StatusPageView,
+  type StatusSubscribersView,
   type UpdateStatusPageInput,
 } from "@app/shared";
 import type { z } from "zod";
@@ -38,12 +39,13 @@ import {
 } from "../../core/errors.js";
 import { createWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
 import type { PlanFeatures, PlanLimits } from "../../config/plans.js";
-import type { Db, DbOrTx } from "../../infra/db/index.js";
+import type { Db, DbOrTx, Tx } from "../../infra/db/index.js";
 import type { Logger } from "../../infra/logger.js";
 import type { Outbox } from "../../infra/outbox/index.js";
 import type { DetectionService } from "../detection/index.js";
 import type { MaintenanceService } from "../maintenance/index.js";
 import type { MonitorsService } from "../monitors/index.js";
+import { createHash, randomBytes } from "node:crypto";
 import type { DnsLookup } from "../../infra/dns.js";
 import { checkDomain, isSameOrSubdomain } from "./domains.js";
 import { renderAtom, renderRss } from "./feeds.js";
@@ -52,6 +54,7 @@ import type {
   StatusComponentRow,
   StatusIncidentRow,
   StatusPageRow,
+  StatusSubscriberRow,
   StatusUpdateRow,
 } from "./schema/statuspages.js";
 
@@ -64,6 +67,19 @@ export type PublicRef = { slug: string } | { host: string };
 const MAINTENANCE_AHEAD_DAYS = 14;
 const DAY_MS = 86_400_000;
 const MAX_PAGE_INCIDENTS = 50;
+/* A second request for the confirmation email is ignored for this long. */
+const CONFIRM_RESEND_MS = 5 * 60_000;
+const SUBSCRIBER_LIST_MAX = 200;
+const FANOUT_BATCH = 200;
+const AUTO_INCIDENT_PAGES = 500;
+
+const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
+const newToken = () => randomBytes(32).toString("base64url");
+
+/* What happened to a link from a subscriber email, and where to send the visitor next. */
+export type SubscriptionOutcome =
+  { ok: true; pageUrl: string; pageName: string } | { ok: false; reason: "invalid" | "full" };
+
 /* How long a verified domain may point elsewhere before it stops being served. */
 export const DOMAIN_GRACE_DAYS = 7;
 const DOMAIN_SWEEP_BATCH = 50;
@@ -122,6 +138,30 @@ export interface StatuspagesService {
   servesHost(host: string): Promise<boolean>;
   /* System (sweep): looks at the domains that are due. Returns how many were looked at. */
   checkDomains(): Promise<number>;
+  /* Who asked for the page's updates by email, and how many the plan allows. */
+  subscribers(scope: WorkspaceScope, pageId: string): Promise<StatusSubscribersView>;
+  removeSubscriber(scope: WorkspaceScope, pageId: string, subscriberId: string): Promise<void>;
+  /*
+   * Public: a visitor asks for updates. Sends a confirmation email (double opt-in). Answers the
+   * page's address, or undefined when the page doesn't exist or doesn't take subscribers; it never
+   * says whether the address was already known.
+   */
+  subscribe(
+    ref: PublicRef,
+    email: string,
+  ): Promise<{ pageUrl: string; addresses: string[] } | undefined>;
+  /* Public: the link in the confirmation email. */
+  confirmSubscription(token: string): Promise<SubscriptionOutcome>;
+  /* Public: the unsubscribe link in every email; works once, whoever opens it. */
+  unsubscribe(token: string): Promise<SubscriptionOutcome>;
+  /* System (events): emails an update to the page's confirmed subscribers. Returns how many. */
+  notifySubscribers(updateId: string): Promise<number>;
+  /*
+   * System (sweep and events): opens a page incident for a monitor that has been down longer than
+   * the page allows, and resolves it when the monitor is no longer down. `monitorId` limits the look
+   * to pages that show that monitor. Returns what it did.
+   */
+  autoIncidents(monitorId?: string): Promise<{ opened: number; resolved: number }>;
   /* Public: what a published page shows; undefined when there is no such page. */
   publicPage(ref: PublicRef): Promise<PublicStatusPage | undefined>;
   publicFeed(ref: PublicRef, format: "rss" | "atom"): Promise<string | undefined>;
@@ -293,6 +333,45 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
     }
   }
 
+  /* How many confirmed subscribers the workspace's plan allows per page. */
+  async function subscriberLimit(workspaceId: string): Promise<number> {
+    if (deps.plan === undefined) return Number.MAX_SAFE_INTEGER;
+    return (await deps.plan(system(workspaceId))).limits.statusSubscribers;
+  }
+
+  const subscriptionLink = (action: "confirm" | "unsubscribe", token: string) =>
+    `${deps.webOrigin}/api/public/status-subscriptions/${action}?token=${encodeURIComponent(token)}`;
+
+  /* Queues the confirmation email in the caller's transaction, with a fresh single-use token. */
+  async function sendConfirmation(tx: Tx, page: StatusPageRow, subscriber: StatusSubscriberRow) {
+    const token = newToken();
+    await repo.updateSubscriber(tx, subscriber.id, {
+      confirmTokenHash: sha256(token),
+      confirmSentAt: clock.now(),
+    });
+    await deps.outbox.emit(
+      tx,
+      "email.requested",
+      {
+        template: "status-confirm",
+        to: subscriber.email,
+        data: {
+          pageName: page.name,
+          pageUrl: urlOf(page),
+          url: subscriptionLink("confirm", token),
+        },
+      },
+      { workspaceId: page.workspaceId },
+    );
+  }
+
+  /* What a page says by itself when a service stays down, and when it is back. */
+  const autoText = (name: string) => ({
+    title: `${name} is unavailable`,
+    opened: `We have detected that ${name} is not responding and are looking into it.`,
+    resolved: `${name} is responding normally again.`,
+  });
+
   /* Monitors of this workspace among `ids`; anything else is refused by name. */
   async function checkMonitors(scope: WorkspaceScope, ids: string[], path: string) {
     const unique = [...new Set(ids)];
@@ -400,7 +479,7 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
         slug: page.slug,
         url: urlOf(page),
         branding: statusBrandingSchema.parse(page.branding),
-        subscribe: false,
+        subscribe: settings.subscribers && (await subscriberLimit(page.workspaceId)) > 0,
         showUptime: settings.showUptime,
         poweredByUrl: deps.webOrigin,
       },
@@ -698,10 +777,14 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
             : { componentIds: await checkComponents(tx, pageId, input.componentIds) }),
         });
         if (incident === undefined) throw new NotFoundError("Status page incident not found.");
-        /* A draft that goes public is announced with its latest update. */
+        /*
+         * A draft that goes public is announced with its latest update, dated now: that is when
+         * the public first sees it, and everyone subscribed by now hears about it.
+         */
         if (!before.published && incident.published) {
           const [latest] = await repo.updatesOf(tx, [incident.id]);
           if (latest !== undefined) {
+            await repo.redateUpdate(tx, latest.id, clock.now());
             await deps.outbox.emit(
               tx,
               "status_page.update_published",
@@ -813,6 +896,279 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
       return due.length;
     },
 
+    async subscribers(scope, pageId) {
+      await mustFindPage(deps.db, scope, pageId);
+      const [counts, rows, limit] = await Promise.all([
+        repo.countSubscribers(deps.db, pageId),
+        repo.listSubscribers(scope, pageId, SUBSCRIBER_LIST_MAX),
+        subscriberLimit(scope.workspaceId),
+      ]);
+      return {
+        ...counts,
+        limit,
+        data: rows.map((r) => ({
+          id: r.id,
+          email: r.email,
+          confirmedAt: r.confirmedAt?.toISOString() ?? null,
+          createdAt: r.createdAt.toISOString(),
+        })),
+      };
+    },
+
+    async removeSubscriber(scope, pageId, subscriberId) {
+      await mustFindPage(deps.db, scope, pageId);
+      if (!(await repo.deleteSubscriber(scope, pageId, subscriberId))) {
+        throw new NotFoundError("Subscriber not found.");
+      }
+    },
+
+    async subscribe(ref, email) {
+      const page = await repo.findPublished(ref);
+      if (page === undefined) return undefined;
+      const settings = statusPageSettingsSchema.parse(page.settings);
+      const limit = await subscriberLimit(page.workspaceId);
+      if (!settings.subscribers || limit <= 0) return undefined;
+      await deps.db.transaction(async (tx) => {
+        const existing = await repo.findSubscriber(tx, page.id, email);
+        /* Already subscribed: nothing to do, and nothing to tell whoever is asking. */
+        if (existing?.confirmedAt != null) return;
+        if (existing !== undefined) {
+          const sentAt = existing.confirmSentAt?.getTime() ?? 0;
+          if (clock.now().getTime() - sentAt < CONFIRM_RESEND_MS) return;
+          await sendConfirmation(tx, page, existing);
+          return;
+        }
+        /* A full list takes no new names; the visitor still gets the same answer. */
+        const { confirmed, pending } = await repo.countSubscribers(tx, page.id);
+        if (confirmed + pending >= limit) return;
+        const created = await repo.insertSubscriber(tx, {
+          id: deps.newId(),
+          pageId: page.id,
+          workspaceId: page.workspaceId,
+          email,
+          unsubToken: newToken(),
+        });
+        if (created !== undefined) await sendConfirmation(tx, page, created);
+      });
+      /* Every address the page answers at, the main one first. */
+      const addresses = [
+        urlOf(page),
+        `${deps.webOrigin}/s/${page.slug}`,
+        ...(deps.baseDomain === undefined ? [] : [`https://${page.slug}.${deps.baseDomain}`]),
+      ];
+      return { pageUrl: urlOf(page), addresses: [...new Set(addresses)] };
+    },
+
+    async confirmSubscription(token) {
+      return deps.db.transaction(async (tx): Promise<SubscriptionOutcome> => {
+        const subscriber = await repo.subscriberByConfirmHash(tx, sha256(token));
+        if (subscriber === undefined) return { ok: false, reason: "invalid" };
+        const [page] = await repo.pagesByIds([subscriber.pageId]);
+        if (page === undefined) return { ok: false, reason: "invalid" };
+        const { confirmed } = await repo.countSubscribers(tx, page.id);
+        if (confirmed >= (await subscriberLimit(page.workspaceId))) {
+          return { ok: false, reason: "full" };
+        }
+        await repo.updateSubscriber(tx, subscriber.id, {
+          confirmedAt: clock.now(),
+          confirmTokenHash: null,
+        });
+        return { ok: true, pageUrl: urlOf(page), pageName: page.name };
+      });
+    },
+
+    async unsubscribe(token) {
+      const removed = await repo.deleteSubscriberByToken(token);
+      if (removed === undefined) return { ok: false, reason: "invalid" };
+      const [page] = await repo.pagesByIds([removed.pageId]);
+      if (page === undefined) return { ok: false, reason: "invalid" };
+      return { ok: true, pageUrl: urlOf(page), pageName: page.name };
+    },
+
+    async notifySubscribers(updateId) {
+      const found = await repo.findUpdate(updateId);
+      if (found === undefined || !found.incident.published) return 0;
+      const { update, incident } = found;
+      const [page] = await repo.pagesByIds([incident.pageId]);
+      if (page === undefined || !page.published) return 0;
+      const names = new Map(
+        (await repo.componentsOf(deps.db, [page.id])).map((c) => [c.id, c.name]),
+      );
+      const data = {
+        pageName: page.name,
+        pageUrl: urlOf(page),
+        title: incident.title,
+        status: update.status,
+        message: update.body,
+        components: incident.componentIds.flatMap((id) => names.get(id) ?? []),
+      };
+      let sent = 0;
+      let afterId: string | undefined;
+      for (;;) {
+        const batch = await repo.confirmedSubscribers(
+          deps.db,
+          page.id,
+          update.createdAt,
+          afterId,
+          FANOUT_BATCH,
+        );
+        if (batch.length === 0) break;
+        afterId = batch.at(-1)?.id;
+        /* The claim and the emails commit together, so a retry sends to nobody twice. */
+        sent += await deps.db.transaction(async (tx) => {
+          const fresh = new Set(
+            await repo.claimNotifications(
+              tx,
+              page.workspaceId,
+              update.id,
+              batch.map((s) => s.id),
+            ),
+          );
+          for (const subscriber of batch) {
+            if (!fresh.has(subscriber.id)) continue;
+            const unsubscribeUrl = subscriptionLink("unsubscribe", subscriber.unsubToken);
+            await deps.outbox.emit(
+              tx,
+              "email.requested",
+              {
+                template: "status-update",
+                to: subscriber.email,
+                data: { ...data, unsubscribeUrl },
+                idempotencyKey: `status-update.${update.id}.${subscriber.id}`,
+                headers: {
+                  "List-Unsubscribe": `<${unsubscribeUrl}>`,
+                  "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+                },
+              },
+              { workspaceId: page.workspaceId },
+            );
+          }
+          return fresh.size;
+        });
+        if (batch.length < FANOUT_BATCH) break;
+      }
+      return sent;
+    },
+
+    async autoIncidents(monitorId) {
+      const pages =
+        monitorId === undefined
+          ? await repo.pagesWithAutoIncidents(AUTO_INCIDENT_PAGES)
+          : (
+              await repo.pagesByIds([
+                ...new Set((await repo.componentsForMonitors([monitorId])).map((c) => c.pageId)),
+              ])
+            ).filter((p) => p.published);
+      const result = { opened: 0, resolved: 0 };
+      const statesOf = new Map<string, Map<string, { status: string; since: string }>>();
+      for (const page of pages) {
+        const settings = statusPageSettingsSchema.parse(page.settings);
+        const scope = system(page.workspaceId);
+        let states = statesOf.get(page.workspaceId);
+        if (states === undefined) {
+          states = new Map((await deps.detection.states(scope)).map((s) => [s.monitorId, s]));
+          statesOf.set(page.workspaceId, states);
+        }
+        const components = (await repo.componentsOf(deps.db, [page.id])).filter(
+          (c) => c.monitorId !== null && (monitorId === undefined || c.monitorId === monitorId),
+        );
+        const open = await repo.openAutoIncidents(deps.db, [page.id]);
+        const now = clock.now();
+        const changed = { value: false };
+
+        /* Still open although the monitor is no longer down: say so and close it. */
+        for (const incident of open) {
+          if (monitorId !== undefined && incident.autoMonitorId !== monitorId) continue;
+          if (states.get(incident.autoMonitorId ?? "")?.status === "down") continue;
+          const name =
+            components.find((c) => c.monitorId === incident.autoMonitorId)?.name ?? "The service";
+          await deps.db.transaction(async (tx) => {
+            const locked = await repo.findIncident(tx, scope, incident.id, true);
+            if (locked === undefined || locked.resolvedAt !== null) return;
+            const update = await repo.insertUpdate(tx, scope, {
+              id: deps.newId(),
+              statusIncidentId: incident.id,
+              status: "resolved",
+              body: autoText(name).resolved,
+              aiDrafted: false,
+              createdBy: null,
+              createdAt: now,
+            });
+            await repo.updateIncident(tx, scope, incident.id, {
+              status: "resolved",
+              resolvedAt: now,
+            });
+            if (locked.published) {
+              await deps.outbox.emit(
+                tx,
+                "status_page.update_published",
+                { statusPageId: page.id, statusIncidentId: incident.id, updateId: update.id },
+                { workspaceId: page.workspaceId },
+              );
+            }
+            result.resolved += 1;
+            changed.value = true;
+          });
+        }
+
+        /* Down for longer than the page allows, and nothing says so yet: open one. */
+        if (settings.autoIncidents.enabled) {
+          const waitMs = settings.autoIncidents.afterMinutes * 60_000;
+          const byMonitor = new Map<string, StatusComponentRow[]>();
+          for (const c of components) {
+            if (c.monitorId === null) continue;
+            byMonitor.set(c.monitorId, [...(byMonitor.get(c.monitorId) ?? []), c]);
+          }
+          for (const [id, shown] of byMonitor) {
+            const state = states.get(id);
+            if (state === undefined || state.status !== "down") continue;
+            if (now.getTime() - Date.parse(state.since) < waitMs) continue;
+            if (open.some((i) => i.autoMonitorId === id)) continue;
+            const text = autoText(shown[0]?.name ?? "A service");
+            const published = settings.autoIncidents.publish === "auto";
+            await deps.db.transaction(async (tx) => {
+              /* The unique index decides if two sweeps race: the second insert returns nothing. */
+              const incident = await repo.insertIncident(tx, scope, {
+                id: deps.newId(),
+                pageId: page.id,
+                title: text.title,
+                status: "investigating",
+                impact: "major_outage",
+                componentIds: shown.map((c) => c.id),
+                published,
+                autoMonitorId: id,
+                startedAt: now,
+                resolvedAt: null,
+                createdBy: null,
+              });
+              if (incident === undefined) return;
+              const update = await repo.insertUpdate(tx, scope, {
+                id: deps.newId(),
+                statusIncidentId: incident.id,
+                status: "investigating",
+                body: text.opened,
+                aiDrafted: false,
+                createdBy: null,
+                createdAt: now,
+              });
+              if (published) {
+                await deps.outbox.emit(
+                  tx,
+                  "status_page.update_published",
+                  { statusPageId: page.id, statusIncidentId: incident.id, updateId: update.id },
+                  { workspaceId: page.workspaceId },
+                );
+              }
+              result.opened += 1;
+              changed.value = true;
+            });
+          }
+        }
+        if (changed.value) await refresh(page);
+      }
+      return result;
+    },
+
     async publicPage(ref) {
       const page = await repo.findPublished(ref);
       return page === undefined ? undefined : snapshot(page, true);
@@ -829,7 +1185,11 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
     async onMonitorChanged(monitorId) {
       const components = await repo.componentsForMonitors([monitorId]);
       const pages = await repo.pagesByIds([...new Set(components.map((c) => c.pageId))]);
-      if (pages.length > 0) await refresh(...pages);
+      if (pages.length > 0) {
+        /* A recovery closes the page's automatic incident at once; an outage waits for the sweep. */
+        await service.autoIncidents(monitorId);
+        await refresh(...pages);
+      }
       return pages.length;
     },
 

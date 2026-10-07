@@ -1,15 +1,18 @@
 /* Drizzle queries for this module's own tables only (tables go in schema/). */
-import { and, asc, desc, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type { WorkspaceScope } from "../../core/workspace-scope.js";
 import { tenantWhere, withWorkspace, type DbOrTx } from "../../infra/db/index.js";
 import {
   statusComponents,
   statusIncidents,
+  statusNotifications,
   statusPages,
+  statusSubscribers,
   statusUpdates,
   type StatusComponentRow,
   type StatusIncidentRow,
   type StatusPageRow,
+  type StatusSubscriberRow,
   type StatusUpdateRow,
 } from "./schema/statuspages.js";
 
@@ -348,6 +351,189 @@ export function createStatuspagesRepository(db: DbOrTx) {
         .returning();
       if (created === undefined) throw new Error("status update insert returned nothing");
       return created;
+    },
+
+    async redateUpdate(tx: DbOrTx, id: string, at: Date): Promise<void> {
+      await tx.update(statusUpdates).set({ createdAt: at }).where(eq(statusUpdates.id, id));
+    },
+
+    /* System: one update with its incident, for the fan-out to subscribers. */
+    async findUpdate(updateId: string) {
+      const rows = await db
+        .select({ update: statusUpdates, incident: statusIncidents })
+        .from(statusUpdates)
+        .innerJoin(statusIncidents, eq(statusIncidents.id, statusUpdates.statusIncidentId))
+        .where(eq(statusUpdates.id, updateId))
+        .limit(1);
+      return rows[0];
+    },
+
+    /* Automatic incidents (§6.6) */
+
+    /* System: published pages that open incidents by themselves. */
+    async pagesWithAutoIncidents(limit: number): Promise<StatusPageRow[]> {
+      return db
+        .select()
+        .from(statusPages)
+        .where(
+          and(
+            eq(statusPages.published, true),
+            sql`${statusPages.settings}->'autoIncidents'->>'enabled' = 'true'`,
+          ),
+        )
+        .orderBy(asc(statusPages.id))
+        .limit(limit);
+    },
+
+    /* System: the page's automatic incidents that are still open. */
+    async openAutoIncidents(tx: DbOrTx, pageIds: string[]): Promise<StatusIncidentRow[]> {
+      if (pageIds.length === 0) return [];
+      return tx
+        .select()
+        .from(statusIncidents)
+        .where(
+          and(
+            inArray(statusIncidents.pageId, pageIds),
+            isNull(statusIncidents.resolvedAt),
+            sql`${statusIncidents.autoMonitorId} is not null`,
+          ),
+        );
+    },
+
+    /* Subscribers */
+
+    async findSubscriber(tx: DbOrTx, pageId: string, email: string) {
+      const rows = await tx
+        .select()
+        .from(statusSubscribers)
+        .where(and(eq(statusSubscribers.pageId, pageId), eq(statusSubscribers.email, email)))
+        .limit(1)
+        .for("update");
+      return rows[0];
+    },
+
+    async insertSubscriber(
+      tx: DbOrTx,
+      row: typeof statusSubscribers.$inferInsert,
+    ): Promise<StatusSubscriberRow | undefined> {
+      const [created] = await tx
+        .insert(statusSubscribers)
+        .values(row)
+        .onConflictDoNothing({ target: [statusSubscribers.pageId, statusSubscribers.email] })
+        .returning();
+      return created;
+    },
+
+    async updateSubscriber(
+      tx: DbOrTx,
+      id: string,
+      patch: Partial<
+        Pick<StatusSubscriberRow, "confirmedAt" | "confirmTokenHash" | "confirmSentAt">
+      >,
+    ): Promise<StatusSubscriberRow | undefined> {
+      const [row] = await tx
+        .update(statusSubscribers)
+        .set(patch)
+        .where(eq(statusSubscribers.id, id))
+        .returning();
+      return row;
+    },
+
+    async subscriberByConfirmHash(tx: DbOrTx, hash: string) {
+      const rows = await tx
+        .select()
+        .from(statusSubscribers)
+        .where(eq(statusSubscribers.confirmTokenHash, hash))
+        .limit(1)
+        .for("update");
+      return rows[0];
+    },
+
+    /* The link in every email: removes the subscriber, whoever asks. */
+    async deleteSubscriberByToken(token: string): Promise<StatusSubscriberRow | undefined> {
+      const [row] = await db
+        .delete(statusSubscribers)
+        .where(eq(statusSubscribers.unsubToken, token))
+        .returning();
+      return row;
+    },
+
+    async deleteSubscriber(scope: WorkspaceScope, pageId: string, id: string): Promise<boolean> {
+      const rows = await db
+        .delete(statusSubscribers)
+        .where(
+          tenantWhere(
+            scope,
+            statusSubscribers,
+            and(eq(statusSubscribers.id, id), eq(statusSubscribers.pageId, pageId)),
+          ),
+        )
+        .returning({ id: statusSubscribers.id });
+      return rows.length > 0;
+    },
+
+    async countSubscribers(
+      tx: DbOrTx,
+      pageId: string,
+    ): Promise<{ confirmed: number; pending: number }> {
+      const [row] = await tx
+        .select({
+          confirmed: sql<number>`count(*) filter (where ${statusSubscribers.confirmedAt} is not null)::int`,
+          pending: sql<number>`count(*) filter (where ${statusSubscribers.confirmedAt} is null)::int`,
+        })
+        .from(statusSubscribers)
+        .where(eq(statusSubscribers.pageId, pageId));
+      return { confirmed: row?.confirmed ?? 0, pending: row?.pending ?? 0 };
+    },
+
+    async listSubscribers(scope: WorkspaceScope, pageId: string, limit: number) {
+      return db
+        .select()
+        .from(statusSubscribers)
+        .where(tenantWhere(scope, statusSubscribers, eq(statusSubscribers.pageId, pageId)))
+        .orderBy(desc(statusSubscribers.createdAt), desc(statusSubscribers.id))
+        .limit(limit);
+    },
+
+    /*
+     * Subscribers of a page who had confirmed by `asOf`, after `afterId`, in ID order (the fan-out
+     * pages through). Someone who subscribes later is not sent older updates by a late retry.
+     */
+    async confirmedSubscribers(
+      tx: DbOrTx,
+      pageId: string,
+      asOf: Date,
+      afterId: string | undefined,
+      limit: number,
+    ): Promise<StatusSubscriberRow[]> {
+      return tx
+        .select()
+        .from(statusSubscribers)
+        .where(
+          and(
+            eq(statusSubscribers.pageId, pageId),
+            lte(statusSubscribers.confirmedAt, asOf),
+            afterId === undefined ? undefined : gt(statusSubscribers.id, afterId),
+          ),
+        )
+        .orderBy(asc(statusSubscribers.id))
+        .limit(limit);
+    },
+
+    /* Marks these subscribers as told about the update; answers who was not told before. */
+    async claimNotifications(
+      tx: DbOrTx,
+      workspaceId: string,
+      updateId: string,
+      subscriberIds: string[],
+    ): Promise<string[]> {
+      if (subscriberIds.length === 0) return [];
+      const rows = await tx
+        .insert(statusNotifications)
+        .values(subscriberIds.map((subscriberId) => ({ subscriberId, updateId, workspaceId })))
+        .onConflictDoNothing()
+        .returning({ subscriberId: statusNotifications.subscriberId });
+      return rows.map((r) => r.subscriberId);
     },
 
     async updatesOf(tx: DbOrTx, incidentIds: string[]): Promise<StatusUpdateRow[]> {

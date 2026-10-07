@@ -1737,7 +1737,18 @@
     "updated": "Updated {time}",
     "feeds": "Feeds and links",
     "support": "Contact support",
-    "poweredBy": "Powered by Watchpost"
+    "poweredBy": "Powered by Watchpost",
+    "subscribe": {
+      "title": "Get updates by email",
+      "intro": "We email you when an incident is reported, updated and resolved. You can unsubscribe with one click.",
+      "email": "Email address",
+      "button": "Subscribe",
+      "notice": {
+        "sent": "Check your inbox: we sent a link to confirm your subscription.",
+        "confirmed": "You are subscribed. We will email you when there is an incident.",
+        "removed": "You are unsubscribed. You won't get more emails from this page."
+      }
+    }
   },
   "statusPages": {
     "title": "Status pages",
@@ -1835,6 +1846,32 @@
       "checkNow": "Check now",
       "checking": "Checking…",
       "lastChecked": "Last checked {time}"
+    },
+    "allowSubscribers": "Let visitors subscribe to updates by email",
+    "allowSubscribersHint": "They confirm their address first and can unsubscribe with one click.",
+    "auto": {
+      "title": "Automatic incidents",
+      "enabled": "Open an incident by itself when a service stays down",
+      "enabledHint": "For services that follow a monitor. The incident is resolved by itself when the monitor is back up.",
+      "minutes": "After this many minutes down",
+      "minutesHint": "1 to 120. Short blips never reach the page.",
+      "publish": "When it opens",
+      "publishAuto": "Publish it at once",
+      "publishDraft": "Keep it as a draft for me to publish"
+    },
+    "subscribers": {
+      "title": "Subscribers",
+      "intro": "People who asked for this page's updates by email.",
+      "notOnPlan": "Email subscribers are part of the Pro plan and up.",
+      "switchedOff": "Subscribing is switched off for this page. Turn it on in the page settings.",
+      "summary": "{confirmed} of {limit} subscribers.",
+      "pending": "{count, plural, one {# more has} other {# more have}} not confirmed yet.",
+      "empty": "Nobody has subscribed yet. The form is at the bottom of the public page.",
+      "waiting": "Waiting for confirmation",
+      "since": "Subscribed {time}",
+      "remove": "Remove",
+      "removeLabel": "Remove {email}",
+      "confirmRemove": "Remove {email} from this page's subscribers?"
     }
   }
 }

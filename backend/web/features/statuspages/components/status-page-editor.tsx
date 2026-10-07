@@ -39,6 +39,7 @@ import {
   useStatusPreview,
 } from "../api";
 import { DomainCard } from "./domain-card";
+import { SubscribersCard } from "./subscribers-card";
 import { StatusPageView as PublicView, formatUtc } from "./status-page-view";
 
 const firstProblem = (err: unknown) => {
@@ -71,6 +72,10 @@ function SettingsForm({ ws, page }: { ws: string; page: StatusPageView }) {
     supportUrl: page.branding.supportUrl ?? "",
     showUptime: page.settings.showUptime,
     published: page.published,
+    subscribers: page.settings.subscribers,
+    autoEnabled: page.settings.autoIncidents.enabled,
+    autoMinutes: String(page.settings.autoIncidents.afterMinutes),
+    autoPublish: page.settings.autoIncidents.publish,
   }));
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
@@ -88,7 +93,15 @@ function SettingsForm({ ws, page }: { ws: string; page: StatusPageView }) {
           accentColor: orNull(form.accentColor),
           supportUrl: orNull(form.supportUrl),
         },
-        settings: { ...page.settings, showUptime: form.showUptime },
+        settings: {
+          showUptime: form.showUptime,
+          subscribers: form.subscribers,
+          autoIncidents: {
+            enabled: form.autoEnabled,
+            afterMinutes: Math.min(120, Math.max(1, Math.round(Number(form.autoMinutes)) || 5)),
+            publish: form.autoPublish,
+          },
+        },
       }),
     onSuccess: refresh,
   });
@@ -178,6 +191,61 @@ function SettingsForm({ ws, page }: { ws: string; page: StatusPageView }) {
         />
         {t("showUptime")}
       </label>
+      <label className="flex items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          className="mt-0.5"
+          checked={form.subscribers}
+          onChange={(e) => set("subscribers", e.target.checked)}
+        />
+        <span>
+          {t("allowSubscribers")}
+          <span className="block text-xs text-muted-foreground">{t("allowSubscribersHint")}</span>
+        </span>
+      </label>
+      <fieldset className="grid gap-3 rounded-md border p-3">
+        <legend className="px-1 text-sm font-medium">{t("auto.title")}</legend>
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={form.autoEnabled}
+            onChange={(e) => set("autoEnabled", e.target.checked)}
+          />
+          <span>
+            {t("auto.enabled")}
+            <span className="block text-xs text-muted-foreground">{t("auto.enabledHint")}</span>
+          </span>
+        </label>
+        {form.autoEnabled && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field
+              label={t("auto.minutes")}
+              htmlFor="spe-auto-minutes"
+              hint={t("auto.minutesHint")}
+            >
+              <Input
+                id="spe-auto-minutes"
+                type="number"
+                min={1}
+                max={120}
+                value={form.autoMinutes}
+                onChange={(e) => set("autoMinutes", e.target.value)}
+              />
+            </Field>
+            <Field label={t("auto.publish")} htmlFor="spe-auto-publish">
+              <Select
+                id="spe-auto-publish"
+                value={form.autoPublish}
+                onChange={(e) => set("autoPublish", e.target.value as "auto" | "draft")}
+              >
+                <option value="auto">{t("auto.publishAuto")}</option>
+                <option value="draft">{t("auto.publishDraft")}</option>
+              </Select>
+            </Field>
+          </div>
+        )}
+      </fieldset>
       <label className="flex items-start gap-2 text-sm">
         <input
           type="checkbox"
@@ -758,6 +826,16 @@ export function StatusPageEditor({ id }: { id: string }) {
               </CardContent>
             </Card>
           )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("subscribers.title")}</CardTitle>
+              <CardDescription>{t("subscribers.intro")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SubscribersCard ws={ws} page={data} canEdit={canEdit} />
+            </CardContent>
+          </Card>
 
           {canEdit && (
             <Card>

@@ -397,6 +397,7 @@ export {
   statusComponentInputSchema,
   statusPageSettingsSchema,
   statusSlugSchema,
+  subscribeStatusSchema,
   updateStatusIncidentSchema,
   updateStatusPageSchema,
   worseStatus,
@@ -418,6 +419,8 @@ export {
   type StatusIncidentView,
   type StatusPageSettings,
   type StatusPageView,
+  type StatusSubscriberView,
+  type StatusSubscribersView,
   type StatusUpdateView,
   type UpdateStatusPageInput,
 } from "./schemas/statuspages.js";

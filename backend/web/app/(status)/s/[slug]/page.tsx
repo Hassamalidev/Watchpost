@@ -6,10 +6,16 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { StatusPageView } from "@/features/statuspages/components/status-page-view";
+import {
+  SUBSCRIBE_NOTICES,
+  StatusPageView,
+} from "@/features/statuspages/components/status-page-view";
 import { loadStatusPage } from "@/features/statuspages/public";
 
-type Props = { params: Promise<{ slug: string }> };
+type Props = {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ subscribe?: string | string[] }>;
+};
 
 const refOf = async (params: Props["params"]) =>
   decodeURIComponent((await params).slug).toLowerCase();
@@ -34,8 +40,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function StatusPage({ params }: Props) {
+export default async function StatusPage({ params, searchParams }: Props) {
   const data = await loadStatusPage(await refOf(params));
   if (data === null) notFound();
-  return <StatusPageView data={data} feedBase={`/api/public/status/${data.page.slug}`} />;
+  /* The API sends a visitor back here after the subscribe form and the links in its emails. */
+  const { subscribe } = await searchParams;
+  const notice = SUBSCRIBE_NOTICES.find((value) => value === subscribe);
+  const base = `/api/public/status/${data.page.slug}`;
+  return (
+    <StatusPageView
+      data={data}
+      feedBase={base}
+      subscribeAction={`${base}/subscribers`}
+      notice={notice}
+    />
+  );
 }

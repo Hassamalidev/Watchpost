@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 import http from "node:http";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { emailField, emailLink, uniqueEmail } from "./helpers";
 
 const TARGET = "http://127.0.0.1:4110";
 const LCP_BUDGET_MS = 1_500;
@@ -141,8 +142,25 @@ test("a status page is public at once, follows its monitor within 10 s, and show
       /(Partial|Major) outage/,
     );
 
+    /* The visitor subscribes with the page's own form and confirms from the email. */
+    const subscriber = uniqueEmail("visitor");
+    await visitor.getByLabel("Email address").fill(subscriber);
+    await visitor.getByRole("button", { name: "Subscribe" }).click();
+    await expect(visitor.getByText("Check your inbox: we sent a link")).toBeVisible();
+    expect(new URL(visitor.url()).pathname).toBe(`/s/${slug}`);
+    const confirmUrl = new URL(await emailLink(subscriber, "status-confirm"));
+    const confirmed = await visitor.request.get(`${confirmUrl.pathname}${confirmUrl.search}`, {
+      maxRedirects: 0,
+    });
+    expect(confirmed.status()).toBe(303);
+    expect(confirmed.headers().location).toContain("?subscribe=confirmed");
+    await visitor.goto(`/s/${slug}?subscribe=confirmed`);
+    await expect(visitor.getByText("You are subscribed.")).toBeVisible();
+
     /* An incident posted from the editor reaches the public page with its update. */
     await page.goto(editorUrl);
+    await expect(page.getByText(subscriber)).toBeVisible();
+    await expect(page.getByText("1 of 2000 subscribers.")).toBeVisible();
     await page.getByLabel("Title").fill("Card payments are failing");
     await page.getByLabel("First update").fill("We are investigating failed card payments.");
     await page.getByRole("checkbox", { name: "Payments" }).check();
@@ -170,6 +188,15 @@ test("a status page is public at once, follows its monitor within 10 s, and show
       });
     }).toPass({ timeout: 10_000, intervals: [500] });
     await expect(visitor.getByRole("heading", { name: "Past incidents" })).toBeVisible();
+
+    /* The subscriber was emailed, and leaves with the link in the email. */
+    const unsubscribeUrl = new URL(await emailField(subscriber, "status-update", "unsubscribeUrl"));
+    const left = await visitor.request.post(`${unsubscribeUrl.pathname}${unsubscribeUrl.search}`, {
+      form: { "List-Unsubscribe": "One-Click" },
+    });
+    expect(left.status()).toBe(200);
+    await page.reload();
+    await expect(page.getByText("0 of 2000 subscribers.")).toBeVisible();
 
     const results = await new AxeBuilder({ page: visitor })
       .withTags(["wcag2a", "wcag2aa"])

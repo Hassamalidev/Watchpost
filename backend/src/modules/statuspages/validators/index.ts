@@ -6,6 +6,7 @@ import {
   postStatusUpdateSchema,
   replaceStatusComponentsSchema,
   setStatusDomainSchema,
+  subscribeStatusSchema,
   updateStatusIncidentSchema,
   updateStatusPageSchema,
 } from "@app/shared";
@@ -20,6 +21,10 @@ export const createIncidentBody = createStatusIncidentSchema;
 export const updateIncidentBody = updateStatusIncidentSchema;
 export const postUpdateBody = postStatusUpdateSchema;
 export const setDomainBody = setStatusDomainSchema;
+export const subscriberIdParams = z.object({ pageId: z.uuid(), subscriberId: z.uuid() });
+export const subscribeBody = subscribeStatusSchema;
+/* The token in a confirmation or unsubscribe link. */
+export const subscriptionTokenQuery = z.object({ token: z.string().min(20).max(200) });
 /* Caddy's on-demand TLS check: `?domain=<host>`. */
 export const tlsAskQuery = z.object({ domain: z.string().trim().toLowerCase().min(1).max(253) });
 

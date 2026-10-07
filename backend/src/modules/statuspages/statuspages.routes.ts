@@ -3,7 +3,7 @@
  * Everyone but billing sees the pages; members edit them and post updates, as they manage monitors.
  * /api/public/status/:ref is the public zone (§7.1): no session, read-only, cached.
  */
-import { Router, type RequestHandler } from "express";
+import { Router, urlencoded, type RequestHandler } from "express";
 import { NotFoundError } from "../../core/errors.js";
 import { requirePermission } from "../../middleware/roles.js";
 import { validate } from "../../middleware/validate.js";
@@ -17,6 +17,9 @@ import {
   publicRefParams,
   replaceComponentsBody,
   setDomainBody,
+  subscribeBody,
+  subscriberIdParams,
+  subscriptionTokenQuery,
   tlsAskQuery,
   updateIncidentBody,
   updatePageBody,
@@ -57,6 +60,13 @@ export function createStatuspagesRouter(
     controller.setDomain,
   );
   router.post("/status-pages/:pageId/domain/verify", write, page, controller.verifyDomain);
+  router.get("/status-pages/:pageId/subscribers", read, page, controller.subscribers);
+  router.delete(
+    "/status-pages/:pageId/subscribers/:subscriberId",
+    write,
+    validate({ params: subscriberIdParams }),
+    controller.removeSubscriber,
+  );
 
   router.get("/status-pages/:pageId/incidents", read, page, controller.listIncidents);
   router.post(
@@ -110,5 +120,22 @@ export function createPublicStatusRouter(controller: StatuspagesController): Rou
   router.get("/:ref", ref, controller.publicPage);
   router.get("/:ref/rss", ref, controller.publicRss);
   router.get("/:ref/atom", ref, controller.publicAtom);
+  /* The page's subscribe form posts as a plain HTML form; API clients post JSON. */
+  router.post(
+    "/:ref/subscribers",
+    urlencoded({ extended: false, limit: "10kb" }),
+    validate({ params: publicRefParams, body: subscribeBody }),
+    controller.subscribe,
+  );
+  return router;
+}
+
+/* /api/public/status-subscriptions: the links in subscriber emails (no session, token in the URL). */
+export function createSubscriptionLinksRouter(controller: StatuspagesController): Router {
+  const router = Router();
+  const token = validate({ query: subscriptionTokenQuery });
+  router.get("/confirm", token, controller.confirmSubscription);
+  router.get("/unsubscribe", token, controller.unsubscribe);
+  router.post("/unsubscribe", token, controller.unsubscribeOneClick);
   return router;
 }

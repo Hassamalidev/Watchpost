@@ -217,6 +217,59 @@ function DigestEmail(d: z.infer<typeof digestData>) {
   );
 }
 
+/* Emails to a status page's subscribers: people outside the workspace (PRODUCT.md §6.6). */
+const STATUS_UPDATE_LABEL = {
+  investigating: "Investigating",
+  identified: "Identified",
+  monitoring: "Monitoring",
+  resolved: "Resolved",
+} as const;
+
+const statusUpdateData = z.object({
+  pageName: z.string().min(1).max(200),
+  pageUrl: url,
+  title: z.string().min(1).max(300),
+  status: z.enum(["investigating", "identified", "monitoring", "resolved"]),
+  message: z.string().min(1).max(5_000),
+  components: z.array(z.string().max(200)).max(100).default([]),
+  unsubscribeUrl: url,
+});
+
+function StatusUpdateEmail(d: z.infer<typeof statusUpdateData>) {
+  const resolved = d.status === "resolved";
+  return (
+    <EmailLayout
+      preview={`${STATUS_UPDATE_LABEL[d.status]}: ${d.title}`}
+      footer={`You get this email because you subscribed to ${d.pageName} status updates.`}
+    >
+      <Text className="wp-muted" style={styles.muted}>
+        {d.pageName} status
+      </Text>
+      <Heading
+        as="h1"
+        className={resolved ? "wp-up" : "wp-text"}
+        style={{ ...styles.heading, ...(resolved ? styles.tone.up : {}) }}
+      >
+        {STATUS_UPDATE_LABEL[d.status]}: {d.title}
+      </Heading>
+      {d.message.split("\n").map((line, index) => (
+        <Text key={index} className="wp-text" style={styles.text}>
+          {line}
+        </Text>
+      ))}
+      {d.components.length > 0 && (
+        <Text className="wp-muted" style={styles.muted}>
+          Affects: {d.components.join(", ")}
+        </Text>
+      )}
+      <Action href={d.pageUrl}>Open the status page</Action>
+      <Text className="wp-muted" style={styles.muted}>
+        <Link href={d.unsubscribeUrl}>Unsubscribe</Link>
+      </Text>
+    </EmailLayout>
+  );
+}
+
 export const BILLING_EMAIL_KINDS = [
   "trial_started",
   "trial_midway",
@@ -658,6 +711,35 @@ export const EMAIL_TEMPLATES = {
         ))}
       </EmailLayout>
     ),
+  },
+  "status-confirm": {
+    data: z.object({ pageName: z.string().min(1).max(200), pageUrl: url, url }),
+    subject: (d: { pageName: string }) => `Confirm your subscription to ${d.pageName} status`,
+    component: (d: { pageName: string; pageUrl: string; url: string }) => (
+      <EmailLayout
+        preview={`Confirm that you want ${d.pageName} status updates`}
+        footer={`Sent because this address was entered at ${d.pageUrl}.`}
+      >
+        <Heading as="h1" className="wp-text" style={styles.heading}>
+          Confirm your subscription
+        </Heading>
+        <Text className="wp-text" style={styles.text}>
+          Confirm that you want an email when {d.pageName} reports an incident, posts an update or
+          resolves it.
+        </Text>
+        <Action href={d.url}>Confirm subscription</Action>
+        <Fallback href={d.url} />
+        <Text className="wp-muted" style={styles.muted}>
+          If you didn&apos;t ask for this, ignore this email: you won&apos;t hear from us again.
+        </Text>
+      </EmailLayout>
+    ),
+  },
+  "status-update": {
+    data: statusUpdateData,
+    subject: (d: z.infer<typeof statusUpdateData>) =>
+      `[${d.pageName}] ${STATUS_UPDATE_LABEL[d.status]}: ${d.title}`,
+    component: StatusUpdateEmail,
   },
   billing: {
     data: billingData,

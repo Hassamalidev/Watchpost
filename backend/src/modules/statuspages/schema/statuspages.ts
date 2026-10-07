@@ -17,6 +17,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -134,6 +135,53 @@ export const statusUpdates = pgTable(
   (t) => [index("status_updates_incident_idx").on(t.statusIncidentId, t.createdAt)],
 );
 
+/*
+ * People who asked for a page's updates by email. A row is pending until the confirmation link is
+ * opened; `confirm_token_hash` is the SHA-256 of that link's token. `unsub_token` goes into every
+ * email's unsubscribe link, so it is kept as it is.
+ */
+export const statusSubscribers = pgTable(
+  "status_subscribers",
+  {
+    id: uuid("id").primaryKey(),
+    pageId: uuid("page_id")
+      .notNull()
+      .references(() => statusPages.id, { onDelete: "cascade" }),
+    workspaceId: uuid("workspace_id").notNull(),
+    email: text("email").notNull(),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    confirmTokenHash: text("confirm_token_hash"),
+    /* When the confirmation email last went out, so asking again can't flood an inbox. */
+    confirmSentAt: timestamp("confirm_sent_at", { withTimezone: true }),
+    unsubToken: text("unsub_token").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("status_subscribers_page_email_uq").on(t.pageId, t.email),
+    uniqueIndex("status_subscribers_unsub_uq").on(t.unsubToken),
+    index("status_subscribers_confirm_idx")
+      .on(t.confirmTokenHash)
+      .where(sql`${t.confirmTokenHash} is not null`),
+  ],
+);
+
+/* One row per subscriber and update that was emailed: makes the fan-out safe to run twice. */
+export const statusNotifications = pgTable(
+  "status_notifications",
+  {
+    subscriberId: uuid("subscriber_id")
+      .notNull()
+      .references(() => statusSubscribers.id, { onDelete: "cascade" }),
+    updateId: uuid("update_id")
+      .notNull()
+      .references(() => statusUpdates.id, { onDelete: "cascade" }),
+    workspaceId: uuid("workspace_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.subscriberId, t.updateId] })],
+);
+
+export type StatusSubscriberRow = typeof statusSubscribers.$inferSelect;
 export type StatusPageRow = typeof statusPages.$inferSelect;
 export type StatusComponentRow = typeof statusComponents.$inferSelect;
 export type StatusIncidentRow = typeof statusIncidents.$inferSelect;

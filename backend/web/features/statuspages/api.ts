@@ -11,6 +11,7 @@ import type {
   StatusIncidentView,
   StatusPageSettings,
   StatusPageView,
+  StatusSubscribersView,
 } from "@app/shared";
 import { api, wsPath } from "@/lib/api";
 
@@ -48,6 +49,12 @@ export const statusPagesApi = {
     api<StatusPageView>(wsPath(ws, `/status-pages/${id}/components`), {
       method: "PUT",
       body: { components },
+    }),
+  subscribers: (ws: string, id: string) =>
+    api<StatusSubscribersView>(wsPath(ws, `/status-pages/${id}/subscribers`)),
+  removeSubscriber: (ws: string, id: string, subscriberId: string) =>
+    api<void>(wsPath(ws, `/status-pages/${id}/subscribers/${subscriberId}`), {
+      method: "DELETE",
     }),
   setDomain: (ws: string, id: string, domain: string | null) =>
     api<StatusPageView>(wsPath(ws, `/status-pages/${id}/domain`), {
