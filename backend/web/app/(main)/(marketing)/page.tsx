@@ -163,7 +163,7 @@ export default async function HomePage() {
             </ul>
             <p className="text-sm text-muted-foreground">
               {t("haveAccount")}{" "}
-              <Link href="/login" className="text-foreground underline">
+              <Link href="/login" className="inline-block py-1 text-foreground underline">
                 {t("signIn")}
               </Link>
             </p>
@@ -196,7 +196,7 @@ export default async function HomePage() {
           <p className="text-center">
             <Link
               href="/docs/monitors"
-              className="inline-flex items-center gap-1 text-sm font-medium underline"
+              className="inline-flex items-center gap-1 py-1 text-sm font-medium underline"
             >
               {l("monitorsLink")}
               <ArrowRight aria-hidden className="size-4" />
@@ -294,7 +294,7 @@ export default async function HomePage() {
             <p>
               <Link
                 href="/pricing#calculator-title"
-                className="inline-flex items-center gap-1 text-sm font-medium underline"
+                className="inline-flex items-center gap-1 py-1 text-sm font-medium underline"
               >
                 {l("onCallCta")}
                 <ArrowRight aria-hidden className="size-4" />
@@ -316,7 +316,7 @@ export default async function HomePage() {
             <p>
               <Link
                 href="/docs/alert-channels"
-                className="inline-flex items-center gap-1 text-sm font-medium underline"
+                className="inline-flex items-center gap-1 py-1 text-sm font-medium underline"
               >
                 {l("channelsCta")}
                 <ArrowRight aria-hidden className="size-4" />
@@ -362,7 +362,7 @@ export default async function HomePage() {
           <SectionHeading id="pricing-title" title={t("pricingTitle")} intro={t("pricingIntro")} />
           <PlanPicker />
           <p className="text-center">
-            <Link href="/pricing" className="text-sm font-medium underline">
+            <Link href="/pricing" className="inline-block py-1 text-sm font-medium underline">
               {t("compareAll")}
             </Link>
           </p>

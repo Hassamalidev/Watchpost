@@ -50,7 +50,7 @@ export async function MonitorPreview() {
     <figure className="mx-auto w-full max-w-5xl">
       <div
         aria-hidden="true"
-        className="overflow-hidden rounded-xl border bg-card text-left text-card-foreground shadow-2xl shadow-brand/10"
+        className="forced-color-adjust-none overflow-hidden rounded-xl border bg-card text-start text-card-foreground shadow-2xl shadow-brand/10"
       >
         <div className="grid md:grid-cols-[12rem_1fr]">
           <div className="hidden border-r bg-sidebar p-4 text-sidebar-foreground md:block">

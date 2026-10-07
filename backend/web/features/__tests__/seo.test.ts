@@ -13,6 +13,11 @@ describe("site address", () => {
   it("uses the configured origin without a trailing slash, or the local one", () => {
     expect(siteUrl("https://uptimewatch.test/")).toBe("https://uptimewatch.test");
     expect(siteUrl("")).toBe("http://localhost:3000");
+    expect(siteUrl(" https://uptimewatch.test/app?x=1 ")).toBe("https://uptimewatch.test");
+    /* No scheme, not a web address, or not an address at all: the local origin, never a throw. */
+    for (const bad of ["uptimewatch.test", "localhost:3000", "ftp://uptimewatch.test", "://"]) {
+      expect(siteUrl(bad)).toBe("http://localhost:3000");
+    }
     expect(absoluteUrl("/", "https://uptimewatch.test")).toBe("https://uptimewatch.test");
     expect(absoluteUrl("/pricing", "https://uptimewatch.test")).toBe(
       "https://uptimewatch.test/pricing",

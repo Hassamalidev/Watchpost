@@ -5,6 +5,7 @@ import { getTranslations } from "next-intl/server";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/app/theme-toggle";
 import { COMPETITORS } from "@/features/marketing/competitors";
+import { HeaderAccount, MobileMenu } from "@/features/marketing/components/site-nav";
 import { LEGAL_PAGES } from "@/features/marketing/content/legal";
 import { SITE_NAME } from "@/lib/site";
 
@@ -15,8 +16,8 @@ export async function SiteHeader() {
   const t = await getTranslations("marketing");
   return (
     <header className="sticky top-0 z-10 border-b bg-background/90 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-        <Link href="/" className="flex items-center gap-2 font-semibold">
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-2 px-4 sm:gap-4 sm:px-6">
+        <Link href="/" className="flex min-w-0 items-center gap-2 font-semibold">
           <Radar aria-hidden className="size-5 text-brand" />
           {SITE_NAME}
         </Link>
@@ -36,13 +37,17 @@ export async function SiteHeader() {
           <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
             <Link href="/docs">{t("navDocs")}</Link>
           </Button>
-          <Button asChild variant="ghost" size="sm">
-            <Link href="/login">{t("signIn")}</Link>
-          </Button>
-          <Button asChild size="sm">
-            <Link href="/signup">{t("signUp")}</Link>
-          </Button>
+          <HeaderAccount />
           <ThemeToggle />
+          <MobileMenu
+            links={[
+              { href: "/#monitors", label: t("navMonitoring") },
+              { href: "/#features", label: t("navFeatures") },
+              { href: "/#status-pages", label: t("navStatusPages") },
+              { href: "/pricing", label: t("navPricing") },
+              { href: "/docs", label: t("navDocs") },
+            ]}
+          />
         </nav>
       </div>
     </header>
@@ -59,10 +64,13 @@ function FooterColumn({
   return (
     <div className="grid content-start gap-2">
       <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-      <ul className="grid gap-1.5">
+      <ul className="grid">
         {links.map((link) => (
           <li key={link.href}>
-            <Link href={link.href} className="hover:text-foreground hover:underline">
+            <Link
+              href={link.href}
+              className="inline-block py-1 hover:text-foreground hover:underline"
+            >
               {link.label}
             </Link>
           </li>

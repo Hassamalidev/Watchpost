@@ -20,7 +20,7 @@ export async function StatusPreview() {
     <figure className="w-full">
       <div
         aria-hidden="true"
-        className="grid gap-4 rounded-xl border bg-card p-5 text-card-foreground shadow-xl shadow-brand/10 sm:p-6"
+        className="forced-color-adjust-none grid gap-4 rounded-xl border bg-card p-5 text-card-foreground shadow-xl shadow-brand/10 sm:p-6"
       >
         <p className="text-sm font-semibold">{t("name")}</p>
         <p className="flex items-center gap-2 rounded-lg border border-status-up/50 px-3 py-2.5 text-sm font-medium text-status-up">

@@ -25,7 +25,7 @@ export default async function PricingPage() {
       </section>
 
       <section aria-labelledby="table-title" className="grid gap-4">
-        <h2 id="table-title" className="text-2xl font-semibold tracking-tight">
+        <h2 id="table-title" className="scroll-mt-20 text-2xl font-semibold tracking-tight">
           {t("tableTitle")}
         </h2>
         <div className="overflow-x-auto rounded-lg border">
@@ -69,7 +69,7 @@ export default async function PricingPage() {
 
       <section aria-labelledby="calculator-title" className="grid gap-4">
         <div className="grid gap-2">
-          <h2 id="calculator-title" className="text-2xl font-semibold tracking-tight">
+          <h2 id="calculator-title" className="scroll-mt-20 text-2xl font-semibold tracking-tight">
             {t("calculatorTitle")}
           </h2>
           <p className="max-w-2xl text-muted-foreground">{t("calculatorIntro")}</p>
@@ -78,7 +78,7 @@ export default async function PricingPage() {
       </section>
 
       <section aria-labelledby="faq-title" className="grid gap-4">
-        <h2 id="faq-title" className="text-2xl font-semibold tracking-tight">
+        <h2 id="faq-title" className="scroll-mt-20 text-2xl font-semibold tracking-tight">
           {t("faqTitle")}
         </h2>
         <dl className="grid gap-6 md:grid-cols-2">

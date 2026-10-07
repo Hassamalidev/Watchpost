@@ -33,9 +33,22 @@ export const SITE_KEYWORDS = [
   "Opsgenie alternative",
 ];
 
+const LOCAL_ORIGIN = "http://localhost:3000";
+
+/*
+ * The site's origin, never with a path or a trailing slash. A value that is missing, has no scheme
+ * ("example.com") or is not a web address falls back to the local one, so a typo in WEB_ORIGIN
+ * can't break the build or put a broken address into every canonical link.
+ */
 export function siteUrl(origin: string | undefined = process.env.WEB_ORIGIN): string {
-  const value = origin?.trim().replace(/\/+$/, "");
-  return value ? value : "http://localhost:3000";
+  const value = origin?.trim();
+  if (!value) return LOCAL_ORIGIN;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.origin : LOCAL_ORIGIN;
+  } catch {
+    return LOCAL_ORIGIN;
+  }
 }
 
 export const absoluteUrl = (path: string, origin?: string) =>

@@ -67,3 +67,34 @@ test("the landing page describes itself to search engines", async ({ page }) => 
   const sitemap = await page.request.get("/sitemap.xml");
   expect(await sitemap.text()).toContain("/compare/uptimerobot</loc>");
 });
+
+test("on a small phone the page fits and the menu reaches every section", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto("/");
+  const sideways = () =>
+    page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+  expect(await sideways()).toBe(0);
+
+  const nav = page.getByRole("navigation", { name: "Site" });
+  await expect(nav.getByRole("link", { name: "Sign up" })).toBeVisible();
+  await nav.getByRole("button", { name: "Open menu" }).click();
+  await expect(nav.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login");
+  await expect(nav.getByRole("link", { name: "Pricing" })).toBeVisible();
+  const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(results.violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+
+  /* A link to a section of this page closes the menu and stops below the header. */
+  await nav.getByRole("link", { name: "Status pages" }).click();
+  await expect(nav.getByRole("button", { name: "Open menu" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: /Status pages/ })).toBeInViewport();
+  expect(await sideways()).toBe(0);
+
+  /* A heading linked to from the landing page is not hidden under the header. */
+  await page.goto("/pricing#calculator-title");
+  const top = await page
+    .getByRole("heading", { name: "What per-seat pricing costs your team" })
+    .evaluate((element) => element.getBoundingClientRect().top);
+  expect(top).toBeGreaterThanOrEqual(60);
+});
