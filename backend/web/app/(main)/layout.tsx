@@ -5,7 +5,7 @@ import { GeistMono } from "geist/font/mono";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale } from "next-intl/server";
 import { Providers } from "@/components/providers";
-import "./globals.css";
+import "../globals.css";
 
 export const metadata: Metadata = {
   title: { default: "Watchpost", template: "%s · Watchpost" },

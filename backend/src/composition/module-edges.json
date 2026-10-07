@@ -30,7 +30,15 @@
       "monitors"
     ],
     "ai": ["incidents", "results", "monitors", "billing", "credits"],
-    "statuspages": ["monitors", "detection", "incidents", "results", "maintenance", "ai"],
+    "statuspages": [
+      "monitors",
+      "detection",
+      "incidents",
+      "results",
+      "maintenance",
+      "billing",
+      "ai"
+    ],
     "reports": ["monitors", "detection", "incidents", "results", "statuspages", "workspaces"],
     "imports": ["monitors", "channels", "contacts", "oncall", "statuspages", "workspaces"],
     "badges": ["monitors", "detection", "results"],

@@ -18,6 +18,8 @@ export const STORAGE_STATE = "e2e/.auth/user.json";
 export const E2E_DATABASE_URL =
   process.env.DATABASE_URL ?? "postgres://watchpost:watchpost@localhost:5433/watchpost_e2e";
 
+const REVALIDATE_SECRET = "e2e-revalidate-secret";
+
 /* The API and the worker (started by e2e/stack.mjs) share this environment. */
 const BACKEND_ENV = {
   NODE_ENV: "test",
@@ -33,6 +35,8 @@ const BACKEND_ENV = {
   EMAIL_TRANSPORT: "console",
   /* Webhook deliveries go to the local receiver in e2e/stack.mjs. */
   OUTBOUND_ALLOW_CIDRS: "127.0.0.0/8",
+  /* The API tells the web app to drop cached status pages; both sides share this secret. */
+  REVALIDATE_SECRET,
 };
 
 export default defineConfig({
@@ -74,10 +78,12 @@ export default defineConfig({
       env: BACKEND_ENV,
     },
     {
-      command: `pnpm exec next start --port ${WEB_PORT}`,
+      /* Next's own entry point through node, so the run needs no package manager on the path. */
+      command: `node node_modules/next/dist/bin/next start --port ${WEB_PORT}`,
       url: WEB_ORIGIN,
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
+      env: { REVALIDATE_SECRET },
     },
   ],
 });

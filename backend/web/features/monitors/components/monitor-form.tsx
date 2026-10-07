@@ -236,9 +236,8 @@ export function MonitorForm({ ws, monitor }: { ws: string; monitor?: Monitor }) 
           form.setError("newGroupName", { message: t("groupNameRequired") });
           return;
         }
-        chosenGroup = (
-          await monitorsApi.createGroup(ws, { name, groupAlerts: values.groupAlerts })
-        ).id;
+        chosenGroup = (await monitorsApi.createGroup(ws, { name, groupAlerts: values.groupAlerts }))
+          .id;
         form.setValue("groupId", chosenGroup);
       } else if (chosenGroup !== "") {
         const existing = groups.data?.find((g) => g.id === chosenGroup);

@@ -55,6 +55,12 @@ export interface AppConfig {
     | undefined;
   /* Web push keys; undefined until the owner generates a pair (no device notifications then). */
   webPush: { publicKey: string; privateKey: string; subject: string } | undefined;
+  /* Status pages: where they are served and how the web app's cache is told about changes. */
+  statusPages: {
+    baseDomain: string | undefined;
+    cnameTarget: string | undefined;
+    revalidate: { url: string; secret: string } | undefined;
+  };
   twilio:
     | {
         accountSid: string;
@@ -91,6 +97,13 @@ function encryptionKeys(env: Env): AppConfig["encryption"] {
   keys[env.TOKEN_ENC_KEY_ID] = Buffer.from(env.TOKEN_ENC_KEY, "base64");
   return { activeKeyId: env.TOKEN_ENC_KEY_ID, keys };
 }
+
+/* Known to the web app too (`app/api/revalidate`); never accepted in production. */
+export const DEV_REVALIDATE_SECRET = "watchpost-dev-revalidate";
+
+/* The placeholders from .env.example (status.example.com) count as "not set". */
+const realHost = (host: string | undefined) =>
+  host === undefined || host === "example.com" || host.endsWith(".example.com") ? undefined : host;
 
 export function toAppConfig(env: Env): AppConfig {
   return {
@@ -159,6 +172,18 @@ export function toAppConfig(env: Env): AppConfig {
             endpoint: env.R2_ENDPOINT,
           }
         : undefined,
+    statusPages: {
+      baseDomain: realHost(env.STATUS_BASE_DOMAIN),
+      cnameTarget: realHost(env.CUSTOM_DOMAIN_CNAME_TARGET),
+      /* Development has a fixed secret the web app also knows, so pages refresh without setup. */
+      revalidate:
+        env.REVALIDATE_SECRET === undefined && env.NODE_ENV !== "development"
+          ? undefined
+          : {
+              url: `${(env.WEB_INTERNAL_URL ?? env.WEB_ORIGIN).replace(/\/+$/, "")}/api/revalidate`,
+              secret: env.REVALIDATE_SECRET ?? DEV_REVALIDATE_SECRET,
+            },
+    },
     webPush:
       env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY && env.VAPID_SUBJECT
         ? {

@@ -79,6 +79,16 @@ export const PADDLE_PRICE_ENV = [
   "PADDLE_PRICE_EXTRA_CLIENT_WORKSPACE",
 ] as const;
 
+/* A bare host name such as status.example.com: no scheme, port or path. */
+const hostname = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(
+    /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/,
+    "must be a host name like status.example.com",
+  );
+
 const baseEnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   LOG_LEVEL: z.enum(LOG_LEVELS).default("info"),
@@ -118,6 +128,19 @@ const baseEnvSchema = z.object({
   OUTBOUND_ALLOW_CIDRS: commaList,
   /* Public base of heartbeat ping URLs (hb.<domain>); defaults to <BETTER_AUTH_URL>/api/hb. */
   HEARTBEAT_BASE_URL: z.url().optional(),
+  /*
+   * Status pages (PRODUCT.md §6.6). Pages are served at <slug>.<STATUS_BASE_DOMAIN>; without it they
+   * live at <WEB_ORIGIN>/s/<slug>. Customers point their own domain at CUSTOM_DOMAIN_CNAME_TARGET.
+   */
+  STATUS_BASE_DOMAIN: hostname.optional(),
+  CUSTOM_DOMAIN_CNAME_TARGET: hostname.optional(),
+  /*
+   * How the API tells the web app that a cached page changed: POST <WEB_INTERNAL_URL>/api/revalidate
+   * with this secret (the same value in the web app's environment). Without the secret pages refresh
+   * on their own timer only. WEB_INTERNAL_URL defaults to WEB_ORIGIN (http://web:3000 in Compose).
+   */
+  REVALIDATE_SECRET: z.string().min(16, "must be at least 16 characters").optional(),
+  WEB_INTERNAL_URL: z.url().optional(),
   /* Slack app (PRODUCT.md §10); Slack channels are available only when the app is configured. */
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
@@ -216,6 +239,13 @@ export const envSchema = baseEnvSchema.superRefine((env, ctx) => {
       code: "custom",
       path: ["TURNSTILE_SECRET_KEY"],
       message: "is required in production (Turnstile protects sign-up)",
+    });
+  }
+  if (env.NODE_ENV === "production" && env.REVALIDATE_SECRET === undefined) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["REVALIDATE_SECRET"],
+      message: "is required in production (status pages are refreshed with it)",
     });
   }
   if (env.NODE_ENV === "production" && env.OUTBOUND_ALLOW_CIDRS.length > 0) {

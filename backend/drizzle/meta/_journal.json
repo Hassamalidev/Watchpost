@@ -246,6 +246,13 @@
       "when": 1791368913667,
       "tag": "0034_dependencies_grouping",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1791370086045,
+      "tag": "0035_status_pages",
+      "breakpoints": true
     }
   ]
 }

@@ -31,8 +31,45 @@ describe("auth and email settings", () => {
     );
     expect(parseEnv({ ...valid, NODE_ENV: "development" }).TURNSTILE_SECRET_KEY).toBeUndefined();
     expect(() =>
-      parseEnv({ ...valid, NODE_ENV: "production", TURNSTILE_SECRET_KEY: "0x4AAA" }),
+      parseEnv({
+        ...valid,
+        NODE_ENV: "production",
+        TURNSTILE_SECRET_KEY: "0x4AAA",
+        REVALIDATE_SECRET: "a-long-enough-secret",
+      }),
     ).not.toThrow();
+  });
+
+  it("status pages: needs the revalidate secret in production and ignores placeholder domains", () => {
+    expect(() =>
+      parseEnv({ ...valid, NODE_ENV: "production", TURNSTILE_SECRET_KEY: "0x4AAA" }),
+    ).toThrow(/REVALIDATE_SECRET: is required in production/);
+    const placeholder = toAppConfig(
+      parseEnv({ ...valid, NODE_ENV: "test", STATUS_BASE_DOMAIN: "status.example.com" }),
+    );
+    expect(placeholder.statusPages).toEqual({
+      baseDomain: undefined,
+      cnameTarget: undefined,
+      revalidate: undefined,
+    });
+    const real = toAppConfig(
+      parseEnv({
+        ...valid,
+        STATUS_BASE_DOMAIN: "Status.Acme.io",
+        CUSTOM_DOMAIN_CNAME_TARGET: "pages.acme.io",
+        REVALIDATE_SECRET: "a-long-enough-secret",
+        WEB_INTERNAL_URL: "http://web:3000/",
+      }),
+    );
+    expect(real.statusPages).toEqual({
+      baseDomain: "status.acme.io",
+      cnameTarget: "pages.acme.io",
+      revalidate: { url: "http://web:3000/api/revalidate", secret: "a-long-enough-secret" },
+    });
+    /* Development works without setup: a fixed secret the web app also knows. */
+    expect(
+      toAppConfig(parseEnv({ ...valid, NODE_ENV: "development" })).statusPages.revalidate,
+    ).toMatchObject({ secret: "watchpost-dev-revalidate" });
   });
 
   it("defaults email to the console transport; resend needs its API key", () => {

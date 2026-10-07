@@ -32,6 +32,8 @@ export function buildContainerApp(
     clock?: Clock;
     /* A fake Paddle API; needs the PADDLE_* variables in `env` to switch billing on. */
     paddleApi?: PaddleApi;
+    /* Records the cache tags the web app would be told to drop. */
+    revalidate?: (tags: string[]) => Promise<void>;
   } = {},
 ) {
   const config = toAppConfig(
@@ -61,6 +63,7 @@ export function buildContainerApp(
     ...(options.http === undefined ? {} : { http: options.http }),
     ...(options.clock === undefined ? {} : { clock: options.clock }),
     ...(options.paddleApi === undefined ? {} : { paddleApi: options.paddleApi }),
+    ...(options.revalidate === undefined ? {} : { revalidate: options.revalidate }),
   });
   const app = createApp({
     config,

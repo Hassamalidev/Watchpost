@@ -23,6 +23,7 @@ import { createContactsModule } from "../modules/contacts/index.js";
 import { createOncallModule } from "../modules/oncall/index.js";
 import { createInboundModule } from "../modules/inbound/index.js";
 import { createImportsModule } from "../modules/imports/index.js";
+import { createStatuspagesModule } from "../modules/statuspages/index.js";
 /* new-module:imports */
 
 export function createModules(infra: Infra): AppModule[] {
@@ -177,6 +178,16 @@ export function createModules(infra: Infra): AppModule[] {
       monitors: monitors.service,
       oncall: oncall.service,
       workspaces: workspaces.service,
+      guards: workspaces.guards,
+    }),
+  );
+  modules.push(
+    createStatuspagesModule({
+      infra,
+      monitors: monitors.service,
+      detection: detection.service,
+      maintenance: maintenance.service,
+      plan: (scope) => billing.service.entitlements(scope),
       guards: workspaces.guards,
     }),
   );

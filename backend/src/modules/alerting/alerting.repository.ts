@@ -144,7 +144,11 @@ export function createAlertingRepository() {
     },
 
     /* Every delivery of one window to one destination, oldest first; locked for the caller. */
-    async groupMembers(tx: DbOrTx, groupKey: string, destinationKey: string): Promise<DeliveryRow[]> {
+    async groupMembers(
+      tx: DbOrTx,
+      groupKey: string,
+      destinationKey: string,
+    ): Promise<DeliveryRow[]> {
       return tx
         .select()
         .from(notificationDeliveries)
@@ -164,7 +168,10 @@ export function createAlertingRepository() {
         .update(notificationDeliveries)
         .set({ status: "skipped", error: reason, updatedAt: sql`now()` })
         .where(
-          and(inArray(notificationDeliveries.id, ids), eq(notificationDeliveries.status, "pending")),
+          and(
+            inArray(notificationDeliveries.id, ids),
+            eq(notificationDeliveries.status, "pending"),
+          ),
         );
     },
 

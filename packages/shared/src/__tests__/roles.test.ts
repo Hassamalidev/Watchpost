@@ -25,6 +25,8 @@ const MATRIX: Record<Permission, [boolean, boolean, boolean, boolean, boolean, b
   "incident:drill": [true, true, false, false, false, false],
   "maintenance:read": [true, true, true, true, true, false],
   "maintenance:write": [true, true, true, false, false, false],
+  "statusPage:read": [true, true, true, true, true, false],
+  "statusPage:write": [true, true, true, false, false, false],
   "alertPolicy:read": [true, true, true, true, true, false],
   "alertPolicy:write": [true, true, false, false, false, false],
   "channel:read": [true, true, true, true, true, false],

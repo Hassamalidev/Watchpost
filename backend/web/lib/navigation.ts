@@ -34,7 +34,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { segment: "heartbeats", labelKey: "heartbeats", icon: HeartPulse, needs: "monitor:read" },
   { segment: "incidents", labelKey: "incidents", icon: Siren, needs: "incident:read" },
   { segment: "on-call", labelKey: "onCall", icon: CalendarClock, needs: "schedule:read" },
-  { segment: "status-pages", labelKey: "statusPages", icon: Globe, needs: "monitor:read" },
+  { segment: "status-pages", labelKey: "statusPages", icon: Globe, needs: "statusPage:read" },
   { segment: "maintenance", labelKey: "maintenance", icon: Wrench, needs: "maintenance:read" },
   { segment: "integrations", labelKey: "integrations", icon: Plug, needs: "channel:read" },
   { segment: "reports", labelKey: "reports", icon: BarChart3, needs: "monitor:read" },

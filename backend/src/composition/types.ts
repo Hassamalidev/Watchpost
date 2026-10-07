@@ -17,6 +17,7 @@ import type { ObjectStore } from "../infra/storage/index.js";
 import type { WebPush } from "../infra/webpush.js";
 import type { JobProcessor, QueueName, Queues, RecoverySweep } from "../infra/queues/index.js";
 import type { RedisClient } from "../infra/redis.js";
+import type { Revalidate } from "../infra/revalidate.js";
 import type { ModuleName } from "./architecture.js";
 
 /* Infrastructure built once per process and handed to modules explicitly (no DI container). */
@@ -47,6 +48,8 @@ export interface Infra {
   webPush: WebPush | undefined;
   /* Private object storage (R2; a folder in development); undefined when none is configured. */
   objects: ObjectStore | undefined;
+  /* Tells the web app to drop cached pages by tag (status pages); never throws. */
+  revalidate: Revalidate;
 }
 
 export interface MountedRouter {

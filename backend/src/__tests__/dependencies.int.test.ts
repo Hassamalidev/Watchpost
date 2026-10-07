@@ -110,7 +110,11 @@ const sentTitles = () =>
     .map((r) => JSON.parse(r.body ?? "{}") as { incident: { title: string }; group?: unknown });
 
 const incidentOf = async (monitorId: string) => {
-  const [row] = await rows<{ id: string; number: number; suppressed_by_incident_id: string | null }>(
+  const [row] = await rows<{
+    id: string;
+    number: number;
+    suppressed_by_incident_id: string | null;
+  }>(
     sql`select id, number, suppressed_by_incident_id from incidents
         where monitor_id = ${monitorId} and status <> 'resolved'`,
   );

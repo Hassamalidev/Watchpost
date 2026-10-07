@@ -129,7 +129,11 @@ export interface MonitorsService {
   enforcePlanLimits(scope: WorkspaceScope): Promise<PlanEnforcement>;
   delete(scope: WorkspaceScope, id: string): Promise<void>;
   listTags(scope: WorkspaceScope): Promise<Array<{ id: string; name: string }>>;
-  createGroup(scope: WorkspaceScope, name: string, groupAlerts?: boolean): Promise<MonitorGroupView>;
+  createGroup(
+    scope: WorkspaceScope,
+    name: string,
+    groupAlerts?: boolean,
+  ): Promise<MonitorGroupView>;
   listGroups(scope: WorkspaceScope): Promise<MonitorGroupView[]>;
   /* Renames a group; `groupAlerts` changes only when given. */
   renameGroup(

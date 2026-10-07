@@ -528,7 +528,9 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
   async function releaseSuppressed(tx: Tx, parent: IncidentRow): Promise<void> {
     let waiting = await repo.openSuppressedBy(tx, parent.id);
     while (waiting.length > 0) {
-      const undecided = new Set(waiting.flatMap((c) => (c.monitorId === null ? [] : [c.monitorId])));
+      const undecided = new Set(
+        waiting.flatMap((c) => (c.monitorId === null ? [] : [c.monitorId])),
+      );
       const later: IncidentRow[] = [];
       for (const child of waiting) {
         /* An ancestor that is itself waiting is decided first, so its answer can be used. */

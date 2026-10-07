@@ -24,6 +24,8 @@ export const WORKSPACE_STATEMENTS = {
   /* respond: acknowledge, resolve and comment. write: open by hand, mark a false alarm. */
   incident: ["read", "respond", "write", "drill"],
   maintenance: ["read", "write"],
+  /* Public status pages: their components, incidents and updates. */
+  statusPage: ["read", "write"],
   alertPolicy: ["read", "write"],
   /* Integrations: alert channels, chat app installs, phone numbers. */
   channel: ["read", "manage"],
@@ -50,6 +52,7 @@ const VIEWER: readonly Permission[] = [
   "monitor:read",
   "incident:read",
   "maintenance:read",
+  "statusPage:read",
   "alertPolicy:read",
   "channel:read",
   "deploy:read",
@@ -67,6 +70,7 @@ const MEMBER: readonly Permission[] = [
   "monitor:write",
   "incident:write",
   "maintenance:write",
+  "statusPage:write",
 ];
 
 export const ROLE_PERMISSIONS: Record<WorkspaceRole, readonly Permission[]> = {
