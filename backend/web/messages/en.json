@@ -1091,7 +1091,14 @@
     "saved": "Settings saved.",
     "importTitle": "Moving from another tool?",
     "importHint": "Bring your monitors from UptimeRobot, Uptime Kuma or Better Stack, and your schedules and escalation policies from Opsgenie.",
-    "importLink": "Import from another tool"
+    "importLink": "Import from another tool",
+    "regions": {
+      "title": "Check regions",
+      "intro": "Where your monitors are checked from. A region that is not working is left out of confirmation until it is back, so it can't cause a false alarm.",
+      "empty": "No region is reporting yet.",
+      "healthy": "Working",
+      "unhealthy": "Not working"
+    }
   },
   "billing": {
     "title": "Billing",

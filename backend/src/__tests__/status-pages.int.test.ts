@@ -423,6 +423,19 @@ describe("what the public sees", () => {
   });
 });
 
+describe("check regions", () => {
+  it("lists the regions we check from and whether each is working", async () => {
+    const res = await as(owner).get("/check-regions");
+    expect(res.status, res.text).toBe(200);
+    const regions = res.body.data as Array<{ region: string; healthy: boolean }>;
+    /* This file's probe said hello in eu-central a moment ago. */
+    expect(regions).toContainEqual({ region: "eu-central", healthy: true });
+    expect(regions.map((r) => r.region)).toEqual([...regions.map((r) => r.region)].sort());
+    const signedOut = await request(ctx.app).get(`/api/w/${ws}/check-regions`);
+    expect(signedOut.status).toBe(401);
+  });
+});
+
 describe("changes to the page", () => {
   it("a new address moves the page; the old one answers 404 and both are refreshed", async () => {
     const mark = refreshed.length;

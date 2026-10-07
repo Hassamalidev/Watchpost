@@ -26,6 +26,7 @@ const app = createApp({
   logger,
   redis: container.infra.redis,
   readinessChecks: container.readinessChecks,
+  readinessWarnings: container.readinessWarnings,
   routers: container.routers,
   rawBodyRouters: container.rawBodyRouters,
 });

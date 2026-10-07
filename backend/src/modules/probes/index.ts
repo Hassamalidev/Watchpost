@@ -115,6 +115,7 @@ export function createProbesModule(deps: ProbesModuleDeps): ProbesModule {
         },
       },
     ],
+    readinessWarnings: { probes: () => service.regionsCovered() },
     close: () => service.close(),
   };
 }

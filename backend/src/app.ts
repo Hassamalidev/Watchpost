@@ -21,6 +21,8 @@ export interface AppDeps {
   logger: Logger;
   redis: RedisClient;
   readinessChecks: Record<string, ReadinessCheck>;
+  /* Reported by /api/ready without making it "not ready". */
+  readinessWarnings?: Record<string, ReadinessCheck>;
   /* Routers that must see the raw body (webhooks, probe protocol); mounted before express.json(). */
   rawBodyRouters?: Array<{ path: string; router: Router }>;
   /* JSON API routers, mounted after the JSON parser and rate limits. */
@@ -51,7 +53,10 @@ export function createApp(deps: AppDeps): Express {
   app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
   /* Health endpoints stay outside rate limits so monitors and Caddy can always reach them */
-  app.use("/api", createHealthRouter(deps.readinessChecks));
+  app.use(
+    "/api",
+    createHealthRouter(deps.readinessChecks, { warnings: deps.readinessWarnings ?? {} }),
+  );
 
   /* 5. Rate limits (per IP here; per key and per workspace are added with their routes) */
   const ipLimit = deps.ipRateLimit ?? DEFAULT_IP_RATE_LIMIT;

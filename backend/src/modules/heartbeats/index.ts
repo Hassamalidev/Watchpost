@@ -73,5 +73,6 @@ export function createHeartbeatsModule(deps: HeartbeatsModuleDeps): HeartbeatsMo
     apiTimers: [
       { name: "platform-tick", everyMs: PLATFORM_TICK_EVERY_MS, run: () => service.apiTick() },
     ],
+    readinessChecks: { worker: () => service.workerAlive() },
   };
 }

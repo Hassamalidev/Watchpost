@@ -32,6 +32,7 @@ export interface Container {
   infra: Infra;
   modules: AppModule[];
   readinessChecks: Record<string, ReadinessCheck>;
+  readinessWarnings: Record<string, ReadinessCheck>;
   routers: MountedRouter[];
   rawBodyRouters: MountedRouter[];
   close(): Promise<void>;
@@ -203,12 +204,18 @@ export function createContainer(
       const lag = await infra.outbox.lagSeconds(infra.db);
       if (lag > OUTBOX_MAX_LAG_SECONDS) throw new Error(`outbox lag ${Math.round(lag)} s`);
     },
+    ...Object.assign({}, ...modules.map((m) => m.readinessChecks ?? {})),
   };
+  const readinessWarnings: Record<string, ReadinessCheck> = Object.assign(
+    {},
+    ...modules.map((m) => m.readinessWarnings ?? {}),
+  );
 
   return {
     infra,
     modules,
     readinessChecks,
+    readinessWarnings,
     routers: modules.flatMap((m) => m.routers ?? []),
     /* Better Auth and the probe API read the raw request, so they mount before the JSON parser (§7.9 step 3). */
     rawBodyRouters: [

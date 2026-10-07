@@ -115,6 +115,8 @@ export const monitorsApi = {
     }),
   remove: (ws: string, id: string) =>
     api<void>(wsPath(ws, `/monitors/${id}`), { method: "DELETE" }),
+  checkRegions: (ws: string) =>
+    api<{ data: Array<{ region: string; healthy: boolean }> }>(wsPath(ws, "/check-regions")),
   badges: (ws: string, id: string) => api<BadgeLinks>(wsPath(ws, `/monitors/${id}/badges`)),
   groups: (ws: string) => api<{ data: MonitorGroup[] }>(wsPath(ws, "/monitor-groups")),
   createGroup: (ws: string, body: { name: string; groupAlerts: boolean }) =>

@@ -30,6 +30,7 @@ export function createProbeUserRouter(
     validate({ params: monitorIdParams }),
     controller.testNow,
   );
+  router.get("/check-regions", requirePermission("monitor:read"), controller.regions);
   router.get(
     "/probe-tasks/:taskId",
     requirePermission("monitor:read"),

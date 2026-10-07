@@ -347,6 +347,21 @@ describe("platform gap guard", () => {
     expect(toDate(closed[0]?.ended_at ?? null)).toEqual(at(t0, 140));
   });
 
+  it("readiness: the worker is alive while it ticks, and dead a minute after it stops", async () => {
+    await db().execute(sql`delete from platform_ticks`);
+    /* A platform whose worker never ran is not "down". */
+    await expect(service.workerAlive()).resolves.toBeUndefined();
+    const t0 = Date.now() + 5_400_000;
+    clock.set(at(t0, 0));
+    await service.platformTick();
+    clock.set(at(t0, 59));
+    await expect(service.workerAlive()).resolves.toBeUndefined();
+    clock.set(at(t0, 61));
+    await expect(service.workerAlive()).rejects.toThrow("the worker last ticked 61 s ago");
+    await service.platformTick();
+    await expect(service.workerAlive()).resolves.toBeUndefined();
+  });
+
   it("a worker that stopped ticking records a gap when it comes back", async () => {
     const t0 = Date.now() + 7_200_000;
     clock.set(at(t0, 0));

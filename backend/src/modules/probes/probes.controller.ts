@@ -27,7 +27,7 @@ function parse<T>(
 }
 
 export type ProbesController = Record<
-  "hello" | "assignments" | "tasks" | "heartbeat" | "testNow" | "getTask",
+  "hello" | "assignments" | "tasks" | "heartbeat" | "testNow" | "getTask" | "regions",
   RequestHandler
 >;
 
@@ -51,6 +51,10 @@ export function createProbesController(service: ProbesService): ProbesController
     testNow: async (req, res) => {
       const { params } = inputOf<{ params: typeof monitorIdParams }>(req, res);
       res.status(202).json({ data: await service.testNow(scopeOf(req, res), params.monitorId) });
+    },
+    /* The regions we check from, and whether each is working now. The same for every workspace. */
+    regions: async (_req, res) => {
+      res.json({ data: await service.regionHealth() });
     },
     getTask: async (req, res) => {
       const { params } = inputOf<{ params: typeof taskIdParams }>(req, res);

@@ -1,0 +1,20 @@
+# One probe on its own small server (PRODUCT.md §16). Copy to /opt/watchpost-probe/docker-compose.yml
+# next to a .env with API_URL, PROBE_ID, PROBE_SECRET and PROBE_REGION (printed by `probe:create`).
+# backend/scripts/deploy-probes.sh sets PROBE_IMAGE and runs `docker compose pull && up -d` here.
+services:
+  probe:
+    image: ${PROBE_IMAGE:?set PROBE_IMAGE to the probe image to run}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PROBE_MODE: managed
+    # ICMP (ping) checks need raw sockets; nothing else is granted.
+    cap_drop: [ALL]
+    cap_add: [NET_RAW]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 768m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }

@@ -45,6 +45,8 @@ export const TASK_TTL_MS = 60_000;
 export const VERIFY_WINDOW_MS = 30_000;
 /* A probe not seen for this long is unhealthy: its region stops counting (§9.2). */
 export const PROBE_HEALTHY_MS = 60_000;
+/* Stands for "no workspace": only our own probes count, never a customer's private one. */
+const NO_WORKSPACE = "00000000-0000-0000-0000-000000000000";
 const PAGE = 1_000;
 const AUTH_CACHE_MS = 30_000;
 
@@ -93,6 +95,10 @@ export interface ProbesService {
   guardSweep(): Promise<string[]>;
   /* Regions we check from: those with a probe of ours that reported in the last day. */
   servedRegions(): Promise<string[]>;
+  /* Each region we check from, and whether a probe of ours there is reporting and trusted now. */
+  regionHealth(): Promise<Array<{ region: string; healthy: boolean }>>;
+  /* System (/api/ready warning): throws naming the regions without a healthy probe of ours. */
+  regionsCovered(): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -354,6 +360,19 @@ export function createProbesService(deps: {
     async servedRegions() {
       const since = new Date(clock.now().getTime() - SERVED_WINDOW_MS);
       return [...new Set((await repo.managedProbes(since)).map((probe) => probe.region))];
+    },
+
+    async regionHealth() {
+      const served = await service.servedRegions();
+      const healthy = new Set(
+        await service.healthyRegions({ regions: served, workspaceId: NO_WORKSPACE }),
+      );
+      return served.sort().map((region) => ({ region, healthy: healthy.has(region) }));
+    },
+
+    async regionsCovered() {
+      const down = (await service.regionHealth()).filter((r) => !r.healthy).map((r) => r.region);
+      if (down.length > 0) throw new Error(`no healthy probe in ${down.join(", ")}`);
     },
 
     healthyRegions({ regions, workspaceId }) {

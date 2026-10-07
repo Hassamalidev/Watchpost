@@ -30,6 +30,8 @@ export const TOKEN_CACHE_MS = 30_000;
 export const EXCERPT_BYTES = 10 * 1024;
 /* A component that hasn't ticked for this long counts as down. */
 export const TICK_STALE_MS = 30_000;
+/* /api/ready fails once the worker's tick is this old (§13). */
+export const WORKER_DEAD_MS = 60_000;
 const SWEEP_BATCH = 500;
 const GAP_LOOKBACK_MS = 2 * 86_400_000;
 
@@ -70,6 +72,11 @@ export interface HeartbeatsService {
   sweep(): Promise<SweepOutcome>;
   /* The API process says it is alive (every 10 s). */
   apiTick(): Promise<void>;
+  /*
+   * System (/api/ready): throws when the worker has stopped ticking for more than a minute. A
+   * platform whose worker has never ticked (a fresh install, tests without a worker) passes.
+   */
+  workerAlive(): Promise<void>;
   /* The worker records its own tick and turns stale ticks into platform gaps. */
   platformTick(): Promise<void>;
 }
@@ -458,6 +465,15 @@ export function createHeartbeatsService(deps: {
 
     async apiTick() {
       await repo.setTick(deps.db, "api", clock.now());
+    },
+
+    async workerAlive() {
+      const tick = await repo.tick(deps.db, "worker");
+      if (tick === undefined) return;
+      const ageMs = clock.now().getTime() - tick.getTime();
+      if (ageMs > WORKER_DEAD_MS) {
+        throw new Error(`the worker last ticked ${Math.round(ageMs / 1_000)} s ago`);
+      }
     },
 
     async platformTick() {

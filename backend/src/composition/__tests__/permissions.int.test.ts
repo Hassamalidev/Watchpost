@@ -84,6 +84,7 @@ describe("workspace route permissions", () => {
         "GET /channels → channel:read",
         "GET /channels/:channelId → channel:manage",
         "GET /channels/types → channel:read",
+        "GET /check-regions → monitor:read",
         "GET /credits → billing:read",
         "GET /deploy-hook → deploy:read",
         "GET /deploys → deploy:read",

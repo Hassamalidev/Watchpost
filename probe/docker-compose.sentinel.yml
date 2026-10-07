@@ -1,0 +1,19 @@
+# The sentinel on a server of another provider than the core (PRODUCT.md §13). It is the probe image
+# with a different command. Copy to /opt/watchpost-sentinel/docker-compose.yml next to a .env with the
+# SENTINEL_* and TWILIO_* values (docs/runbooks/sentinel.md). Port 8080 serves our own status page;
+# put a TLS-terminating proxy (Caddy) in front of it for status.<domain>.
+services:
+  sentinel:
+    image: ${PROBE_IMAGE:?set PROBE_IMAGE to the probe image to run}
+    command: ["node", "dist/sentinel/main.js"]
+    restart: unless-stopped
+    env_file: .env
+    ports: ["127.0.0.1:8080:8080"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }

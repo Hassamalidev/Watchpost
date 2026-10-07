@@ -80,6 +80,10 @@ export interface AppModule {
   probeRouters?: Router[];
   /* Probe authentication middleware (raw body + HMAC); provided by the probes module only. */
   probeAuth?: RequestHandler[];
+  /* Checks that make /api/ready answer "not ready" when they throw (the worker's tick). */
+  readinessChecks?: Record<string, () => Promise<void>>;
+  /* Checks /api/ready reports as warnings (a region without a healthy probe). */
+  readinessWarnings?: Record<string, () => Promise<void>>;
   /* Releases resources (listeners, connections) on shutdown. */
   close?: () => Promise<void>;
   /* Callbacks from infrastructure that can't depend on modules (for example Better Auth hooks). */

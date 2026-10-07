@@ -34,3 +34,6 @@ backend/web/e2e/.auth/
 
 # Local object store (development)
 .data/
+
+# Probe servers for deploy-probes.sh (yours; never committed)
+backend/scripts/probes.hosts
