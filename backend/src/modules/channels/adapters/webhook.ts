@@ -124,6 +124,10 @@ export function createWebhookAdapter(deps: {
             event.incident.monitorName === null ? null : { name: event.incident.monitorName },
           actor: event.actor,
           explanation: event.explanation,
+          /* Present when a group's failures were sent as one message: the other incidents. */
+          ...(event.group
+            ? { group: { name: event.group.name, incidents: event.group.others } }
+            : {}),
         },
       };
     },

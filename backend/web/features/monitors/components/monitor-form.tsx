@@ -18,7 +18,7 @@ import { Input, Select } from "@/components/ui/input";
 import { ApiError, errorMessage } from "@/lib/api";
 import { workspaceHref } from "@/lib/navigation";
 import { monitorsApi, type CreateMonitorBody, type Monitor } from "../api";
-import { monitorKeys, useCreateMonitor } from "../hooks";
+import { monitorKeys, useCreateMonitor, useMonitorGroups, useMonitors } from "../hooks";
 
 const FORM_TYPES = ["http", "keyword", "tcp", "ping", "dns", "ssl", "domain"] as const;
 type FormType = (typeof FORM_TYPES)[number];
@@ -39,7 +39,15 @@ interface Values {
   alertOnRegionalIssue: boolean;
   severity: (typeof SEVERITIES)[number];
   sloTarget: string;
+  /* A group ID, "" for none, or NEW_GROUP while a new one is being named. */
+  groupId: string;
+  newGroupName: string;
+  groupAlerts: boolean;
+  /* The monitor this one depends on; "" for none. */
+  parentId: string;
 }
+
+const NEW_GROUP = "__new__";
 
 /* Common availability targets and the downtime each allows in a 30-day month. */
 const SLO_TARGETS = ["99", "99.5", "99.9", "99.95", "99.99"] as const;
@@ -53,6 +61,8 @@ const FIELD_OF: Record<string, keyof Values> = {
   "settings.name": "name",
   "settings.intervalSeconds": "intervalSeconds",
   "settings.regions": "regions",
+  "settings.groupId": "groupId",
+  "settings.parentId": "parentId",
   "config.url": "url",
   "config.keyword": "keyword",
   "config.host": "host",
@@ -134,6 +144,10 @@ const DEFAULTS: Values = {
   alertOnRegionalIssue: false,
   severity: "high",
   sloTarget: "99.9",
+  groupId: "",
+  newGroupName: "",
+  groupAlerts: false,
+  parentId: "",
 };
 
 /* Form values for an existing monitor. */
@@ -160,6 +174,8 @@ function valuesOf(monitor: Monitor): Values {
     alertOnRegionalIssue: monitor.alertOnRegionalIssue ?? false,
     severity: monitor.severity,
     sloTarget: String(monitor.sloTarget ?? 99.9),
+    groupId: monitor.groupId ?? "",
+    parentId: monitor.parentId ?? "",
   };
 }
 
@@ -172,6 +188,14 @@ export function MonitorForm({ ws, monitor }: { ws: string; monitor?: Monitor }) 
   const [formError, setFormError] = React.useState<string | null>(null);
   const [dropSecrets, setDropSecrets] = React.useState(false);
   const form = useForm<Values>({ defaultValues: monitor ? valuesOf(monitor) : DEFAULTS });
+  const groups = useMonitorGroups(ws);
+  const others = useMonitors(ws);
+  const groupId = form.watch("groupId");
+  /* The checkbox shows the chosen group's own setting until the user changes it. */
+  React.useEffect(() => {
+    const chosen = groups.data?.find((g) => g.id === groupId);
+    form.setValue("groupAlerts", chosen?.groupAlerts ?? false);
+  }, [groupId, groups.data, form]);
   const type = form.watch("type");
   const errors = form.formState.errors;
   const regionCount = form.watch("regions").length;
@@ -200,14 +224,45 @@ export function MonitorForm({ ws, monitor }: { ws: string; monitor?: Monitor }) 
       return;
     }
     try {
-      if (monitor) {
-        if (needsSecretChoice && !dropSecrets) {
-          setFormError(t("secretsRetargetRequired"));
+      if (monitor && needsSecretChoice && !dropSecrets) {
+        setFormError(t("secretsRetargetRequired"));
+        return;
+      }
+      /* The group first: a new one is created, and a changed "one message" choice is saved. */
+      let chosenGroup = values.groupId;
+      if (chosenGroup === NEW_GROUP) {
+        const name = values.newGroupName.trim();
+        if (name === "") {
+          form.setError("newGroupName", { message: t("groupNameRequired") });
           return;
         }
+        chosenGroup = (
+          await monitorsApi.createGroup(ws, { name, groupAlerts: values.groupAlerts })
+        ).id;
+        form.setValue("groupId", chosenGroup);
+      } else if (chosenGroup !== "") {
+        const existing = groups.data?.find((g) => g.id === chosenGroup);
+        if (existing && existing.groupAlerts !== values.groupAlerts) {
+          await monitorsApi.updateGroup(ws, existing.id, {
+            name: existing.name,
+            groupAlerts: values.groupAlerts,
+          });
+        }
+      }
+      await client.invalidateQueries({ queryKey: monitorKeys.groups(ws) });
+      const links = {
+        ...(chosenGroup === "" ? {} : { groupId: chosenGroup }),
+        ...(values.parentId === "" ? {} : { parentId: values.parentId }),
+      };
+      if (monitor) {
         const merged = { ...monitor.config, ...body.config };
         await monitorsApi.update(ws, monitor.id, {
-          settings: body.settings,
+          /* null removes a link the monitor had. */
+          settings: {
+            ...body.settings,
+            groupId: chosenGroup === "" ? null : chosenGroup,
+            parentId: values.parentId === "" ? null : values.parentId,
+          },
           config: needsSecretChoice ? withoutSavedSecrets(merged) : merged,
         });
         await client.invalidateQueries({ queryKey: monitorKeys.all(ws) });
@@ -216,7 +271,10 @@ export function MonitorForm({ ws, monitor }: { ws: string; monitor?: Monitor }) 
         router.push(workspaceHref(ws, `monitors/${monitor.id}`));
         return;
       }
-      const created = await create.mutateAsync(body);
+      const created = await create.mutateAsync({
+        ...body,
+        settings: { ...body.settings, ...links },
+      });
       router.push(workspaceHref(ws, `monitors/${created.id}`));
     } catch (err) {
       if (err instanceof ApiError) {
@@ -349,6 +407,52 @@ export function MonitorForm({ ws, monitor }: { ws: string; monitor?: Monitor }) 
           ))}
         </Select>
       </Field>
+      <Field
+        label={t("dependsOn")}
+        htmlFor="monitor-parent"
+        hint={t("dependsOnHint")}
+        error={errors.parentId?.message}
+      >
+        <Select id="monitor-parent" {...form.register("parentId")}>
+          <option value="">{t("dependsOnNone")}</option>
+          {(others.data ?? [])
+            .filter((m) => m.id !== monitor?.id)
+            .map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+        </Select>
+      </Field>
+      <Field label={t("group")} htmlFor="monitor-group" error={errors.groupId?.message}>
+        <Select id="monitor-group" {...form.register("groupId")}>
+          <option value="">{t("groupNone")}</option>
+          {(groups.data ?? []).map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.name}
+            </option>
+          ))}
+          <option value={NEW_GROUP}>{t("groupNew")}</option>
+        </Select>
+      </Field>
+      {groupId === NEW_GROUP && (
+        <Field
+          label={t("groupName")}
+          htmlFor="monitor-group-name"
+          error={errors.newGroupName?.message}
+        >
+          <Input id="monitor-group-name" maxLength={100} {...form.register("newGroupName")} />
+        </Field>
+      )}
+      {groupId !== "" && (
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-0.5" {...form.register("groupAlerts")} />
+          <span>
+            {t("groupAlerts")}
+            <span className="block text-xs text-muted-foreground">{t("groupAlertsHint")}</span>
+          </span>
+        </label>
+      )}
       {needsSecretChoice && (
         <div className="grid gap-2 rounded-md border border-status-degraded/40 bg-status-degraded/10 p-3 text-sm">
           <p>{t("secretsRetarget")}</p>

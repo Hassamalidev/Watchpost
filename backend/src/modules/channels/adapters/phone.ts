@@ -18,6 +18,7 @@ import {
   type RenderedMessage,
 } from "../types/adapter.js";
 import { parseConfigWith } from "./config.js";
+import { alertSubject } from "./render.js";
 
 const SMS_SEGMENT = 160;
 /* What the GSM 7-bit alphabet can't carry is replaced, so the text stays one segment. */
@@ -38,7 +39,7 @@ const STATE: Record<AlertEvent["kind"], string> = {
   test: "TEST",
 };
 
-const subject = (event: AlertEvent) => event.incident.monitorName ?? event.incident.title;
+const subject = (event: AlertEvent) => alertSubject(event);
 
 /* `Watchpost: DOWN API Prod (HTTP 502, 3 regions) #482. Reply 1=ack 2=resolve` */
 export function smsText(event: AlertEvent): string {
@@ -67,7 +68,7 @@ export function voiceText(event: AlertEvent): string {
   }
   const { incident } = event;
   const cause = event.explanation === null ? "" : ` ${event.explanation.headline}.`;
-  return `Watchpost alert. ${subject(event)} is ${event.kind === "flapping" ? "unstable" : "down"}.${cause} Incident number ${incident.number}. Press 1 to acknowledge.`;
+  return `Watchpost alert. ${subject(event)} ${event.group ? "are" : "is"} ${event.kind === "flapping" ? "unstable" : "down"}.${cause} Incident number ${incident.number}. Press 1 to acknowledge.`;
 }
 
 function phoneConfig(label: string) {

@@ -30,6 +30,14 @@ export interface AlertEvent {
   at: string;
   /* Plain-language cause and first checks (failure explainer); null when nothing failed. */
   explanation: { headline: string; detail: string; nextSteps: string[] } | null;
+  /*
+   * Grouped alerts (§9.6): other monitors of the same group that failed within the same 15 seconds.
+   * The message is about all of them; `incident` is the first.
+   */
+  group?: {
+    name: string;
+    others: Array<{ number: number; title: string; monitorName: string | null; url: string }>;
+  };
 }
 
 export interface RenderedMessage {

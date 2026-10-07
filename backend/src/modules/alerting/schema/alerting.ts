@@ -63,8 +63,13 @@ export const notificationDeliveries = pgTable(
     contactMethodId: uuid("contact_method_id"),
     contactType: text("contact_type").$type<ContactMethodType>(),
     contactAddress: text("contact_address"),
-    /* When a personal rule delays the delivery; null means at once. */
+    /* When a personal rule or a group's 15-second window delays the delivery; null means at once. */
     dueAt: timestamp("due_at", { withTimezone: true }),
+    /*
+     * `group:<groupId>:<windowStart>` when the monitor's group collects failures into one message
+     * (§9.6): the first delivery of a key and destination is sent and names the others.
+     */
+    groupKey: text("group_key"),
     kind: text("kind").$type<AlertEventKind>().notNull(),
     /* Display name of whoever acted, for "Acknowledged by Sara". */
     actorName: text("actor_name"),
@@ -82,6 +87,9 @@ export const notificationDeliveries = pgTable(
   (t) => [
     uniqueIndex("notification_deliveries_event_destination_uq").on(t.eventKey, t.destinationKey),
     index("notification_deliveries_incident_idx").on(t.incidentId, t.createdAt),
+    index("notification_deliveries_group_idx")
+      .on(t.groupKey, t.destinationKey)
+      .where(sql`${t.groupKey} is not null`),
     index("notification_deliveries_unfinished_idx")
       .on(t.updatedAt)
       .where(sql`${t.status} in ('pending', 'sending', 'retrying')`),

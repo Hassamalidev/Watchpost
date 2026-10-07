@@ -8,7 +8,15 @@ export const monitorKeys = {
   all: (ws: string) => ["monitors", ws] as const,
   one: (ws: string, id: string) => ["monitors", ws, id] as const,
   states: (ws: string) => ["monitor-states", ws] as const,
+  groups: (ws: string) => ["monitor-groups", ws] as const,
 };
+
+export function useMonitorGroups(ws: string) {
+  return useQuery({
+    queryKey: monitorKeys.groups(ws),
+    queryFn: async () => (await monitorsApi.groups(ws)).data,
+  });
+}
 
 export function useMonitors(ws: string) {
   return useQuery({

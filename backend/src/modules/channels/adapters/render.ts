@@ -17,11 +17,26 @@ export function formatDuration(seconds: number): string {
   return `${days} d ${hours % 24} h`;
 }
 
+/*
+ * What an alert is about, in a few words: the monitor, or "4 monitors in Production" when a group's
+ * failures go out as one message (§9.6).
+ */
+export function alertSubject(event: AlertEvent): string {
+  if (event.group && event.kind === "triggered") {
+    return `${event.group.others.length + 1} monitors in ${event.group.name}`;
+  }
+  return event.incident.monitorName ?? event.incident.title;
+}
+
 export function alertTitle(event: AlertEvent): string {
   const { incident } = event;
   const ref = `#${incident.number} ${incident.title}`;
   switch (event.kind) {
     case "triggered":
+      if (event.group) {
+        const count = event.group.others.length + 1;
+        return `[${SEVERITY[incident.severity]}] ${count} monitors in ${event.group.name} are down`;
+      }
       return `[${SEVERITY[incident.severity]}] ${ref}`;
     case "acknowledged":
       return `Acknowledged${event.actor ? ` by ${event.actor}` : ""}: ${ref}`;
@@ -45,6 +60,11 @@ export function renderPlain(event: AlertEvent): RenderedMessage {
     };
   }
   const lines = [alertTitle(event), ""];
+  if (event.group) {
+    lines.push(`#${incident.number} ${incident.title}`);
+    for (const other of event.group.others) lines.push(`#${other.number} ${other.title}`);
+    lines.push("", "The first of them:");
+  }
   if (incident.monitorName) lines.push(`Monitor: ${incident.monitorName}`);
   lines.push(`Severity: ${SEVERITY[incident.severity]}`);
   if (incident.causeCode) lines.push(`Cause: ${incident.causeCode}`);
@@ -104,7 +124,19 @@ export function alertFacts(event: AlertEvent): Array<{ label: string; value: str
   const { incident } = event;
   if (event.kind === "test") return [];
   return [
-    ...(incident.monitorName ? [{ label: "Monitor", value: incident.monitorName }] : []),
+    ...(event.group
+      ? [
+          {
+            label: "Down",
+            value: [
+              `#${incident.number} ${incident.monitorName ?? incident.title}`,
+              ...event.group.others.map((o) => `#${o.number} ${o.monitorName ?? o.title}`),
+            ].join(", "),
+          },
+        ]
+      : incident.monitorName
+        ? [{ label: "Monitor", value: incident.monitorName }]
+        : []),
     { label: "Severity", value: SEVERITY[incident.severity] },
     ...(incident.causeCode ? [{ label: "Cause", value: incident.causeCode }] : []),
     ...(incident.failingRegions.length > 0

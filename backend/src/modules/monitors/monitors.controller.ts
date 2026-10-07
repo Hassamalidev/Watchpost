@@ -72,11 +72,20 @@ export function createMonitorsController(service: MonitorsService): MonitorsCont
     },
     createGroup: async (req, res) => {
       const { body } = inputOf<{ body: typeof groupBody }>(req, res);
-      res.status(201).json(await service.createGroup(scopeOf(req, res), body.name));
+      res
+        .status(201)
+        .json(await service.createGroup(scopeOf(req, res), body.name, body.groupAlerts));
     },
     renameGroup: async (req, res) => {
       const { body } = inputOf<{ body: typeof groupBody }>(req, res);
-      res.json(await service.renameGroup(scopeOf(req, res), groupOf(req, res), body.name));
+      res.json(
+        await service.renameGroup(
+          scopeOf(req, res),
+          groupOf(req, res),
+          body.name,
+          body.groupAlerts,
+        ),
+      );
     },
     deleteGroup: async (req, res) => {
       await service.deleteGroup(scopeOf(req, res), groupOf(req, res));

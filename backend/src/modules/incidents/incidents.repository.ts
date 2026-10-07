@@ -85,6 +85,18 @@ export function createIncidentsRepository() {
       return created;
     },
 
+    /* Open incidents that were opened quietly because this one explains them (§9.6). */
+    async openSuppressedBy(tx: DbOrTx, incidentId: string): Promise<IncidentRow[]> {
+      return tx
+        .select()
+        .from(incidents)
+        .where(
+          and(eq(incidents.suppressedByIncidentId, incidentId), ne(incidents.status, "resolved")),
+        )
+        .orderBy(asc(incidents.startedAt), asc(incidents.id))
+        .for("update");
+    },
+
     /* Inserts unless the monitor already has an open incident (the partial unique index decides). */
     async insertForMonitor(tx: DbOrTx, row: NewIncident): Promise<IncidentRow | undefined> {
       const [created] = await tx

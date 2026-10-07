@@ -72,6 +72,9 @@ export const incidents = pgTable(
       .where(sql`${t.status} <> 'resolved' and ${t.dedupKey} is not null`),
     uniqueIndex("incidents_workspace_number_uq").on(t.workspaceId, t.number),
     index("incidents_workspace_started_idx").on(t.workspaceId, t.startedAt.desc()),
+    index("incidents_suppressed_by_idx")
+      .on(t.suppressedByIncidentId)
+      .where(sql`${t.suppressedByIncidentId} is not null`),
   ],
 );
 

@@ -12,6 +12,7 @@ import {
   STATE_EMOJI,
   STATE_LABEL,
   alertFacts,
+  alertSubject,
   escapeHtml,
   explanationLines,
   renderPlain,
@@ -33,7 +34,7 @@ export function googleChatCard(event: AlertEvent, message: RenderedMessage) {
   const why = explanationLines(event);
   return {
     header: {
-      title: truncate(`${heading} · ${incident.monitorName ?? incident.title}`, 200),
+      title: truncate(`${heading} · ${alertSubject(event)}`, 200),
       subtitle: truncate(`#${incident.number} ${incident.title}`, 200),
     },
     sections: [

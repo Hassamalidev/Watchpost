@@ -24,7 +24,7 @@ import type { PlanLimits } from "../../config/plans.js";
 import type { TokenCipher } from "../../infra/crypto.js";
 import type { Db, DbOrTx } from "../../infra/db/index.js";
 import type { Outbox } from "../../infra/outbox/index.js";
-import type { MonitorPolicies, MonitorRow } from "./schema/monitors.js";
+import type { MonitorGroupRow, MonitorPolicies, MonitorRow } from "./schema/monitors.js";
 import type { ListFilters, MonitorsRepository } from "./monitors.repository.js";
 import {
   applySecrets,
@@ -71,6 +71,8 @@ export interface UpdateMonitorInput {
 export interface MonitorGroupView {
   id: string;
   name: string;
+  /* Failures in the group within 15 seconds of each other go out as one message. */
+  groupAlerts: boolean;
   createdAt: string;
 }
 
@@ -97,6 +99,8 @@ export interface MonitorForDetection {
   severity: MonitorSettings["severity"];
   paused: boolean;
   parentId: string | null;
+  /* The monitor's group, for grouped alerts (§9.6). */
+  group: { id: string; name: string; groupAlerts: boolean } | null;
   alertPolicyId: string | null;
   policies: MonitorPolicies;
   /* Hostname the monitor checks (never credentials or paths), for explanations. */
@@ -125,9 +129,15 @@ export interface MonitorsService {
   enforcePlanLimits(scope: WorkspaceScope): Promise<PlanEnforcement>;
   delete(scope: WorkspaceScope, id: string): Promise<void>;
   listTags(scope: WorkspaceScope): Promise<Array<{ id: string; name: string }>>;
-  createGroup(scope: WorkspaceScope, name: string): Promise<MonitorGroupView>;
+  createGroup(scope: WorkspaceScope, name: string, groupAlerts?: boolean): Promise<MonitorGroupView>;
   listGroups(scope: WorkspaceScope): Promise<MonitorGroupView[]>;
-  renameGroup(scope: WorkspaceScope, id: string, name: string): Promise<MonitorGroupView>;
+  /* Renames a group; `groupAlerts` changes only when given. */
+  renameGroup(
+    scope: WorkspaceScope,
+    id: string,
+    name: string,
+    groupAlerts?: boolean,
+  ): Promise<MonitorGroupView>;
   deleteGroup(scope: WorkspaceScope, id: string): Promise<void>;
   /* Change feed for probes (§7.6). */
   changesSince(
@@ -205,6 +215,13 @@ function settingsOf(row: MonitorRow, tags: string[]): MonitorSettings {
     publicName: row.publicName ?? undefined,
   };
 }
+
+const toGroup = (row: MonitorGroupRow): MonitorGroupView => ({
+  id: row.id,
+  name: row.name,
+  groupAlerts: row.groupAlerts,
+  createdAt: row.createdAt.toISOString(),
+});
 
 function toView(row: MonitorRow, tags: string[]): MonitorView {
   return {
@@ -613,29 +630,26 @@ export function createMonitorsService(deps: MonitorsServiceDeps): MonitorsServic
 
     listTags: (scope) => repo.listTags(scope),
 
-    async createGroup(scope, name) {
+    async createGroup(scope, name, groupAlerts = false) {
       const row = await repo.insertGroup(db, {
         id: deps.newId(),
         workspaceId: scope.workspaceId,
         name,
+        groupAlerts,
       });
       if (row === undefined) throw new ConflictError(`A group named "${name}" already exists.`);
-      return { id: row.id, name: row.name, createdAt: row.createdAt.toISOString() };
+      return toGroup(row);
     },
 
     async listGroups(scope) {
-      return (await repo.listGroups(scope)).map((g) => ({
-        id: g.id,
-        name: g.name,
-        createdAt: g.createdAt.toISOString(),
-      }));
+      return (await repo.listGroups(scope)).map(toGroup);
     },
 
-    async renameGroup(scope, id, name) {
+    async renameGroup(scope, id, name, groupAlerts) {
       try {
-        const row = await repo.renameGroup(scope, id, name);
+        const row = await repo.updateGroup(scope, id, { name, groupAlerts });
         if (row === undefined) throw new NotFoundError("Group not found.");
-        return { id: row.id, name: row.name, createdAt: row.createdAt.toISOString() };
+        return toGroup(row);
       } catch (err) {
         if (isUniqueViolation(err))
           throw new ConflictError(`A group named "${name}" already exists.`);
@@ -694,7 +708,21 @@ export function createMonitorsService(deps: MonitorsServiceDeps): MonitorsServic
     },
 
     async getForDetection(ids) {
-      return (await repo.findByIdsUnscoped(ids)).map((row) => ({
+      const rows = await repo.findByIdsUnscoped(ids);
+      const groups = new Map(
+        (
+          await repo.groupsByIdsUnscoped([
+            ...new Set(rows.flatMap((r) => (r.groupId === null ? [] : [r.groupId]))),
+          ])
+        ).map((g) => [g.id, g]),
+      );
+      const groupOf = (row: MonitorRow) => {
+        const g = row.groupId === null ? undefined : groups.get(row.groupId);
+        /* Never a group from another workspace, whatever the row says. */
+        if (g === undefined || g.workspaceId !== row.workspaceId) return null;
+        return { id: g.id, name: g.name, groupAlerts: g.groupAlerts };
+      };
+      return rows.map((row) => ({
         id: row.id,
         workspaceId: row.workspaceId,
         name: row.name,
@@ -704,6 +732,7 @@ export function createMonitorsService(deps: MonitorsServiceDeps): MonitorsServic
         severity: row.severity,
         paused: row.paused,
         parentId: row.parentId ?? null,
+        group: groupOf(row),
         alertPolicyId: row.alertPolicyId ?? null,
         policies: row.policies,
         target: targetHostOf(row.config),

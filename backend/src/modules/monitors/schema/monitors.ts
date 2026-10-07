@@ -42,6 +42,8 @@ export const monitorGroups = pgTable(
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
+    /* One message for failures in this group that start within 15 seconds of each other (§9.6). */
+    groupAlerts: boolean("group_alerts").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("monitor_groups_workspace_name_uq").on(t.workspaceId, t.name)],

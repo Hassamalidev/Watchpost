@@ -1,5 +1,5 @@
 /* Queries on alert_policies, notification_deliveries and alert_fallback_notices (alerting module). */
-import { and, asc, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, like, lt, or, sql } from "drizzle-orm";
 import type { WorkspaceScope } from "../../core/workspace-scope.js";
 import { tenantWhere, withWorkspace, type DbOrTx } from "../../infra/db/index.js";
 import {
@@ -111,6 +111,61 @@ export function createAlertingRepository() {
           target: [notificationDeliveries.eventKey, notificationDeliveries.destinationKey],
         })
         .returning();
+    },
+
+    /* Serialises planning and sending for one group of monitors, until the transaction ends. */
+    async lockGroup(tx: DbOrTx, groupId: string): Promise<void> {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`alert-group:${groupId}`}))`);
+    },
+
+    /* The group's window that is still collecting failures, if one is open. */
+    async openGroupWindow(
+      tx: DbOrTx,
+      workspaceId: string,
+      groupId: string,
+      now: Date,
+    ): Promise<{ groupKey: string; dueAt: Date } | undefined> {
+      const [row] = await tx
+        .select({ groupKey: notificationDeliveries.groupKey, dueAt: notificationDeliveries.dueAt })
+        .from(notificationDeliveries)
+        .where(
+          and(
+            eq(notificationDeliveries.workspaceId, workspaceId),
+            like(notificationDeliveries.groupKey, `group:${groupId}:%`),
+            eq(notificationDeliveries.status, "pending"),
+            gt(notificationDeliveries.dueAt, now),
+          ),
+        )
+        .orderBy(asc(notificationDeliveries.dueAt))
+        .limit(1);
+      return row === undefined || row.groupKey === null || row.dueAt === null
+        ? undefined
+        : { groupKey: row.groupKey, dueAt: row.dueAt };
+    },
+
+    /* Every delivery of one window to one destination, oldest first; locked for the caller. */
+    async groupMembers(tx: DbOrTx, groupKey: string, destinationKey: string): Promise<DeliveryRow[]> {
+      return tx
+        .select()
+        .from(notificationDeliveries)
+        .where(
+          and(
+            eq(notificationDeliveries.groupKey, groupKey),
+            eq(notificationDeliveries.destinationKey, destinationKey),
+          ),
+        )
+        .orderBy(asc(notificationDeliveries.id))
+        .for("update");
+    },
+
+    async skipDeliveries(tx: DbOrTx, ids: string[], reason: string): Promise<void> {
+      if (ids.length === 0) return;
+      await tx
+        .update(notificationDeliveries)
+        .set({ status: "skipped", error: reason, updatedAt: sql`now()` })
+        .where(
+          and(inArray(notificationDeliveries.id, ids), eq(notificationDeliveries.status, "pending")),
+        );
     },
 
     /* Takes a delivery for one send attempt; undefined if it is sent, failed or being sent. */

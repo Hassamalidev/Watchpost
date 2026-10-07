@@ -16,7 +16,7 @@ import {
 } from "../types/adapter.js";
 import { parseConfigWith } from "./config.js";
 import { call, parseJson } from "./http.js";
-import { renderPlain } from "./render.js";
+import { alertSubject, renderPlain } from "./render.js";
 
 export const SLACK_API = "https://slack.com/api";
 export const SLACK_ACK_ACTION = "watchpost_acknowledge";
@@ -83,7 +83,7 @@ export function slackBlocks(event: AlertEvent, message: RenderedMessage): unknow
       { type: "section", text: { type: "mrkdwn", text: message.text } },
     ];
   }
-  const subject = incident.monitorName ?? incident.title;
+  const subject = alertSubject(event);
   const since = Math.floor(Date.parse(incident.startedAt) / 1_000);
   const fields = [
     `*Incident*\n#${incident.number} ${incident.title}`,

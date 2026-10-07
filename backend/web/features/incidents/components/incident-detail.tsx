@@ -158,6 +158,22 @@ export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
       )}
       {action.isError && <Alert tone="error">{errorMessage(action.error)}</Alert>}
 
+      {data.suppressedBy && open && (
+        <Alert tone="info">
+          {t.rich("suppressedBy", {
+            incident: `#${data.suppressedBy.number} ${data.suppressedBy.title}`,
+            link: (chunks) => (
+              <Link
+                className="font-medium underline underline-offset-4"
+                href={workspaceHref(ws, `incidents/${data.suppressedBy?.number}`)}
+              >
+                {chunks}
+              </Link>
+            ),
+          })}
+        </Alert>
+      )}
+
       {data.recentDeploy && !data.explanation && (
         <Alert tone="info">
           {tInsights("deploySuspect", {
@@ -263,6 +279,8 @@ export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
                 "false_alarm_cleared",
                 "flapping_started",
                 "flapping_stopped",
+                "suppressed",
+                "unsuppressed",
               ] as const;
               const type = known.find((k) => k === event.type);
               return (

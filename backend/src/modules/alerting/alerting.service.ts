@@ -193,6 +193,9 @@ const DEFAULT_RULES: AlertPolicyRules = alertPolicyRulesSchema.parse({});
 /* The same cap as `alertPolicyRulesSchema.channelIds`. */
 const MAX_POLICY_CHANNELS = 50;
 const HOUR_MS = 3_600_000;
+/* How long a group collects failures before its one message goes out (§9.6). */
+export const GROUP_WINDOW_MS = 15_000;
+type GroupedIncident = NonNullable<AlertEvent["group"]>["others"][number];
 
 export function createAlertingService(deps: AlertingServiceDeps): AlertingService {
   const { repository: repo, clock } = deps;
@@ -316,6 +319,46 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
     );
     if (e === null) return null;
     return { headline: e.headline, detail: e.detail, nextSteps: e.nextSteps.slice(0, 3) };
+  }
+
+  /*
+   * Grouped alerts (§9.6). The oldest delivery of a window and destination is the one that is sent;
+   * when its turn comes it closes the window: the others are marked skipped and it names their
+   * incidents. Returns those incidents (the ones still open), or nothing for any other delivery.
+   * A delivery that joined after the window closed is still pending and goes out on its own, so an
+   * alert is never lost to grouping.
+   */
+  async function closeGroupWindow(deliveryId: string): Promise<GroupedIncident[]> {
+    const mine = await repo.findDelivery(deps.db, deliveryId);
+    if (mine === undefined || mine.groupKey === null) return [];
+    const { groupKey } = mine;
+    const groupId = groupKey.split(":")[1] ?? "";
+    const others = await deps.db.transaction(async (tx) => {
+      await repo.lockGroup(tx, groupId);
+      const members = await repo.groupMembers(tx, groupKey, mine.destinationKey);
+      const lead = members[0];
+      if (lead === undefined || lead.id !== deliveryId) return [];
+      const rest = members.slice(1);
+      await repo.skipDeliveries(
+        tx,
+        rest.map((d) => d.id),
+        "Sent as one message with the other failures in its group.",
+      );
+      /* A retry of the lead finds them skipped already and names them again. */
+      return rest.filter((d) => d.status === "pending" || d.status === "skipped");
+    });
+    const grouped: GroupedIncident[] = [];
+    for (const other of others) {
+      const ctx = await deps.incidents.alertContext(other.incidentId);
+      if (ctx === undefined || ctx.incident.status === "resolved") continue;
+      grouped.push({
+        number: ctx.incident.number,
+        title: ctx.incident.title,
+        monitorName: ctx.monitor?.name ?? null,
+        url: `${deps.webOrigin}/w/${ctx.workspaceId}/incidents/${ctx.incident.number}`,
+      });
+    }
+    return grouped;
   }
 
   const notifyJob = (
@@ -547,6 +590,8 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
     async planIncidentEvent({ kind, incidentId, eventKey, actorUserId }) {
       const ctx = await deps.incidents.alertContext(incidentId);
       if (ctx === undefined) return 0;
+      /* A parent monitor's incident already told people; this one stays quiet (§9.6). */
+      if (ctx.incident.suppressedByIncidentId !== null) return 0;
       const policy = await policyFor(ctx);
       if (policy === undefined || !policy.rules.events[kind]) return 0;
       /* The policy says which channels to ask; each channel's own rules say what it accepts. */
@@ -564,8 +609,7 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
 
       const actorId = actorUserId ?? (kind === "resolved" ? ctx.incident.resolvedBy : null) ?? null;
       const actorName = await memberName(ctx.workspaceId, actorId);
-      const planned = await repo.insertDeliveries(
-        deps.db,
+      const rows = (window: { groupKey: string; dueAt: Date } | undefined) =>
         channels.map((c) => {
           const retry = deps.channels.retryPolicy(c.type);
           return {
@@ -579,9 +623,26 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
             actorName,
             maxAttempts: retry?.attempts ?? NOTIFY_ATTEMPTS,
             backoffMs: retry?.backoffMs ?? NOTIFY_BACKOFF_MS,
+            ...(window === undefined ? {} : window),
           };
-        }),
-      );
+        });
+      /*
+       * Grouping (§9.6): a new failure in a group that asks for it waits for the group's window to
+       * end (15 seconds after its first failure), so the channel gets one message for the burst.
+       */
+      const group = kind === "triggered" ? (ctx.monitor?.alertGroup ?? null) : null;
+      const planned =
+        group === null
+          ? await repo.insertDeliveries(deps.db, rows(undefined))
+          : await deps.db.transaction(async (tx) => {
+              await repo.lockGroup(tx, group.id);
+              const now = clock.now();
+              const window = (await repo.openGroupWindow(tx, ctx.workspaceId, group.id, now)) ?? {
+                groupKey: `group:${group.id}:${now.getTime()}`,
+                dueAt: new Date(now.getTime() + GROUP_WINDOW_MS),
+              };
+              return repo.insertDeliveries(tx, rows(window));
+            });
       for (const d of planned) await notifyJob(d);
       return planned.length;
     },
@@ -590,6 +651,7 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
       if (deps.oncall === undefined) return false;
       const ctx = await deps.incidents.alertContext(incidentId);
       if (ctx === undefined || ctx.incident.status !== "triggered") return false;
+      if (ctx.incident.suppressedByIncidentId !== null) return false;
       const policyId = (await policyFor(ctx))?.rules.escalationPolicyId ?? null;
       if (policyId === null) return false;
       const policy = await deps.oncall.escalationPolicy(system(ctx.workspaceId), policyId);
@@ -717,6 +779,7 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
       if (deps.contacts === undefined) return 0;
       const ctx = await deps.incidents.alertContext(incidentId);
       if (ctx === undefined || ctx.incident.status !== "triggered") return 0;
+      if (ctx.incident.suppressedByIncidentId !== null) return 0;
       const steps = await deps.contacts.fanOut(
         system(ctx.workspaceId),
         userId,
@@ -753,6 +816,7 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
     },
 
     async deliver(deliveryId) {
+      const alsoDown = await closeGroupWindow(deliveryId);
       const delivery = await repo.claim(deps.db, deliveryId);
       if (delivery === undefined) return "skipped";
       const finish = (patch: Parameters<AlertingRepository["finish"]>[2]) =>
@@ -765,6 +829,9 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
       }
       const workspaceName = await deps.workspaces.workspaceName(system(ctx.workspaceId));
       const event = eventFor(delivery.kind, ctx, workspaceName, delivery.actorName);
+      if (alsoDown.length > 0 && ctx.monitor?.alertGroup) {
+        event.group = { name: ctx.monitor.alertGroup.name, others: alsoDown };
+      }
 
       /* To a person, through one of their own contact methods. */
       if (delivery.contactType !== null && delivery.contactAddress !== null) {
@@ -891,6 +958,7 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
       const ctx = await deps.incidents.alertContext(incidentId);
       const minutes = ctx?.monitor?.reminderMinutes;
       if (ctx === undefined || !minutes || ctx.incident.status === "resolved") return false;
+      if (ctx.incident.suppressedByIncidentId !== null) return false;
       const startedAt = Date.parse(ctx.incident.startedAt);
       await reminderJob(incidentId, nextSlot(startedAt, minutes * 60_000, clock.now().getTime()));
       return true;

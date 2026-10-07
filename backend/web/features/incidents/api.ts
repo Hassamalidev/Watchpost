@@ -22,6 +22,8 @@ export interface Incident {
   resolvedAt: string | null;
   falseAlarm: boolean;
   durationSeconds: number;
+  /* Set while a parent monitor's incident explains this one: nobody is notified about it. */
+  suppressedByIncidentId?: string | null;
 }
 
 export interface TimelineEntry {
@@ -47,6 +49,7 @@ export interface IncidentDetail extends Incident {
     deployedAt: string;
     minutesBefore: number;
   } | null;
+  suppressedBy?: { id: string; number: number; title: string } | null;
 }
 
 export interface IncidentQuery {

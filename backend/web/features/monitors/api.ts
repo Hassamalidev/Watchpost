@@ -13,8 +13,18 @@ export interface Monitor {
   sloTarget: number;
   minFailingRegions: number;
   alertOnRegionalIssue: boolean;
+  /* The group it belongs to and the monitor it depends on, when set. */
+  groupId?: string | null;
+  parentId?: string | null;
   paused: boolean;
   createdAt: string;
+}
+
+export interface MonitorGroup {
+  id: string;
+  name: string;
+  /* Failures in the group within 15 seconds of each other go out as one message. */
+  groupAlerts: boolean;
 }
 
 export interface MonitorState {
@@ -77,6 +87,8 @@ export interface CreateMonitorBody {
     sloTarget?: number;
     minFailingRegions?: number;
     alertOnRegionalIssue?: boolean;
+    groupId?: string;
+    parentId?: string;
   };
   config: MonitorConfigInput;
 }
@@ -95,6 +107,11 @@ export const monitorsApi = {
     }),
   remove: (ws: string, id: string) =>
     api<void>(wsPath(ws, `/monitors/${id}`), { method: "DELETE" }),
+  groups: (ws: string) => api<{ data: MonitorGroup[] }>(wsPath(ws, "/monitor-groups")),
+  createGroup: (ws: string, body: { name: string; groupAlerts: boolean }) =>
+    api<MonitorGroup>(wsPath(ws, "/monitor-groups"), { method: "POST", body }),
+  updateGroup: (ws: string, id: string, body: { name: string; groupAlerts: boolean }) =>
+    api<MonitorGroup>(wsPath(ws, `/monitor-groups/${id}`), { method: "PATCH", body }),
   states: (ws: string) =>
     api<{ data: MonitorState[]; reducedRegions?: string[] }>(wsPath(ws, "/monitor-states")),
   latency: (ws: string, id: string, range = "24h") =>

@@ -304,11 +304,24 @@ export function createMonitorsRepository(db: DbOrTx) {
         .orderBy(asc(monitorGroups.name));
     },
 
-    async renameGroup(scope: WorkspaceScope, id: string, name: string) {
+    /* System: the groups of monitors detection and alerting are looking at. */
+    async groupsByIdsUnscoped(ids: string[]): Promise<MonitorGroupRow[]> {
+      if (ids.length === 0) return [];
+      return db.select().from(monitorGroups).where(inArray(monitorGroups.id, ids));
+    },
+
+    async updateGroup(
+      scope: WorkspaceScope,
+      id: string,
+      patch: { name: string; groupAlerts?: boolean | undefined },
+    ) {
       assertWorkspaceScope(scope);
       const [row] = await db
         .update(monitorGroups)
-        .set({ name })
+        .set({
+          name: patch.name,
+          ...(patch.groupAlerts === undefined ? {} : { groupAlerts: patch.groupAlerts }),
+        })
         .where(and(eq(monitorGroups.workspaceId, scope.workspaceId), eq(monitorGroups.id, id)))
         .returning();
       return row;

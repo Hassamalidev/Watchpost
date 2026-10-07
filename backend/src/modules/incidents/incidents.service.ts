@@ -69,6 +69,8 @@ export interface IncidentView {
   falseAlarm: boolean;
   snoozedUntil: string | null;
   durationSeconds: number;
+  /* Set while a parent monitor's incident explains this one: nobody is notified about it (§9.6). */
+  suppressedByIncidentId: string | null;
 }
 
 export interface TimelineEntry {
@@ -102,7 +104,12 @@ export interface IncidentDetail extends IncidentView {
   /* How long the first failing check took and where the time went; null when it wasn't timed. */
   timing: string | null;
   recentDeploy: RecentDeploy | null;
+  /* The parent monitor's incident, while this one is suppressed by it. */
+  suppressedBy: { id: string; number: number; title: string } | null;
 }
+
+/* How far up a dependency chain an explanation is looked for. */
+const MAX_PARENT_DEPTH = 10;
 
 /* One explanation for alerts and the incident page (§4 pillar 2). */
 export function explainIncident(
@@ -143,6 +150,8 @@ export interface AlertContext {
     name: string;
     alertPolicyId: string | null;
     reminderMinutes: number | null;
+    /* Set when the monitor's group asks for one message per burst of failures (§9.6). */
+    alertGroup: { id: string; name: string } | null;
     /* Hostname it checks and how many regions check it, for the failure explanation. */
     target: string | null;
     regionCount: number;
@@ -413,6 +422,7 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
       falseAlarm: row.falseAlarm,
       snoozedUntil: iso(row.snoozedUntil),
       durationSeconds: Math.max(0, Math.round((end.getTime() - row.startedAt.getTime()) / 1_000)),
+      suppressedByIncidentId: row.suppressedByIncidentId ?? null,
     };
   };
   const toEntry = (e: IncidentEventRow): TimelineEntry => ({
@@ -480,11 +490,103 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
       { incidentId: open.id, auto: input.auto },
       { workspaceId: open.workspaceId },
     );
+    await releaseSuppressed(tx, open);
     return resolved;
+  }
+
+  /*
+   * Dependencies (§9.6): the open incident of the nearest ancestor that is down explains a monitor's
+   * failure. `ignore` holds monitors whose incidents don't count (they are being decided right now).
+   */
+  async function openAncestorIncident(
+    tx: DbOrTx,
+    monitorId: string,
+    ignore: ReadonlySet<string> = new Set(),
+  ): Promise<IncidentRow | undefined> {
+    const [monitor] = await deps.monitors.getForDetection([monitorId]);
+    let parentId = monitor?.parentId ?? null;
+    for (let depth = 0; parentId !== null && depth < MAX_PARENT_DEPTH; depth += 1) {
+      const [parent] = await deps.monitors.getForDetection([parentId]);
+      /* Parents are in the same workspace by construction; stop if a row ever says otherwise. */
+      if (parent === undefined || parent.workspaceId !== monitor?.workspaceId) return undefined;
+      if (!ignore.has(parentId)) {
+        const open = await repo.findOpenForMonitor(tx, parentId);
+        if (open !== undefined && (open.source === "monitor" || open.source === "heartbeat")) {
+          return open;
+        }
+      }
+      parentId = parent.parentId;
+    }
+    return undefined;
+  }
+
+  /*
+   * An incident stopped explaining others (it resolved). Each incident it kept quiet is looked at
+   * again: one that still has an ancestor with an open incident stays quiet under that one; the
+   * rest are real outages of their own now, so they are announced.
+   */
+  async function releaseSuppressed(tx: Tx, parent: IncidentRow): Promise<void> {
+    let waiting = await repo.openSuppressedBy(tx, parent.id);
+    while (waiting.length > 0) {
+      const undecided = new Set(waiting.flatMap((c) => (c.monitorId === null ? [] : [c.monitorId])));
+      const later: IncidentRow[] = [];
+      for (const child of waiting) {
+        /* An ancestor that is itself waiting is decided first, so its answer can be used. */
+        const blockedBy =
+          child.monitorId === null ? undefined : await nearestWaiting(child.monitorId, undecided);
+        if (blockedBy !== undefined) {
+          later.push(child);
+          continue;
+        }
+        const ancestor =
+          child.monitorId === null ? undefined : await openAncestorIncident(tx, child.monitorId);
+        if (child.monitorId !== null) undecided.delete(child.monitorId);
+        if (ancestor !== undefined) {
+          const by = ancestor.suppressedByIncidentId ?? ancestor.id;
+          await repo.update(tx, child.id, { suppressedByIncidentId: by });
+          await addEvent(tx, child, "suppressed", "system", { byIncidentId: by });
+          continue;
+        }
+        const released = await repo.update(tx, child.id, { suppressedByIncidentId: null });
+        if (released === undefined) continue;
+        await addEvent(tx, released, "unsuppressed", "system", { byIncidentId: parent.id });
+        await emitTriggered(tx, released);
+      }
+      /* No progress is impossible in a tree; stop rather than loop if the data ever says otherwise. */
+      if (later.length === waiting.length) break;
+      waiting = later;
+    }
+  }
+
+  /* The nearest ancestor of a monitor that is in `set`, if any. */
+  async function nearestWaiting(
+    monitorId: string,
+    set: ReadonlySet<string>,
+  ): Promise<string | undefined> {
+    const [monitor] = await deps.monitors.getForDetection([monitorId]);
+    let parentId = monitor?.parentId ?? null;
+    for (let depth = 0; parentId !== null && depth < MAX_PARENT_DEPTH; depth += 1) {
+      if (set.has(parentId)) return parentId;
+      const [parent] = await deps.monitors.getForDetection([parentId]);
+      parentId = parent?.parentId ?? null;
+    }
+    return undefined;
+  }
+
+  async function suppressorOf(row: IncidentRow): Promise<IncidentDetail["suppressedBy"]> {
+    if (row.suppressedByIncidentId === null) return null;
+    const parent = await repo.findById(deps.db, row.suppressedByIncidentId);
+    /* Never across workspaces, whatever the row says. */
+    if (parent === undefined || parent.workspaceId !== row.workspaceId) return null;
+    return { id: parent.id, number: parent.number, title: parent.title };
   }
 
   async function announceTriggered(tx: Tx, incident: IncidentRow, data: Record<string, unknown>) {
     await addEvent(tx, incident, "triggered", "system", data);
+    await emitTriggered(tx, incident);
+  }
+
+  async function emitTriggered(tx: Tx, incident: IncidentRow) {
     await deps.outbox.emit(
       tx,
       "incident.triggered",
@@ -508,6 +610,10 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
         tx,
         createWorkspaceScope({ workspaceId: input.workspaceId }),
       );
+      /* A parent that is already down explains this failure: open it on the record, quietly. */
+      const ancestor = await openAncestorIncident(tx, input.monitorId);
+      const suppressedBy =
+        ancestor === undefined ? null : (ancestor.suppressedByIncidentId ?? ancestor.id);
       const created = await repo.insertForMonitor(tx, {
         id: deps.newId(),
         workspaceId: input.workspaceId,
@@ -519,6 +625,7 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
         causeCode: input.causeCode,
         failingRegions: input.failingRegions,
         evidence: input.evidence ?? null,
+        suppressedByIncidentId: suppressedBy,
         startedAt: clock.now(),
       });
       if (created === undefined) {
@@ -528,10 +635,16 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
           throw new Error("open incident vanished during a concurrent insert");
         return { incident: winner, created: false };
       }
-      await announceTriggered(tx, created, {
-        causeCode: input.causeCode,
-        failingRegions: input.failingRegions,
-      });
+      const facts = { causeCode: input.causeCode, failingRegions: input.failingRegions };
+      if (created.suppressedByIncidentId === null) {
+        await announceTriggered(tx, created, facts);
+      } else {
+        /* On the timeline, but no `incident.triggered`: nothing is sent while the parent is down. */
+        await addEvent(tx, created, "triggered", "system", facts);
+        await addEvent(tx, created, "suppressed", "system", {
+          byIncidentId: created.suppressedByIncidentId,
+        });
+      }
       return { incident: created, created: true };
     },
 
@@ -576,6 +689,10 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
                 name: monitor.name,
                 alertPolicyId: monitor.alertPolicyId,
                 reminderMinutes: monitor.policies.reminderMinutes ?? null,
+                alertGroup:
+                  monitor.group !== null && monitor.group.groupAlerts
+                    ? { id: monitor.group.id, name: monitor.group.name }
+                    : null,
                 target: monitor.target,
                 regionCount: monitor.regions.length,
               },
@@ -790,6 +907,7 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
         explanation: explainIncident(view, monitor, recentDeploy),
         timing: describeEvidenceTiming(view.evidence),
         recentDeploy,
+        suppressedBy: await suppressorOf(row),
       };
     },
 
