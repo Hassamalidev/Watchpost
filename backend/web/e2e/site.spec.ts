@@ -9,6 +9,8 @@ import AxeBuilder from "@axe-core/playwright";
 test.use({ storageState: { cookies: [], origins: [] } });
 
 async function noAxeViolations(page: Page) {
+  /* After a link click the page's title can arrive a moment after its heading (Next streams it). */
+  await expect(page).toHaveTitle(/\S/);
   const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
   expect(results.violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
 }
