@@ -130,6 +130,22 @@ export const statusComponentInputSchema = z
   .strict();
 export type StatusComponentInput = z.infer<typeof statusComponentInputSchema>;
 
+/*
+ * A customer's own host name for a page: at least two labels, letters, digits and hyphens, no
+ * scheme, port or path. Lowercased.
+ */
+export const customDomainSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(253)
+  .regex(
+    /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])$/,
+    "enter a domain like status.yourcompany.com, without https:// or a path",
+  );
+
+export const setStatusDomainSchema = z.object({ domain: customDomainSchema.nullable() }).strict();
+
 export const createStatusPageSchema = z
   .object({
     name: z.string().trim().min(1).max(120),
@@ -267,7 +283,13 @@ export interface StatusPageView {
   settings: StatusPageSettings;
   components: StatusComponentView[];
   customDomain: string | null;
+  /* Set once DNS was seen pointing at us; only then is the domain served and given a certificate. */
   domainVerifiedAt: string | null;
+  domainCheckedAt: string | null;
+  /* Why the last check didn't pass, in plain words. */
+  domainError: string | null;
+  /* What the customer's CNAME record must point to; null when this server has none configured. */
+  cnameTarget: string | null;
   createdAt: string;
   updatedAt: string;
 }

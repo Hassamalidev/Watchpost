@@ -13,6 +13,7 @@ import { createApp } from "../../app.js";
 import { createContainer } from "../../composition/container.js";
 import { parseEnv, toAppConfig } from "../../config/index.js";
 import type { Clock } from "../../core/clock.js";
+import type { DnsLookup } from "../../infra/dns.js";
 import type { PaddleApi } from "../../infra/paddle/index.js";
 import type { OutboundHttp, OutboundRequest, OutboundResponse } from "../../infra/http/outbound.js";
 import { outboxEvents } from "../../infra/outbox/index.js";
@@ -34,6 +35,8 @@ export function buildContainerApp(
     paddleApi?: PaddleApi;
     /* Records the cache tags the web app would be told to drop. */
     revalidate?: (tags: string[]) => Promise<void>;
+    /* Answers DNS lookups (custom status page domains). */
+    dns?: DnsLookup;
   } = {},
 ) {
   const config = toAppConfig(
@@ -64,6 +67,7 @@ export function buildContainerApp(
     ...(options.clock === undefined ? {} : { clock: options.clock }),
     ...(options.paddleApi === undefined ? {} : { paddleApi: options.paddleApi }),
     ...(options.revalidate === undefined ? {} : { revalidate: options.revalidate }),
+    ...(options.dns === undefined ? {} : { dns: options.dns }),
   });
   const app = createApp({
     config,

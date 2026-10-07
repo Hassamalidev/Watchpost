@@ -6,6 +6,7 @@
  */
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
+import http from "node:http";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
@@ -31,6 +32,19 @@ async function monitorStatus(page: Page, monitorId: string): Promise<string> {
   const res = await page.request.get(`/api/w/${workspace()}/monitor-states`);
   const body = (await res.json()) as { data: Array<{ monitorId: string; status: string }> };
   return body.data.find((s) => s.monitorId === monitorId)?.status ?? "pending";
+}
+
+/* A request to the web server as if it had arrived for another host name. */
+function getWithHost(path: string, host: string): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const req = http.get({ host: "127.0.0.1", port: 3100, path, headers: { host } }, (res) => {
+      let body = "";
+      res.setEncoding("utf8");
+      res.on("data", (chunk: string) => (body += chunk));
+      res.on("end", () => resolve({ status: res.statusCode ?? 0, body }));
+    });
+    req.on("error", reject);
+  });
 }
 
 /* Largest Contentful Paint of the page that is open, in milliseconds. */
@@ -171,6 +185,31 @@ test("a status page is public at once, follows its monitor within 10 s, and show
   } finally {
     await visitorContext.close();
   }
+
+  /* By host name: the page's subdomain serves it; a domain nobody verified serves nothing. */
+  const bySubdomain = await getWithHost("/", `${slug}.status.watchpost-e2e.test`);
+  expect(bySubdomain.status).toBe(200);
+  expect(bySubdomain.body).toContain("Corner Shop status");
+  expect((await getWithHost("/", "status.someone-else.test")).status).toBe(404);
+  expect((await getWithHost("/pricing", `${slug}.status.watchpost-e2e.test`)).status).toBe(404);
+
+  /* The custom domain card says what to point a domain at. */
+  await page.goto(editorUrl);
+  await page.getByLabel("Domain", { exact: true }).fill("status.corner-shop.test");
+  await page
+    .locator("form", { has: page.getByLabel("Domain", { exact: true }) })
+    .getByRole("button", { name: "Save" })
+    .click();
+  await expect(page.getByText("Almost there: point the domain at us")).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(page.getByLabel("Points to")).toHaveValue("pages.watchpost-e2e.test");
+  await page.getByRole("button", { name: "Check now" }).click();
+  /* What DNS says, or that it couldn't be asked from this machine; never "verified". */
+  await expect(
+    page.getByText(/No DNS record found for status\.corner-shop\.test|DNS couldn't be checked/),
+  ).toBeVisible({ timeout: 20_000 });
+  expect((await getWithHost("/", "status.corner-shop.test")).status).toBe(404);
 
   /* The editor itself is accessible, and an unknown page is a 404. */
   await page.goto(editorUrl);

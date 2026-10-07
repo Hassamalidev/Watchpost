@@ -123,6 +123,27 @@ describe("status hosts", () => {
     expect(statusRefForHost(null, options)).toBeUndefined();
   });
 
+  it("treats a host that is none of ours as a customer's domain", () => {
+    const options = { baseDomain: "status.acme.io", appDomain: "app.acme.io" };
+    expect(statusRefForHost("status.customer.com", options)).toBe("status.customer.com");
+    expect(statusRefForHost("Status.Customer.com:443", options)).toBe("status.customer.com");
+    /* Ours: the app, the site, anything else under our domain, and the base domain itself. */
+    for (const own of ["app.acme.io", "acme.io", "www.acme.io", "hb.acme.io", "status.acme.io"]) {
+      expect(statusRefForHost(own, options), own).toBeUndefined();
+    }
+    /* Never pages: internal names and addresses. */
+    for (const internal of ["web:3000", "localhost:3000", "127.0.0.1:3100", "[::1]:3000"]) {
+      expect(statusRefForHost(internal, options), internal).toBeUndefined();
+    }
+    expect(
+      statusRefForHost("partner.net", { ...options, ownHosts: ["partner.net"] }),
+    ).toBeUndefined();
+    /* Without the app's own host nothing is guessed. */
+    expect(
+      statusRefForHost("status.customer.com", { baseDomain: "status.acme.io" }),
+    ).toBeUndefined();
+  });
+
   it("ignores the placeholder domain and keeps the rest of the path", () => {
     expect(statusBaseDomain("status.example.com")).toBeUndefined();
     expect(statusBaseDomain("")).toBeUndefined();

@@ -13,6 +13,7 @@ import { createTokenCipher } from "../infra/crypto.js";
 import { createEmailRequester } from "../infra/email/index.js";
 import { createDb, createDbPool, pingDb } from "../infra/db/index.js";
 import { createOutboundHttp, type OutboundHttp } from "../infra/http/outbound.js";
+import { createDnsLookup, type DnsLookup } from "../infra/dns.js";
 import { createRevalidator, type Revalidate } from "../infra/revalidate.js";
 import { createWebPush } from "../infra/webpush.js";
 import { createLocks } from "../infra/locks.js";
@@ -76,6 +77,8 @@ export function createInfra(
     objects?: ObjectStore;
     /* Tests record which cached pages the web app would be told to drop. */
     revalidate?: Revalidate;
+    /* Tests answer DNS themselves. */
+    dns?: DnsLookup;
   },
 ): Infra {
   const logger =
@@ -162,6 +165,7 @@ export function createInfra(
     http,
     revalidate:
       options.revalidate ?? createRevalidator({ target: config.statusPages.revalidate, logger }),
+    dns: options.dns ?? createDnsLookup(),
     webPush:
       config.webPush === undefined
         ? undefined
@@ -180,6 +184,7 @@ export function createContainer(
     paddleApi?: PaddleApi;
     objects?: ObjectStore;
     revalidate?: Revalidate;
+    dns?: DnsLookup;
   },
 ): Container {
   const hooks: LateHooks = { onWorkspaceCreated: [] };

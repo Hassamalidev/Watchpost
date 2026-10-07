@@ -12,6 +12,8 @@ import type {
   postUpdateBody,
   publicRefParams,
   replaceComponentsBody,
+  setDomainBody,
+  tlsAskQuery,
   updateIncidentBody,
   updatePageBody,
 } from "./validators/index.js";
@@ -29,6 +31,9 @@ export type StatuspagesController = Record<
   | "updateIncident"
   | "postUpdate"
   | "removeIncident"
+  | "setDomain"
+  | "verifyDomain"
+  | "tlsAsk"
   | "publicPage"
   | "publicRss"
   | "publicAtom",
@@ -111,6 +116,21 @@ export function createStatuspagesController(service: StatuspagesService): Status
       const { pageId, incidentId } = incidentOf(req, res);
       await service.deleteIncident(scopeOf(req, res), pageId, incidentId);
       res.status(204).end();
+    },
+    setDomain: async (req, res) => {
+      const { body } = inputOf<{ body: typeof setDomainBody }>(req, res);
+      res.json(await service.setDomain(scopeOf(req, res), pageOf(req, res), body.domain));
+    },
+    verifyDomain: async (req, res) => {
+      res.json(await service.verifyDomain(scopeOf(req, res), pageOf(req, res)));
+    },
+    /* 200 lets Caddy get a certificate for the host; anything else refuses it (§16). */
+    tlsAsk: async (req, res) => {
+      const { query } = inputOf<{ query: typeof tlsAskQuery }>(req, res);
+      if (!(await service.servesHost(query.domain))) {
+        throw new NotFoundError("Not a verified status page domain.");
+      }
+      res.status(200).json({ ok: true });
     },
     publicPage: async (req, res) => {
       const page = await service.publicPage(refOf(req, res));

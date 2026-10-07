@@ -13,6 +13,7 @@ import type { Locks } from "../infra/locks.js";
 import type { Logger } from "../infra/logger.js";
 import type { Outbox } from "../infra/outbox/index.js";
 import type { PaddleClient } from "../infra/paddle/index.js";
+import type { DnsLookup } from "../infra/dns.js";
 import type { ObjectStore } from "../infra/storage/index.js";
 import type { WebPush } from "../infra/webpush.js";
 import type { JobProcessor, QueueName, Queues, RecoverySweep } from "../infra/queues/index.js";
@@ -50,6 +51,8 @@ export interface Infra {
   objects: ObjectStore | undefined;
   /* Tells the web app to drop cached pages by tag (status pages); never throws. */
   revalidate: Revalidate;
+  /* DNS lookups for checking customers' status page domains. */
+  dns: DnsLookup;
 }
 
 export interface MountedRouter {

@@ -19,6 +19,12 @@ export const E2E_DATABASE_URL =
   process.env.DATABASE_URL ?? "postgres://watchpost:watchpost@localhost:5433/watchpost_e2e";
 
 const REVALIDATE_SECRET = "e2e-revalidate-secret";
+/* Status pages: their subdomains, and what a customer's own domain must point at. */
+const STATUS_HOSTS = {
+  APP_DOMAIN: "app.watchpost-e2e.test",
+  STATUS_BASE_DOMAIN: "status.watchpost-e2e.test",
+  CUSTOM_DOMAIN_CNAME_TARGET: "pages.watchpost-e2e.test",
+};
 
 /* The API and the worker (started by e2e/stack.mjs) share this environment. */
 const BACKEND_ENV = {
@@ -37,6 +43,7 @@ const BACKEND_ENV = {
   OUTBOUND_ALLOW_CIDRS: "127.0.0.0/8",
   /* The API tells the web app to drop cached status pages; both sides share this secret. */
   REVALIDATE_SECRET,
+  ...STATUS_HOSTS,
 };
 
 export default defineConfig({
@@ -83,7 +90,7 @@ export default defineConfig({
       url: WEB_ORIGIN,
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
-      env: { REVALIDATE_SECRET },
+      env: { REVALIDATE_SECRET, ...STATUS_HOSTS },
     },
   ],
 });

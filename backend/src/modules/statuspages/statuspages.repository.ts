@@ -1,5 +1,5 @@
 /* Drizzle queries for this module's own tables only (tables go in schema/). */
-import { and, asc, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import type { WorkspaceScope } from "../../core/workspace-scope.js";
 import { tenantWhere, withWorkspace, type DbOrTx } from "../../infra/db/index.js";
 import {
@@ -70,6 +70,67 @@ export function createStatuspagesRepository(db: DbOrTx) {
       return rows[0];
     },
 
+    /* System (Caddy's on-demand TLS): is this host a verified domain of a published page? */
+    async servesHost(host: string): Promise<boolean> {
+      const rows = await db
+        .select({ id: statusPages.id })
+        .from(statusPages)
+        .where(
+          and(
+            eq(statusPages.customDomain, host),
+            eq(statusPages.published, true),
+            sql`${statusPages.domainVerifiedAt} is not null`,
+          ),
+        )
+        .limit(1);
+      return rows.length > 0;
+    },
+
+    /*
+     * System: pages whose domain is due for a DNS check. A verified domain is looked at daily; one
+     * still waiting is looked at every few minutes while it is new, then daily.
+     */
+    async domainsDue(now: Date, limit: number): Promise<StatusPageRow[]> {
+      const day = new Date(now.getTime() - 86_400_000);
+      const minutes = new Date(now.getTime() - 5 * 60_000);
+      const fresh = new Date(now.getTime() - 3 * 86_400_000);
+      return db
+        .select()
+        .from(statusPages)
+        .where(
+          and(
+            sql`${statusPages.customDomain} is not null`,
+            or(
+              isNull(statusPages.domainCheckedAt),
+              lt(statusPages.domainCheckedAt, day),
+              and(
+                isNull(statusPages.domainVerifiedAt),
+                gte(statusPages.updatedAt, fresh),
+                lt(statusPages.domainCheckedAt, minutes),
+              ),
+            ),
+          ),
+        )
+        .orderBy(asc(statusPages.domainCheckedAt))
+        .limit(limit);
+    },
+
+    /* System: records the outcome of a DNS check without touching `updated_at`. */
+    async recordDomainCheck(
+      id: string,
+      patch: Pick<
+        StatusPageRow,
+        "domainVerifiedAt" | "domainCheckedAt" | "domainError" | "domainFailingSince"
+      >,
+    ): Promise<StatusPageRow | undefined> {
+      const [row] = await db
+        .update(statusPages)
+        .set(patch)
+        .where(eq(statusPages.id, id))
+        .returning();
+      return row;
+    },
+
     /* System: pages by ID, whatever the workspace (event handlers reload what an event names). */
     async pagesByIds(ids: string[]): Promise<StatusPageRow[]> {
       if (ids.length === 0) return [];
@@ -97,7 +158,11 @@ export function createStatuspagesRepository(db: DbOrTx) {
         PageEditable &
           Pick<
             StatusPageRow,
-            "customDomain" | "domainVerifiedAt" | "domainCheckedAt" | "domainError"
+            | "customDomain"
+            | "domainVerifiedAt"
+            | "domainCheckedAt"
+            | "domainError"
+            | "domainFailingSince"
           >
       >,
     ): Promise<StatusPageRow | undefined> {

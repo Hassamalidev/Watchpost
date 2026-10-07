@@ -4,6 +4,7 @@
  * /api/public/status/:ref is the public zone (§7.1): no session, read-only, cached.
  */
 import { Router, type RequestHandler } from "express";
+import { NotFoundError } from "../../core/errors.js";
 import { requirePermission } from "../../middleware/roles.js";
 import { validate } from "../../middleware/validate.js";
 import type { StatuspagesController } from "./statuspages.controller.js";
@@ -15,6 +16,8 @@ import {
   postUpdateBody,
   publicRefParams,
   replaceComponentsBody,
+  setDomainBody,
+  tlsAskQuery,
   updateIncidentBody,
   updatePageBody,
 } from "./validators/index.js";
@@ -47,6 +50,13 @@ export function createStatuspagesRouter(
     controller.replaceComponents,
   );
   router.get("/status-pages/:pageId/preview", read, page, controller.preview);
+  router.put(
+    "/status-pages/:pageId/domain",
+    write,
+    validate({ params: pageIdParams, body: setDomainBody }),
+    controller.setDomain,
+  );
+  router.post("/status-pages/:pageId/domain/verify", write, page, controller.verifyDomain);
 
   router.get("/status-pages/:pageId/incidents", read, page, controller.listIncidents);
   router.post(
@@ -73,6 +83,24 @@ export function createStatuspagesRouter(
     incident,
     controller.removeIncident,
   );
+  return router;
+}
+
+/*
+ * /api/internal/tls/ask (§7.1 "Internal", §16): Caddy asks here before it gets a certificate for a
+ * host it doesn't know. Caddy never forwards the public internet to /api/internal/*; as a second
+ * lock, a request that came through a proxy (it carries a forwarding header) is refused.
+ */
+export function createInternalTlsRouter(controller: StatuspagesController): Router {
+  const router = Router();
+  const direct: RequestHandler = (req, _res, next) => {
+    if (req.headers["x-forwarded-for"] !== undefined || req.headers.forwarded !== undefined) {
+      next(new NotFoundError());
+      return;
+    }
+    next();
+  };
+  router.get("/ask", direct, validate({ query: tlsAskQuery }), controller.tlsAsk);
   return router;
 }
 

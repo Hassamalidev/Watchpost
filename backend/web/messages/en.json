@@ -1816,6 +1816,25 @@
     "postUpdate": "Post update",
     "preview": "Preview",
     "previewHint": "What visitors see right now, including drafts only your team can see.",
-    "previewUnavailable": "The preview isn't available right now."
+    "previewUnavailable": "The preview isn't available right now.",
+    "domain": {
+      "title": "Your own domain",
+      "intro": "Serve this page at an address like status.yourcompany.com. HTTPS is set up for you.",
+      "notAvailable": "Custom domains aren't set up on this server yet.",
+      "domain": "Domain",
+      "domainHint": "A subdomain you control, without https://.",
+      "remove": "Remove",
+      "confirmRemove": "Stop serving this page at {domain}?",
+      "verified": "{domain} points to us and serves this page over HTTPS.",
+      "stepsTitle": "Almost there: point the domain at us",
+      "stepRecord": "At your DNS provider, add this record. If your provider proxies traffic (an orange cloud at Cloudflare), switch that off for this record.",
+      "stepWait": "We look for it every few minutes, or press Check now. The page goes live on your domain as soon as we see it.",
+      "recordType": "Type",
+      "recordName": "Name",
+      "recordValue": "Points to",
+      "checkNow": "Check now",
+      "checking": "Checking…",
+      "lastChecked": "Last checked {time}"
+    }
   }
 }

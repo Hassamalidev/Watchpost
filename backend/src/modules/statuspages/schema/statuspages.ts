@@ -40,6 +40,8 @@ export const statusPages = pgTable(
     domainCheckedAt: timestamp("domain_checked_at", { withTimezone: true }),
     /* Why the last DNS check failed, in plain words; null when it passed or never ran. */
     domainError: text("domain_error"),
+    /* Since when a verified domain has stopped pointing at us; a week of that un-verifies it. */
+    domainFailingSince: timestamp("domain_failing_since", { withTimezone: true }),
     branding: jsonb("branding").$type<StatusBranding>().notNull(),
     /* "public" for now; password, SSO and IP allowlist come with private pages (P7). */
     visibility: text("visibility").$type<"public">().notNull().default("public"),

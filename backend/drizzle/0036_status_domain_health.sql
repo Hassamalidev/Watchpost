@@ -1,0 +1,1 @@
+ALTER TABLE "status_pages" ADD COLUMN "domain_failing_since" timestamp with time zone;

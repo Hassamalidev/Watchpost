@@ -38,6 +38,7 @@ import {
   useStatusPage,
   useStatusPreview,
 } from "../api";
+import { DomainCard } from "./domain-card";
 import { StatusPageView as PublicView, formatUtc } from "./status-page-view";
 
 const firstProblem = (err: unknown) => {
@@ -754,6 +755,18 @@ export function StatusPageEditor({ id }: { id: string }) {
               </CardHeader>
               <CardContent>
                 <SettingsForm ws={ws} page={data} />
+              </CardContent>
+            </Card>
+          )}
+
+          {canEdit && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("domain.title")}</CardTitle>
+                <CardDescription>{t("domain.intro")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <DomainCard ws={ws} page={data} />
               </CardContent>
             </Card>
           )}

@@ -49,6 +49,16 @@ export const statusPagesApi = {
       method: "PUT",
       body: { components },
     }),
+  setDomain: (ws: string, id: string, domain: string | null) =>
+    api<StatusPageView>(wsPath(ws, `/status-pages/${id}/domain`), {
+      method: "PUT",
+      body: { domain },
+    }),
+  verifyDomain: (ws: string, id: string) =>
+    api<StatusPageView>(wsPath(ws, `/status-pages/${id}/domain/verify`), {
+      method: "POST",
+      body: {},
+    }),
   preview: (ws: string, id: string) =>
     api<PublicStatusPage>(wsPath(ws, `/status-pages/${id}/preview`)),
   incidents: (ws: string, id: string) =>

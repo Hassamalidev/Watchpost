@@ -32,6 +32,7 @@ import type { Clock } from "../../core/clock.js";
 import {
   ConflictError,
   NotFoundError,
+  ProviderError,
   QuotaExceededError,
   ValidationError,
 } from "../../core/errors.js";
@@ -43,6 +44,8 @@ import type { Outbox } from "../../infra/outbox/index.js";
 import type { DetectionService } from "../detection/index.js";
 import type { MaintenanceService } from "../maintenance/index.js";
 import type { MonitorsService } from "../monitors/index.js";
+import type { DnsLookup } from "../../infra/dns.js";
+import { checkDomain, isSameOrSubdomain } from "./domains.js";
 import { renderAtom, renderRss } from "./feeds.js";
 import type { StatuspagesRepository } from "./statuspages.repository.js";
 import type {
@@ -61,6 +64,17 @@ export type PublicRef = { slug: string } | { host: string };
 const MAINTENANCE_AHEAD_DAYS = 14;
 const DAY_MS = 86_400_000;
 const MAX_PAGE_INCIDENTS = 50;
+/* How long a verified domain may point elsewhere before it stops being served. */
+export const DOMAIN_GRACE_DAYS = 7;
+const DOMAIN_SWEEP_BATCH = 50;
+
+const hostOf = (url: string) => {
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return undefined;
+  }
+};
 
 export const statusPageTag = (slug: string) => `status-page:${slug}`;
 
@@ -97,6 +111,17 @@ export interface StatuspagesService {
     input: PostStatusUpdateInput,
   ): Promise<StatusIncidentView>;
   deleteIncident(scope: WorkspaceScope, pageId: string, incidentId: string): Promise<void>;
+  /*
+   * Puts the page on the customer's own domain (null removes it). The domain serves nothing until
+   * DNS is seen pointing at us.
+   */
+  setDomain(scope: WorkspaceScope, id: string, domain: string | null): Promise<StatusPageView>;
+  /* Looks at DNS now and says what it found. */
+  verifyDomain(scope: WorkspaceScope, id: string): Promise<StatusPageView>;
+  /* System (Caddy asks before getting a certificate): only verified domains of published pages. */
+  servesHost(host: string): Promise<boolean>;
+  /* System (sweep): looks at the domains that are due. Returns how many were looked at. */
+  checkDomains(): Promise<number>;
   /* Public: what a published page shows; undefined when there is no such page. */
   publicPage(ref: PublicRef): Promise<PublicStatusPage | undefined>;
   publicFeed(ref: PublicRef, format: "rss" | "atom"): Promise<string | undefined>;
@@ -127,6 +152,9 @@ export interface StatuspagesServiceDeps {
   webOrigin: string;
   /* Pages are served at <slug>.<baseDomain> when set, else at <webOrigin>/s/<slug>. */
   baseDomain: string | undefined;
+  /* What customers point their own domain at; without it custom domains are off. */
+  cnameTarget?: string | undefined;
+  dns?: DnsLookup | undefined;
 }
 
 export function createStatuspagesService(deps: StatuspagesServiceDeps): StatuspagesService {
@@ -162,6 +190,9 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
     components: components.filter((c) => c.pageId === row.id).map(toComponent),
     customDomain: row.customDomain,
     domainVerifiedAt: row.domainVerifiedAt?.toISOString() ?? null,
+    domainCheckedAt: row.domainCheckedAt?.toISOString() ?? null,
+    domainError: row.domainError,
+    cnameTarget: deps.cnameTarget ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   });
@@ -196,8 +227,70 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
     return toPage(row, await repo.componentsOf(tx, [row.id]));
   }
 
-  async function refresh(...slugs: string[]): Promise<void> {
-    await deps.revalidate([...new Set(slugs)].map(statusPageTag));
+  /* The web app caches a page under its address and, when it has one, under its own domain. */
+  async function refresh(
+    ...pages: Array<Pick<StatusPageRow, "slug" | "customDomain">>
+  ): Promise<void> {
+    const refs = pages.flatMap((p) =>
+      p.customDomain === null ? [p.slug] : [p.slug, p.customDomain],
+    );
+    await deps.revalidate([...new Set(refs)].map(statusPageTag));
+  }
+
+  /*
+   * One DNS look at a page's domain, and what it means for the page. `concluded` is false when DNS
+   * couldn't be asked: then nothing changes and the page is looked at again soon.
+   */
+  async function lookAtDomain(
+    page: StatusPageRow,
+  ): Promise<{ page: StatusPageRow; concluded: boolean }> {
+    const target = deps.cnameTarget;
+    if (page.customDomain === null || target === undefined || deps.dns === undefined) {
+      return { page, concluded: false };
+    }
+    const now = clock.now();
+    const result = await checkDomain(deps.dns, page.customDomain, target);
+    if (result.ok === null) return { page, concluded: false };
+    const failingSince = result.ok ? null : (page.domainFailingSince ?? now);
+    /* A verified domain survives a short DNS mistake; a week of pointing elsewhere ends it. */
+    const stillVerified =
+      page.domainVerifiedAt !== null &&
+      now.getTime() - (failingSince ?? now).getTime() < DOMAIN_GRACE_DAYS * DAY_MS;
+    const row = await repo.recordDomainCheck(page.id, {
+      domainCheckedAt: now,
+      domainError: result.ok ? null : result.reason,
+      domainFailingSince: failingSince,
+      domainVerifiedAt: result.ok
+        ? (page.domainVerifiedAt ?? now)
+        : stillVerified
+          ? page.domainVerifiedAt
+          : null,
+    });
+    const after = row ?? page;
+    if ((after.domainVerifiedAt === null) !== (page.domainVerifiedAt === null)) {
+      deps.logger.info(
+        {
+          statusPageId: page.id,
+          domain: page.customDomain,
+          verified: after.domainVerifiedAt !== null,
+        },
+        "custom domain verification changed",
+      );
+      await refresh(after);
+    }
+    return { page: after, concluded: true };
+  }
+
+  /* A domain a customer may use: not ours, and not one that could shadow our own hosts. */
+  function checkOwnDomains(domain: string) {
+    const ours = [deps.baseDomain, deps.cnameTarget, hostOf(deps.webOrigin), "localhost"].filter(
+      (h): h is string => h !== undefined,
+    );
+    if (ours.some((host) => isSameOrSubdomain(domain, host) || isSameOrSubdomain(host, domain))) {
+      throw new ValidationError("That domain can't be used for a status page.", [
+        { path: "body.domain", message: "use a domain of your own" },
+      ]);
+    }
   }
 
   /* Monitors of this workspace among `ids`; anything else is refused by name. */
@@ -455,7 +548,7 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
         );
         return viewOf(tx, created);
       });
-      await refresh(page.slug);
+      await refresh(page);
       return page;
     },
 
@@ -477,14 +570,14 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
         throw err;
       }
       if (row === undefined) throw new NotFoundError("Status page not found.");
-      await refresh(before.slug, row.slug);
+      await refresh(before, row);
       return viewOf(deps.db, row);
     },
 
     async delete(scope, id) {
       const page = await mustFindPage(deps.db, scope, id);
       await repo.deletePage(scope, id);
-      await refresh(page.slug);
+      await refresh(page);
     },
 
     async replaceComponents(scope, id, components) {
@@ -529,7 +622,7 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
         await repo.insertComponents(tx, scope, id, fresh);
         return { page: row, view: await viewOf(tx, row) };
       });
-      await refresh(page.slug);
+      await refresh(page);
       return view;
     },
 
@@ -588,7 +681,7 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
         }
         return { page: row, view: await incidentView(tx, incident) };
       });
-      await refresh(page.slug);
+      await refresh(page);
       return view;
     },
 
@@ -619,7 +712,7 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
         }
         return { page: row, view: await incidentView(tx, incident) };
       });
-      await refresh(page.slug);
+      await refresh(page);
       return view;
     },
 
@@ -653,7 +746,7 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
         }
         return { page: row, view: await incidentView(tx, incident) };
       });
-      await refresh(page.slug);
+      await refresh(page);
       return view;
     },
 
@@ -661,7 +754,63 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
       const page = await mustFindPage(deps.db, scope, pageId);
       await mustFindIncident(deps.db, scope, pageId, incidentId);
       await repo.deleteIncident(scope, incidentId);
-      await refresh(page.slug);
+      await refresh(page);
+    },
+
+    async setDomain(scope, id, domain) {
+      const before = await mustFindPage(deps.db, scope, id);
+      if (domain !== null) {
+        if (deps.cnameTarget === undefined) {
+          throw new ConflictError("Custom domains aren't set up on this server.");
+        }
+        const plan = await deps.plan?.(scope);
+        if (plan !== undefined && !plan.features.customStatusDomain) {
+          throw new QuotaExceededError(
+            "Custom domains are part of the Starter plan and up. Upgrade to use your own domain.",
+          );
+        }
+        checkOwnDomains(domain);
+      }
+      if (domain === before.customDomain) return viewOf(deps.db, before);
+      let row: StatusPageRow | undefined;
+      try {
+        /* A new domain starts unverified, whatever the old one was. */
+        row = await repo.updatePage(deps.db, scope, id, {
+          customDomain: domain,
+          domainVerifiedAt: null,
+          domainCheckedAt: null,
+          domainError: null,
+          domainFailingSince: null,
+        });
+      } catch (err) {
+        if (isUniqueViolation(err)) {
+          throw new ConflictError("Another status page already uses that domain.");
+        }
+        throw err;
+      }
+      if (row === undefined) throw new NotFoundError("Status page not found.");
+      await refresh(before, row);
+      return viewOf(deps.db, row);
+    },
+
+    async verifyDomain(scope, id) {
+      const page = await mustFindPage(deps.db, scope, id);
+      if (page.customDomain === null) {
+        throw new ConflictError("This page has no custom domain to check.");
+      }
+      const looked = await lookAtDomain(page);
+      if (!looked.concluded) {
+        throw new ProviderError("dns", "DNS couldn't be checked just now. Try again in a minute.");
+      }
+      return viewOf(deps.db, looked.page);
+    },
+
+    servesHost: (host) => repo.servesHost(host.trim().toLowerCase()),
+
+    async checkDomains() {
+      const due = await repo.domainsDue(clock.now(), DOMAIN_SWEEP_BATCH);
+      for (const page of due) await lookAtDomain(page);
+      return due.length;
     },
 
     async publicPage(ref) {
@@ -680,20 +829,20 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
     async onMonitorChanged(monitorId) {
       const components = await repo.componentsForMonitors([monitorId]);
       const pages = await repo.pagesByIds([...new Set(components.map((c) => c.pageId))]);
-      if (pages.length > 0) await refresh(...pages.map((p) => p.slug));
+      if (pages.length > 0) await refresh(...pages);
       return pages.length;
     },
 
     async onMonitorDeleted(monitorId) {
       const unlinked = await repo.unlinkMonitor(monitorId);
       const pages = await repo.pagesByIds([...new Set(unlinked.map((c) => c.pageId))]);
-      if (pages.length > 0) await refresh(...pages.map((p) => p.slug));
+      if (pages.length > 0) await refresh(...pages);
       return unlinked.length;
     },
 
     async onUpdatePublished(statusPageId) {
       const [page] = await repo.pagesByIds([statusPageId]);
-      if (page !== undefined) await refresh(page.slug);
+      if (page !== undefined) await refresh(page);
     },
   };
   return service;

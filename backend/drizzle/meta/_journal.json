@@ -253,6 +253,13 @@
       "when": 1791370086045,
       "tag": "0035_status_pages",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1791372995961,
+      "tag": "0036_status_domain_health",
+      "breakpoints": true
     }
   ]
 }

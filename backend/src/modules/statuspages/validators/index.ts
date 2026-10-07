@@ -5,6 +5,7 @@ import {
   createStatusPageSchema,
   postStatusUpdateSchema,
   replaceStatusComponentsSchema,
+  setStatusDomainSchema,
   updateStatusIncidentSchema,
   updateStatusPageSchema,
 } from "@app/shared";
@@ -18,6 +19,9 @@ export const replaceComponentsBody = replaceStatusComponentsSchema;
 export const createIncidentBody = createStatusIncidentSchema;
 export const updateIncidentBody = updateStatusIncidentSchema;
 export const postUpdateBody = postStatusUpdateSchema;
+export const setDomainBody = setStatusDomainSchema;
+/* Caddy's on-demand TLS check: `?domain=<host>`. */
+export const tlsAskQuery = z.object({ domain: z.string().trim().toLowerCase().min(1).max(253) });
 
 /*
  * A page is named by its subdomain, or by the host name of a custom domain (which has a dot; a
