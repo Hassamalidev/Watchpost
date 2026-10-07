@@ -12,7 +12,6 @@ import type TestAgent from "supertest/lib/agent.js";
 import { v7 as uuidv7 } from "uuid";
 import { createFakeClock } from "../core/clock.js";
 import type { BadgeLinks } from "../modules/badges/index.js";
-import type { DetectionModule } from "../modules/detection/index.js";
 import type { ProbesModule } from "../modules/probes/index.js";
 import type { ResultsModule } from "../modules/results/index.js";
 import {
@@ -39,30 +38,30 @@ const badge = (url: string, query = "") => request(ctx.app).get(pathOf(url, quer
 const textOf = (res: { body: unknown; text?: string }) =>
   Buffer.isBuffer(res.body) ? res.body.toString("utf8") : (res.text ?? "");
 
+/*
+ * Puts the monitor in a state, with one check result behind it. The state is written as detection
+ * would leave it: badges only read it, and how detection gets there has its own tests.
+ */
 let tick = 1_000;
 async function settle(ok: boolean, latencyMs = 120) {
-  const results = find<ResultsModule>("results");
-  const detection = find<DetectionModule>("detection");
-  for (let i = 0; i < 2; i += 1) {
-    tick -= 1;
-    await results.service.ingest([
-      {
-        id: uuidv7(),
-        monitorId,
-        workspaceId: ws,
-        region: "eu-central",
-        checkedAt: new Date(clock.now().getTime() - tick * 1_000).toISOString(),
-        ok,
-        latencyMs,
-        ...(ok ? {} : { errorCode: "connect_refused" }),
-      },
-    ]);
-    await ctx.container.infra.db.execute(sql`
-      insert into monitor_state (monitor_id, workspace_id, last_result_at)
-      values (${monitorId}, ${ws}, now())
-      on conflict (monitor_id) do update set last_result_at = now()`);
-    await detection.service.evaluateMonitor(monitorId);
-  }
+  tick -= 1;
+  await find<ResultsModule>("results").service.ingest([
+    {
+      id: uuidv7(),
+      monitorId,
+      workspaceId: ws,
+      region: "eu-central",
+      checkedAt: new Date(clock.now().getTime() - tick * 1_000).toISOString(),
+      ok,
+      latencyMs,
+      ...(ok ? {} : { errorCode: "connect_refused" }),
+    },
+  ]);
+  const status = ok ? "up" : "down";
+  await ctx.container.infra.db.execute(sql`
+    insert into monitor_state (monitor_id, workspace_id, status, since, last_result_at)
+    values (${monitorId}, ${ws}, ${status}, now(), now())
+    on conflict (monitor_id) do update set status = ${status}, since = now(), last_result_at = now()`);
 }
 
 beforeAll(async () => {
