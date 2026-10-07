@@ -41,6 +41,8 @@ export interface AppConfig {
     | undefined;
   /* Paddle price IDs per plan, credit pack and add-on; missing ones can't be bought. */
   prices: PriceIds;
+  /* Claude; undefined until the owner adds a key (AI features are skipped). */
+  ai: { apiKey: string; model: string } | undefined;
   /* Upstream funding: the AI kill switch and the monthly cap on platform-paid AI, in micro-USD. */
   funding: { aiEnabled: boolean; unfundedAiCapMicros: number; opsEmail: string | undefined };
   /* Private object storage; without it production keeps no evidence bundles. */
@@ -157,6 +159,10 @@ export function toAppConfig(env: Env): AppConfig {
           }
         : undefined,
     prices: priceIds(env),
+    ai:
+      env.ANTHROPIC_API_KEY === undefined
+        ? undefined
+        : { apiKey: env.ANTHROPIC_API_KEY, model: env.ANTHROPIC_MODEL },
     funding: {
       aiEnabled: env.AI_ENABLED,
       unfundedAiCapMicros: Math.round(env.UNFUNDED_AI_MONTHLY_CAP_USD * 1_000_000),

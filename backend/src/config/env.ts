@@ -173,6 +173,12 @@ const baseEnvSchema = z.object({
     .regex(/^dsc_[a-z0-9]+$/, "must be a Paddle discount ID (dsc_…)")
     .optional(),
   /*
+   * Claude (PRODUCT.md §9.10). Without the key every AI feature is skipped and nothing else changes.
+   * The model is the one STACK.md names; change it together with the prices in infra/anthropic.
+   */
+  ANTHROPIC_API_KEY: z.string().min(20).optional(),
+  ANTHROPIC_MODEL: z.string().min(1).default("claude-haiku-4-5-20251001"),
+  /*
    * Upstream funding (PRODUCT.md §11). AI_ENABLED is the global kill switch. Workspaces without a
    * collected payment (Free and trial) use AI on the platform's money; this caps that spend for all
    * of them together, per calendar month, in USD. 0 means "only paying workspaces use AI".

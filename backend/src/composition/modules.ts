@@ -25,6 +25,7 @@ import { createInboundModule } from "../modules/inbound/index.js";
 import { createImportsModule } from "../modules/imports/index.js";
 import { createStatuspagesModule } from "../modules/statuspages/index.js";
 import { createBadgesModule } from "../modules/badges/index.js";
+import { createAiModule } from "../modules/ai/index.js";
 /* new-module:imports */
 
 export function createModules(infra: Infra): AppModule[] {
@@ -198,6 +199,13 @@ export function createModules(infra: Infra): AppModule[] {
       monitors: monitors.service,
       detection: detection.service,
       results: results.service,
+      guards: workspaces.guards,
+    }),
+  );
+  modules.push(
+    createAiModule({
+      infra,
+      credits: credits.service,
       guards: workspaces.guards,
     }),
   );

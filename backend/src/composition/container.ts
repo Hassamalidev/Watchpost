@@ -13,6 +13,7 @@ import { createTokenCipher } from "../infra/crypto.js";
 import { createEmailRequester } from "../infra/email/index.js";
 import { createDb, createDbPool, pingDb } from "../infra/db/index.js";
 import { createOutboundHttp, type OutboundHttp } from "../infra/http/outbound.js";
+import { createAnthropicClient, type AiClient } from "../infra/anthropic/index.js";
 import { createDnsLookup, type DnsLookup } from "../infra/dns.js";
 import { createRevalidator, type Revalidate } from "../infra/revalidate.js";
 import { createWebPush } from "../infra/webpush.js";
@@ -80,6 +81,8 @@ export function createInfra(
     revalidate?: Revalidate;
     /* Tests answer DNS themselves. */
     dns?: DnsLookup;
+    /* Tests answer for the model. */
+    ai?: AiClient;
   },
 ): Infra {
   const logger =
@@ -167,6 +170,11 @@ export function createInfra(
     revalidate:
       options.revalidate ?? createRevalidator({ target: config.statusPages.revalidate, logger }),
     dns: options.dns ?? createDnsLookup(),
+    ai:
+      options.ai ??
+      (config.ai === undefined
+        ? undefined
+        : createAnthropicClient({ apiKey: config.ai.apiKey, model: config.ai.model })),
     webPush:
       config.webPush === undefined
         ? undefined
@@ -186,6 +194,7 @@ export function createContainer(
     objects?: ObjectStore;
     revalidate?: Revalidate;
     dns?: DnsLookup;
+    ai?: AiClient;
   },
 ): Container {
   const hooks: LateHooks = { onWorkspaceCreated: [] };

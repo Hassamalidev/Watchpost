@@ -13,6 +13,7 @@ import { createApp } from "../../app.js";
 import { createContainer } from "../../composition/container.js";
 import { parseEnv, toAppConfig } from "../../config/index.js";
 import type { Clock } from "../../core/clock.js";
+import type { AiClient } from "../../infra/anthropic/index.js";
 import type { DnsLookup } from "../../infra/dns.js";
 import type { PaddleApi } from "../../infra/paddle/index.js";
 import type { OutboundHttp, OutboundRequest, OutboundResponse } from "../../infra/http/outbound.js";
@@ -37,6 +38,8 @@ export function buildContainerApp(
     revalidate?: (tags: string[]) => Promise<void>;
     /* Answers DNS lookups (custom status page domains). */
     dns?: DnsLookup;
+    /* Answers for the model (AI features). */
+    ai?: AiClient;
   } = {},
 ) {
   const config = toAppConfig(
@@ -68,6 +71,7 @@ export function buildContainerApp(
     ...(options.paddleApi === undefined ? {} : { paddleApi: options.paddleApi }),
     ...(options.revalidate === undefined ? {} : { revalidate: options.revalidate }),
     ...(options.dns === undefined ? {} : { dns: options.dns }),
+    ...(options.ai === undefined ? {} : { ai: options.ai }),
   });
   const app = createApp({
     config,

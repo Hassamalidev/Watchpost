@@ -13,6 +13,7 @@ import type { Locks } from "../infra/locks.js";
 import type { Logger } from "../infra/logger.js";
 import type { Outbox } from "../infra/outbox/index.js";
 import type { PaddleClient } from "../infra/paddle/index.js";
+import type { AiClient } from "../infra/anthropic/index.js";
 import type { DnsLookup } from "../infra/dns.js";
 import type { ObjectStore } from "../infra/storage/index.js";
 import type { WebPush } from "../infra/webpush.js";
@@ -53,6 +54,8 @@ export interface Infra {
   revalidate: Revalidate;
   /* DNS lookups for checking customers' status page domains. */
   dns: DnsLookup;
+  /* Claude, for AI features; undefined until ANTHROPIC_API_KEY is set (every AI call is skipped). */
+  ai: AiClient | undefined;
 }
 
 export interface MountedRouter {
