@@ -56,7 +56,7 @@ export const PLAN_TABLE_ROWS: ReadonlyArray<{
   { key: "channels" },
   { key: "history" },
   { key: "credits", soon: true },
-  { key: "statusPages", soon: true },
+  { key: "statusPages" },
   { key: "onCall" },
   { key: "ai", soon: true },
   { key: "privateProbes", soon: true },

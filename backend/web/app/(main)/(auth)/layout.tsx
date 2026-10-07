@@ -8,7 +8,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     <div className="flex min-h-dvh flex-col items-center justify-center gap-6 p-4">
       <Link href="/" className="flex items-center gap-2 font-semibold">
         <Radar aria-hidden className="size-5 text-brand" />
-        Watchpost
+        UptimeWatch
       </Link>
       <main className="w-full max-w-sm">{children}</main>
     </div>

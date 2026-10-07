@@ -43,7 +43,7 @@ export const DOCS_PAGES: readonly ContentPage[] = [
         heading: "What comes over, and how",
         list: [
           "Rotations become layers. Daily and weekly rotations keep their handoff time on the wall clock across daylight-saving changes; other lengths become a fixed number of hours.",
-          "Escalation rules become steps. Opsgenie counts every delay from the start of the alert; Watchpost counts from the step before, so 0, 10 and 25 minutes become 0, then 10, then 15.",
+          "Escalation rules become steps. Opsgenie counts every delay from the start of the alert; UptimeWatch counts from the step before, so 0, 10 and 25 minutes become 0, then 10, then 15.",
           "A rule that notifies a schedule pages whoever is on call for the schedule imported under the same name.",
           "Not imported: teams, routing rules, heartbeats, integrations and notification rules of individual people. Set alert routes and integrations by hand; each person sets their own notification rules.",
         ],
@@ -51,8 +51,8 @@ export const DOCS_PAGES: readonly ContentPage[] = [
       {
         heading: "Run both side by side",
         paragraphs: [
-          "You don't have to switch in one go. Add Opsgenie (or Jira Service Management) as an integration in Watchpost and every Watchpost alert also opens and closes an alert there, so your team keeps being paged the old way while you check that schedules and escalations here match.",
-          "To send the alerts of your other tools to Watchpost, add an inbound source under Integrations (Prometheus Alertmanager, Grafana, Datadog, generic JSON or email) and point the tool at its URL.",
+          "You don't have to switch in one go. Add Opsgenie (or Jira Service Management) as an integration in UptimeWatch and every UptimeWatch alert also opens and closes an alert there, so your team keeps being paged the old way while you check that schedules and escalations here match.",
+          "To send the alerts of your other tools to UptimeWatch, add an inbound source under Integrations (Prometheus Alertmanager, Grafana, Datadog, generic JSON or email) and point the tool at its URL.",
         ],
       },
       {
@@ -80,7 +80,7 @@ export const DOCS_PAGES: readonly ContentPage[] = [
         heading: "Set up your first monitors",
         list: [
           "Name your workspace, usually after your company or team.",
-          "Paste the address of your site or API. Watchpost suggests monitors for the homepage, a health endpoint, the SSL certificate and the domain's expiry date.",
+          "Paste the address of your site or API. UptimeWatch suggests monitors for the homepage, a health endpoint, the SSL certificate and the domain's expiry date.",
           "Choose where alerts go. Email works straight away; chat tools and webhooks can be added under Integrations.",
           "Send a test alert and check that it arrives.",
         ],
@@ -96,7 +96,7 @@ export const DOCS_PAGES: readonly ContentPage[] = [
   {
     slug: "monitors",
     title: "Monitors",
-    summary: "What Watchpost can check and how it decides something is down.",
+    summary: "What UptimeWatch can check and how it decides something is down.",
     sections: [
       {
         heading: "Monitor types",
@@ -112,8 +112,8 @@ export const DOCS_PAGES: readonly ContentPage[] = [
       {
         heading: "How an outage is confirmed",
         paragraphs: [
-          "One failed check does not alert anyone. Watchpost repeats the check and asks other regions to check too. An incident opens only when the failure is confirmed, and it closes after the monitor has recovered for several checks in a row.",
-          "If the problem might be on our side, such as a probe that cannot reach the internet, Watchpost does not page you.",
+          "One failed check does not alert anyone. UptimeWatch repeats the check and asks other regions to check too. An incident opens only when the failure is confirmed, and it closes after the monitor has recovered for several checks in a row.",
+          "If the problem might be on our side, such as a probe that cannot reach the internet, UptimeWatch does not page you.",
         ],
       },
       {
@@ -134,7 +134,7 @@ export const DOCS_PAGES: readonly ContentPage[] = [
       {
         heading: "How it works",
         paragraphs: [
-          "Create a heartbeat, say how often the job should run and how much grace time it gets. Watchpost gives you a ping URL. If no ping arrives in time, or the job reports a failure, an incident opens.",
+          "Create a heartbeat, say how often the job should run and how much grace time it gets. UptimeWatch gives you a ping URL. If no ping arrives in time, or the job reports a failure, an incident opens.",
         ],
       },
       {
@@ -164,7 +164,7 @@ export const DOCS_PAGES: readonly ContentPage[] = [
       {
         heading: "Set up a channel",
         paragraphs: [
-          "Open Integrations, pick the tool and follow the steps shown there. Watchpost sends a test message when the channel is saved. Each channel has its own rules: the lowest severity it accepts and which events it receives.",
+          "Open Integrations, pick the tool and follow the steps shown there. UptimeWatch sends a test message when the channel is saved. Each channel has its own rules: the lowest severity it accepts and which events it receives.",
           "Secrets such as tokens and webhook URLs are stored encrypted and are never shown again after you save them.",
         ],
       },
@@ -173,7 +173,7 @@ export const DOCS_PAGES: readonly ContentPage[] = [
   {
     slug: "deploy-markers",
     title: "Deploy markers",
-    summary: "Tell Watchpost when you deploy, so incidents show what changed.",
+    summary: "Tell UptimeWatch when you deploy, so incidents show what changed.",
     sections: [
       {
         heading: "Why",
@@ -193,7 +193,7 @@ export const DOCS_PAGES: readonly ContentPage[] = [
       {
         heading: "From GitHub",
         paragraphs: [
-          "Add a repository webhook with the GitHub URL and secret shown in Watchpost, content type application/json, and only the Deployment statuses event selected.",
+          "Add a repository webhook with the GitHub URL and secret shown in UptimeWatch, content type application/json, and only the Deployment statuses event selected.",
         ],
       },
     ],

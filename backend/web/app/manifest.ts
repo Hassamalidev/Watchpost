@@ -1,10 +1,10 @@
-/* The install manifest: lets phones and desktops add Watchpost to the home screen as an app. */
+/* The install manifest: lets phones and desktops add UptimeWatch to the home screen as an app. */
 import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Watchpost",
-    short_name: "Watchpost",
+    name: "UptimeWatch",
+    short_name: "UptimeWatch",
     description: "Uptime monitoring, on-call and status pages. Acknowledge alerts from your phone.",
     /* The workspace picker sends you on to your workspace. */
     start_url: "/w",

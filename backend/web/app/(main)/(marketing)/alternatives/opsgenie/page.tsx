@@ -1,5 +1,5 @@
 /*
- * Moving from Opsgenie: the dates as reported (with sources), what Watchpost covers, how the move
+ * Moving from Opsgenie: the dates as reported (with sources), what UptimeWatch covers, how the move
  * works, and where to start. Copy needs the owner's approval before launch (PRODUCT.md P4-T10); no
  * offer is shown until Open decision #9 is made.
  */
@@ -11,7 +11,11 @@ import { CHECKED_ON, findCompetitor } from "@/features/marketing/competitors";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("alternatives.opsgenie");
-  return { title: t("metaTitle"), description: t("lead") };
+  return {
+    title: t("metaTitle"),
+    description: t("lead"),
+    alternates: { canonical: "/alternatives/opsgenie" },
+  };
 }
 
 const COVERS = ["schedules", "escalation", "reach", "chat", "inbound", "monitoring"] as const;

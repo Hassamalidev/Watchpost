@@ -45,5 +45,5 @@ test("a new user gets a delivered test alert in under 3 minutes", async ({ page 
 test("signed-out visitors are sent to sign in", async ({ page }) => {
   await page.goto("/w/00000000-0000-7000-8000-000000000000/overview");
   await expect(page).toHaveURL(/\/login\?next=/);
-  await expect(page.getByRole("heading", { name: "Sign in to Watchpost" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in to UptimeWatch" })).toBeVisible();
 });

@@ -8,7 +8,8 @@ import { FAQ_KEYS, MARKETING_PLANS, PLAN_TABLE_ROWS } from "@/features/marketing
 export const metadata: Metadata = {
   title: "Pricing",
   description:
-    "Flat prices for the whole team. Free plan with no card, paid plans from $9 a month.",
+    "Uptime monitoring pricing with flat plans for the whole team, not per seat. Free plan with 20 monitors and no card; paid plans from $9 a month.",
+  alternates: { canonical: "/pricing" },
 };
 
 export default async function PricingPage() {

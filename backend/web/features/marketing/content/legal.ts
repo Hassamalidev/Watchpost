@@ -10,12 +10,12 @@ export const LEGAL_PAGES: readonly ContentPage[] = [
   {
     slug: "terms",
     title: "Terms of Service",
-    summary: "The agreement between you and Watchpost when you use the service.",
+    summary: "The agreement between you and UptimeWatch when you use the service.",
     sections: [
       {
         heading: "1. Who we are",
         paragraphs: [
-          "Watchpost is operated by [legal entity name and address]. These terms apply to everyone who creates an account or uses the service on behalf of a workspace.",
+          "UptimeWatch is operated by [legal entity name and address]. These terms apply to everyone who creates an account or uses the service on behalf of a workspace.",
         ],
       },
       {
@@ -42,13 +42,13 @@ export const LEGAL_PAGES: readonly ContentPage[] = [
       {
         heading: "5. The service",
         paragraphs: [
-          "We work to keep Watchpost available and accurate, but monitoring depends on networks and third parties that we do not control. Alerts may be late, missing or wrong. Watchpost is not a replacement for your own safety measures where an outage could cause injury or serious loss.",
+          "We work to keep UptimeWatch available and accurate, but monitoring depends on networks and third parties that we do not control. Alerts may be late, missing or wrong. UptimeWatch is not a replacement for your own safety measures where an outage could cause injury or serious loss.",
         ],
       },
       {
         heading: "6. Your data",
         paragraphs: [
-          "You keep ownership of the data you put into Watchpost. We use it only to provide the service, as described in the Privacy Policy.",
+          "You keep ownership of the data you put into UptimeWatch. We use it only to provide the service, as described in the Privacy Policy.",
         ],
       },
       {
@@ -74,7 +74,7 @@ export const LEGAL_PAGES: readonly ContentPage[] = [
   {
     slug: "privacy",
     title: "Privacy Policy",
-    summary: "What personal data Watchpost handles, why, and who else receives it.",
+    summary: "What personal data UptimeWatch handles, why, and who else receives it.",
     sections: [
       {
         heading: "1. Who is responsible",
@@ -139,7 +139,7 @@ export const LEGAL_PAGES: readonly ContentPage[] = [
   {
     slug: "acceptable-use",
     title: "Acceptable Use Policy",
-    summary: "What Watchpost may and may not be used for.",
+    summary: "What UptimeWatch may and may not be used for.",
     sections: [
       {
         heading: "You may",
@@ -156,13 +156,13 @@ export const LEGAL_PAGES: readonly ContentPage[] = [
           "Point monitors at internal or private network addresses through our public probes.",
           "Send spam, harassment or unlawful content through alert channels.",
           "Create many accounts to get around plan limits.",
-          "Try to break, overload or gain unauthorized access to Watchpost or other customers' data.",
+          "Try to break, overload or gain unauthorized access to UptimeWatch or other customers' data.",
         ],
       },
       {
         heading: "Enforcement",
         paragraphs: [
-          "If a workspace breaks this policy we may pause its monitors or suspend it, and we will tell the workspace owner why. To report abuse, including checks from Watchpost that you did not ask for, write to [abuse contact email].",
+          "If a workspace breaks this policy we may pause its monitors or suspend it, and we will tell the workspace owner why. To report abuse, including checks from UptimeWatch that you did not ask for, write to [abuse contact email].",
         ],
       },
     ],

@@ -4,7 +4,12 @@ import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { DOCS_PAGES } from "@/features/marketing/content/docs";
 
-export const metadata: Metadata = { title: "Documentation" };
+export const metadata: Metadata = {
+  title: "Documentation",
+  description:
+    "Guides for UptimeWatch: getting started, monitors, heartbeats for cron jobs, alert channels, deploy markers and moving from Opsgenie.",
+  alternates: { canonical: "/docs" },
+};
 
 export default async function DocsIndexPage() {
   const t = await getTranslations("marketing");

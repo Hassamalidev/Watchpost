@@ -1,7 +1,7 @@
 /*
  * Notifications on this device: asks the browser for permission, subscribes it to web push with the
  * server's key, and saves the subscription as one of your contact methods. On a phone this works
- * best with Watchpost added to the home screen (on iPhone and iPad it only works that way).
+ * best with UptimeWatch added to the home screen (on iPhone and iPad it only works that way).
  */
 "use client";
 

@@ -53,7 +53,7 @@ export function SeatCalculator() {
           <tbody>
             <tr className="border-t font-medium">
               <th scope="row" className="px-4 py-2 text-left">
-                Watchpost Pro
+                UptimeWatch Pro
                 <span className="block text-xs font-normal text-muted-foreground">
                   {t("calculatorFlat")}
                 </span>

@@ -14,7 +14,13 @@ export const generateStaticParams = () => DOCS_PAGES.map((page) => ({ slug: page
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const page = findDocsPage((await params).slug);
-  return page ? { title: page.title, description: page.summary } : {};
+  return page
+    ? {
+        title: page.title,
+        description: page.summary,
+        alternates: { canonical: `/docs/${page.slug}` },
+      }
+    : {};
 }
 
 export default async function DocsPage({ params }: Props) {

@@ -15,7 +15,12 @@ export const generateStaticParams = () =>
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const competitor = findCompetitor((await params).competitor);
-  return competitor ? { title: `Watchpost vs ${competitor.name}` } : {};
+  if (!competitor) return {};
+  return {
+    title: `UptimeWatch vs ${competitor.name}: an honest ${competitor.name} alternative`,
+    description: `How UptimeWatch compares with ${competitor.name}: reported pricing, where ${competitor.name} fits well and what is different, with dated sources.`,
+    alternates: { canonical: `/compare/${competitor.slug}` },
+  };
 }
 
 export default async function ComparePage({ params }: Props) {

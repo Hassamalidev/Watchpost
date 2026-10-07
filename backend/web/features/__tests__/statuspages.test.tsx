@@ -221,7 +221,7 @@ describe("the public page", () => {
       "/api/public/status/acme/rss",
     );
     expect(screen.getByRole("link", { name: "Contact support" })).toBeDefined();
-    expect(screen.getByRole("link", { name: "Powered by Watchpost" }).getAttribute("href")).toBe(
+    expect(screen.getByRole("link", { name: "Powered by UptimeWatch" }).getAttribute("href")).toBe(
       "https://watchpost.example.net",
     );
   });

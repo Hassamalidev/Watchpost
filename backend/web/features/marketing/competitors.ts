@@ -14,7 +14,7 @@ export interface Competitor {
   pricing: string;
   /* Where it fits well; a fair comparison says so. */
   goodFit: string;
-  /* How Watchpost differs. Only things that exist or are marked as planned. */
+  /* How UptimeWatch differs. Only things that exist or are marked as planned. */
   differences: string[];
   sources: string[];
 }
@@ -29,7 +29,7 @@ export const COMPETITORS: readonly Competitor[] = [
     goodFit:
       "A large number of simple checks on the free plan, if 5-minute intervals are enough and the free-plan terms suit your use.",
     differences: [
-      "The Watchpost free plan checks every 3 minutes and allows commercial use.",
+      "The UptimeWatch free plan checks every 3 minutes and allows commercial use.",
       "A failure is rechecked from other regions before anyone is alerted.",
       "Every alert carries the likely cause, what to check first and the timings from each region.",
       "Marking an incident as a false alarm returns the SMS and voice credits it used (planned with SMS and voice alerts).",
@@ -47,11 +47,11 @@ export const COMPETITORS: readonly Competitor[] = [
     pricing:
       "Reported at about $29 per responder a month billed annually ($34 monthly), with 10 monitors included and about $21 to $25 for each further 50.",
     goodFit:
-      "Teams that also want logs and tracing from the same vendor, which Watchpost does not offer.",
+      "Teams that also want logs and tracing from the same vendor, which UptimeWatch does not offer.",
     differences: [
       "Flat plans: Pro and Business have unlimited team members, so the bill does not grow with the team.",
       "Monitors are included in the plan (150 on Pro, 500 on Business) instead of sold in packs.",
-      "Watchpost stays focused on uptime, alerts and status pages; it has no logs or tracing.",
+      "UptimeWatch stays focused on uptime, alerts and status pages; it has no logs or tracing.",
     ],
     sources: [
       "https://hyperping.com/compare/betterstack-alternative",
@@ -67,10 +67,10 @@ export const COMPETITORS: readonly Competitor[] = [
     goodFit:
       "Large organizations that need deep on-call scheduling and already have monitoring elsewhere.",
     differences: [
-      "Watchpost runs the uptime checks itself; PagerDuty needs another tool to detect the outage.",
+      "UptimeWatch runs the uptime checks itself; PagerDuty needs another tool to detect the outage.",
       "Flat plans with unlimited members on Pro and Business instead of a price per user.",
-      "Watchpost can open, acknowledge and resolve PagerDuty incidents, so the two can run side by side.",
-      "On-call schedules and escalation policies in Watchpost are planned, not available yet.",
+      "UptimeWatch can open, acknowledge and resolve PagerDuty incidents, so the two can run side by side.",
+      "On-call schedules and escalation policies are included, without the depth of PagerDuty's enterprise scheduling.",
     ],
     sources: [
       "https://incident.io/blog/pagerduty-pricing-breakdown-2026",
@@ -86,7 +86,7 @@ export const COMPETITORS: readonly Competitor[] = [
     goodFit:
       "Existing customers until the end-of-support date; Atlassian points them to Jira Service Management.",
     differences: [
-      "Watchpost can send alerts to Opsgenie or Jira Service Management today, so you can try it next to your current setup.",
+      "UptimeWatch can send alerts to Opsgenie or Jira Service Management today, so you can try it next to your current setup.",
       "On-call schedules, escalation policies and an importer for Opsgenie schedules and escalations are included.",
       "Monitoring, alerting and status pages come in one flat plan.",
     ],
@@ -103,7 +103,7 @@ export const COMPETITORS: readonly Competitor[] = [
     goodFit:
       "People who want to self-host, check from one location and are happy to maintain the server.",
     differences: [
-      "Watchpost is hosted, so it does not go down together with the server it is watching.",
+      "UptimeWatch is hosted, so it does not go down together with the server it is watching.",
       "Checks run from more than one region and a failure is confirmed before it alerts.",
       "No server to patch, back up or upgrade.",
       "Monitors can be imported from an Uptime Kuma backup. Private probes for internal services are planned, not available yet.",
@@ -123,7 +123,7 @@ export const PER_SEAT_TOOLS = [
   { key: "pagerduty", name: "PagerDuty Professional", perSeat: 21 },
 ] as const;
 
-/* Watchpost Pro billed annually: flat, unlimited members. */
+/* UptimeWatch Pro billed annually: flat, unlimited members. */
 export const FLAT_PRO_MONTHLY = 24;
 export const MAX_TEAM_SIZE = 200;
 
@@ -131,7 +131,7 @@ export interface SeatComparison {
   key: string;
   name: string;
   monthly: number;
-  /* What the team pays more per year than on Watchpost Pro; never below zero. */
+  /* What the team pays more per year than on UptimeWatch Pro; never below zero. */
   yearlyDifference: number;
 }
 

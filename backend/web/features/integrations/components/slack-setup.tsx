@@ -1,7 +1,7 @@
 /*
  * The Slack app: install it in a Slack workspace (OAuth), then pick the channel alerts go to. The
  * install sends the browser to Slack and back to this page, where the channel picker is the next
- * step. A Watchpost workspace can connect several Slack workspaces.
+ * step. A UptimeWatch workspace can connect several Slack workspaces.
  */
 "use client";
 

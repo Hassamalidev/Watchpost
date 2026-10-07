@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "Watchpost",
+    "name": "UptimeWatch",
     "skipToContent": "Skip to content",
     "primaryNav": "Primary",
     "workspace": "Workspace",
@@ -66,8 +66,8 @@
     "retry": "Try again"
   },
   "auth": {
-    "loginTitle": "Sign in to Watchpost",
-    "signupTitle": "Create your Watchpost account",
+    "loginTitle": "Sign in to UptimeWatch",
+    "signupTitle": "Create your UptimeWatch account",
     "signupIntro": "Free for 20 monitors. No card needed.",
     "planSelected": "{plan} plan selected. Your workspace starts with a free 14-day Pro trial and no card; you can subscribe to {plan} from Billing at any time.",
     "changePlan": "Change plan",
@@ -79,7 +79,7 @@
     "signingIn": "Signing in…",
     "signUp": "Create account",
     "signingUp": "Creating account…",
-    "noAccount": "New to Watchpost?",
+    "noAccount": "New to UptimeWatch?",
     "haveAccount": "Already have an account?",
     "createOne": "Create an account",
     "signInInstead": "Sign in",
@@ -430,7 +430,7 @@
     "slackPickChannel": "Choose a channel",
     "slackPrivate": "private",
     "slackInstalled": "Slack is connected. Pick a channel to finish.",
-    "slackNoInstall": "Install the Watchpost app in your Slack workspace first.",
+    "slackNoInstall": "Install the UptimeWatch app in your Slack workspace first.",
     "slackPostsTo": "Posts to #{channel}.",
     "telegramTitle": "Connect a chat",
     "telegramUnlinked": "No chat is connected yet. Open the link in Telegram and press Start.",
@@ -442,8 +442,8 @@
     "telegramCreate": "Save and get the link",
     "catalog": {
       "slack": {
-        "summary": "Install the Watchpost app and pick a channel. Follow-ups reply in the alert's thread.",
-        "steps": "Click Add to Slack and approve the app for your Slack workspace.\nPick the channel alerts should go to.\nFor a private channel, invite the Watchpost app to it first."
+        "summary": "Install the UptimeWatch app and pick a channel. Follow-ups reply in the alert's thread.",
+        "steps": "Click Add to Slack and approve the app for your Slack workspace.\nPick the channel alerts should go to.\nFor a private channel, invite the UptimeWatch app to it first."
       },
       "slack-webhook": {
         "summary": "Post to one Slack channel through an incoming webhook, without installing our app.",
@@ -463,7 +463,7 @@
       },
       "google-chat": {
         "summary": "Cards in a Google Chat space. An incident's updates stay in one thread.",
-        "steps": "In the space, open its menu → Apps & integrations → Webhooks.\nAdd a webhook named Watchpost.\nCopy its URL and paste it below."
+        "steps": "In the space, open its menu → Apps & integrations → Webhooks.\nAdd a webhook named UptimeWatch.\nCopy its URL and paste it below."
       },
       "mattermost": {
         "summary": "Alerts in a Mattermost channel through an incoming webhook.",
@@ -1008,7 +1008,7 @@
   },
   "notifications": {
     "title": "My notifications",
-    "lead": "How Watchpost reaches you when an incident is yours to handle. These settings are yours alone; teammates set their own.",
+    "lead": "How UptimeWatch reaches you when an incident is yours to handle. These settings are yours alone; teammates set their own.",
     "methods": "Contact methods",
     "methodsHint": "An address or number is used only after you enter the code we send to it. Your account email is ready to use.",
     "types": {
@@ -1078,10 +1078,10 @@
       "turnOff": "Turn off for this device",
       "on": "On for {name}.",
       "thisDevice": "this device",
-      "unsupported": "This browser can't show notifications from websites. On iPhone and iPad, add Watchpost to the Home Screen first (Share, then Add to Home Screen) and open it from there.",
+      "unsupported": "This browser can't show notifications from websites. On iPhone and iPad, add UptimeWatch to the Home Screen first (Share, then Add to Home Screen) and open it from there.",
       "notConfigured": "Notifications on devices aren't set up on this server yet.",
       "denied": "Notifications are blocked for this site. Allow them in the browser's site settings, then come back.",
-      "install": "Tip: add Watchpost to your phone's home screen (the browser menu, then Add to Home screen or Install app) so alerts arrive even when the browser is closed."
+      "install": "Tip: add UptimeWatch to your phone's home screen (the browser menu, then Add to Home screen or Install app) so alerts arrive even when the browser is closed."
     }
   },
   "settings": {
@@ -1220,8 +1220,7 @@
     }
   },
   "marketing": {
-    "hero": "Know about real outages first. Confirmed, explained, actionable.",
-    "subhead": "Watchpost checks your sites and APIs from around the world, confirms each failure before it pages anyone, and lets your team acknowledge from wherever they are.",
+    "subhead": "UptimeWatch checks your websites, APIs, servers and cron jobs from several regions, rechecks every failure before it alerts anyone, and tells your team what broke in Slack, Teams, Telegram or email.",
     "navLabel": "Site",
     "navFeatures": "Features",
     "navPricing": "Pricing",
@@ -1258,7 +1257,7 @@
         "body": "Heartbeat monitors catch jobs that stop running, and monthly error budgets show which services are at risk."
       }
     },
-    "pricingTitle": "Pick a plan",
+    "pricingTitle": "Simple pricing, free to start",
     "pricingIntro": "Flat prices, not per seat. Start on Free and change plans whenever you like.",
     "billingPeriod": "Billing period",
     "billedMonthly": "Monthly",
@@ -1270,7 +1269,7 @@
     "startFree": "Start free",
     "choosePlan": "Choose {plan}",
     "pricingNote": "Every account starts free with no card. Prices in USD; tax is added at checkout where it applies.",
-    "footer": "Watchpost: uptime monitoring that confirms outages before it alerts.",
+    "footer": "UptimeWatch: website uptime monitoring, on-call and status pages that confirm an outage before they alert.",
     "plans": {
       "free": {
         "name": "Free",
@@ -1318,7 +1317,7 @@
     "footerProduct": "Product",
     "footerCompare": "Compare",
     "footerLegal": "Legal",
-    "footerCompareWith": "Watchpost vs {name}",
+    "footerCompareWith": "UptimeWatch vs {name}",
     "comingSoon": "Coming soon",
     "included": "Included",
     "notIncluded": "Not included",
@@ -1328,28 +1327,28 @@
     "tableCaption": "Plan limits and features. Rows marked \"Coming soon\" are planned and not available yet.",
     "tableFeature": "Feature",
     "calculatorTitle": "What per-seat pricing costs your team",
-    "calculatorIntro": "Many tools charge for every person who can be alerted. Watchpost Pro is one flat price with unlimited team members.",
+    "calculatorIntro": "Many tools charge for every person who can be alerted. UptimeWatch Pro is one flat price with unlimited team members.",
     "calculatorTeamSize": "People on your team",
     "calculatorTool": "Tool",
     "calculatorMonthly": "Per month",
-    "calculatorDifference": "More than Watchpost Pro, per year",
+    "calculatorDifference": "More than UptimeWatch Pro, per year",
     "calculatorPerSeat": "{price} per user",
     "calculatorFlat": "flat, any team size",
     "calculatorSame": "No more",
-    "calculatorNote": "Per-user prices as reported by the sources on our comparison pages on {date}, billed annually. Watchpost Pro billed annually. On-call schedules in Watchpost are coming soon.",
+    "calculatorNote": "Per-user prices as reported by the sources on our comparison pages on {date}, billed annually. UptimeWatch Pro billed annually.",
     "faqTitle": "Questions",
-    "compareIndexTitle": "How Watchpost compares",
-    "compareTitle": "Watchpost vs {name}",
+    "compareIndexTitle": "How UptimeWatch compares",
+    "compareTitle": "UptimeWatch vs {name}",
     "compareIntro": "A short, honest comparison. Check the vendor's own site before you decide.",
     "compareWhatItIs": "What {name} is",
     "comparePricing": "Reported pricing",
     "compareGoodFit": "Where {name} fits well",
-    "compareDifferences": "How Watchpost differs",
+    "compareDifferences": "How UptimeWatch differs",
     "compareSources": "Sources",
     "compareChecked": "Checked on {date} from the third-party pages listed below, not from {name}'s own price list. Prices and terms change; we will correct anything that is out of date.",
-    "compareCta": "Try Watchpost free",
+    "compareCta": "Try UptimeWatch free",
     "docsTitle": "Documentation",
-    "docsIntro": "Short guides for setting up and running Watchpost.",
+    "docsIntro": "Short guides for setting up and running UptimeWatch.",
     "docsBack": "All docs",
     "legalDraft": "Draft, needs owner review. This page is not final and is not legal advice. Text in [square brackets] still has to be filled in.",
     "legalUpdated": "Last updated {date}",
@@ -1476,7 +1475,176 @@
         "business": "Priority, 4 business hours"
       }
     },
-    "footerOpsgenie": "Moving from Opsgenie"
+    "footerOpsgenie": "Moving from Opsgenie",
+    "navStatusPages": "Status pages",
+    "navMonitoring": "Monitoring",
+    "footerMonitoring": "Monitoring",
+    "footerRights": "© {year} UptimeWatch. All rights reserved.",
+    "landing": {
+      "eyebrow": "Uptime monitoring, on-call and status pages",
+      "heroLead": "Uptime monitoring",
+      "heroRest": "that confirms an outage before it wakes you up.",
+      "checks": {
+        "free": "20 monitors free, forever",
+        "regions": "Confirmed from several regions",
+        "channels": "Alerts in Slack, Teams, Telegram and more",
+        "statusPages": "Status page included"
+      },
+      "preview": {
+        "caption": "Example of an UptimeWatch monitor page: the site is up, the last check ran 26 seconds ago from three regions, and the response time chart shows one short spike.",
+        "monitors": "Monitors",
+        "incidents": "Incidents",
+        "onCall": "On-call",
+        "statusPages": "Status pages",
+        "integrations": "Integrations",
+        "kind": "HTTPS monitor, checked every 30 seconds",
+        "up": "Up",
+        "currentStatus": "Current status",
+        "upFor": "Up for 41 days, 6 hours",
+        "lastCheck": "Last check",
+        "lastCheckValue": "26 seconds ago",
+        "lastCheckNote": "From 3 regions",
+        "last24": "Last 24 hours",
+        "last24Value": "100%",
+        "last24Note": "0 incidents",
+        "certificate": "SSL certificate",
+        "certificateValue": "212 days left",
+        "certificateNote": "Domain renews in 9 months",
+        "regions": "Regions",
+        "frankfurt": "Frankfurt",
+        "virginia": "Virginia",
+        "singapore": "Singapore",
+        "responseTime": "Response time",
+        "responseRange": "Last 24 hours, median 184 ms",
+        "confirmedTitle": "Spike rechecked",
+        "confirmedBody": "One slow answer from Singapore. Two other regions were fine, so nobody was paged."
+      },
+      "monitorsTitle": "Monitor everything that can go down",
+      "monitorsIntro": "Website monitoring is the start. UptimeWatch also watches the API behind the site, the certificate in front of it, the DNS records that point to it and the background jobs nobody looks at until they stop.",
+      "monitors": {
+        "http": {
+          "title": "Website and API monitoring",
+          "body": "Check any HTTP or HTTPS address: status codes, response time, redirects, headers and sign-in."
+        },
+        "keyword": {
+          "title": "Keyword monitoring",
+          "body": "Get alerted when a word or pattern appears on a page, or goes missing from it."
+        },
+        "json": {
+          "title": "API response checks",
+          "body": "Query a JSON response and compare the result, so a 200 with the wrong answer still counts as down."
+        },
+        "ping": {
+          "title": "Ping monitoring",
+          "body": "Watch servers and network devices for reachability, packet loss and round-trip time."
+        },
+        "port": {
+          "title": "Port monitoring",
+          "body": "Connect to any TCP port for mail servers, databases behind a proxy, and other services."
+        },
+        "dns": {
+          "title": "DNS monitoring",
+          "body": "Check A, AAAA, CNAME, MX, TXT and NS records and catch changes you did not make."
+        },
+        "ssl": {
+          "title": "SSL and domain expiry",
+          "body": "Warnings well before a certificate or a domain registration runs out, and when a certificate changes."
+        },
+        "cron": {
+          "title": "Cron job monitoring",
+          "body": "Heartbeat monitors notice a scheduled job that fails, runs late or stops running."
+        },
+        "websocket": {
+          "title": "WebSocket monitoring",
+          "body": "Open a connection, send a message and check the reply from your real-time service."
+        }
+      },
+      "monitorsLink": "How monitors work",
+      "stepsTitle": "How UptimeWatch decides a site is down",
+      "stepsIntro": "Most false alarms come from one check failing in one place. Here a failed check is the start of the work, not an alert.",
+      "steps": {
+        "check": {
+          "title": "Check",
+          "body": "Your monitor runs on a schedule from the regions you choose, as often as every 15 seconds."
+        },
+        "confirm": {
+          "title": "Confirm",
+          "body": "A failure is repeated and other regions are asked to check too. A single bad network path ends here."
+        },
+        "alert": {
+          "title": "Alert",
+          "body": "A confirmed outage opens an incident and alerts the right people, with timings from every region."
+        },
+        "communicate": {
+          "title": "Communicate",
+          "body": "Your status page and its subscribers are updated, and the incident closes when the site recovers."
+        }
+      },
+      "statusTitle": "Status pages your customers can trust",
+      "statusIntro": "Publish a status page fed by your monitors. Customers see what is working, what is not and what you are doing about it, without writing to support.",
+      "statusPoints": {
+        "domain": "Your own domain with automatic HTTPS",
+        "components": "Components that follow your monitors, with 90 days of uptime",
+        "incidents": "Incident updates from investigating to resolved",
+        "subscribers": "Email subscribers and RSS and Atom feeds",
+        "badges": "Status and uptime badges for your README and site"
+      },
+      "statusCta": "Create a status page",
+      "statusMock": {
+        "caption": "Example of a public status page: all systems operational, with uptime bars for the website, the API and the dashboard.",
+        "name": "Acme status",
+        "allGood": "All systems operational",
+        "website": "Website",
+        "api": "API",
+        "dashboard": "Dashboard",
+        "operational": "Operational",
+        "days": "90 days",
+        "today": "Today"
+      },
+      "onCallTitle": "On-call without per-seat pricing",
+      "onCallBody": "Schedules with rotations and overrides, escalation policies that move to the next person when nobody answers, and acknowledge links that work from a phone. Pro and Business have unlimited team members at one flat price.",
+      "onCallNote": "SMS and voice alerts are coming soon.",
+      "onCallCta": "See what per-seat pricing costs",
+      "channelsTitle": "Alerts where your team already works",
+      "channelsBody": "Send each alert to the place it will be seen, with rules per channel. Every channel shows its health and has a test button.",
+      "channelsCta": "Set up alert channels",
+      "channelsList": "Alert channels",
+      "migrateTitle": "Switching tools? Bring your monitors with you.",
+      "migrateBody": "Import monitors from UptimeRobot, Uptime Kuma and Better Stack, and schedules and escalations from Opsgenie. Check the result in a dry run before anything is created.",
+      "migrateCompare": "{name} alternative",
+      "migrateOpsgenie": "Moving from Opsgenie",
+      "faqTitle": "Frequently asked questions",
+      "faq": {
+        "q1": "What is UptimeWatch?",
+        "a1": "UptimeWatch is an uptime monitoring service. It checks your websites, APIs, servers and scheduled jobs around the clock, confirms a failure from more than one region, and alerts your team with the details needed to fix it. It also includes on-call schedules and public status pages.",
+        "q2": "What is uptime monitoring?",
+        "a2": "Uptime monitoring means checking a website or service from outside at regular intervals to see whether it answers, how fast and with the right content. When a check fails, the monitoring service alerts you, so you learn about downtime before your customers report it.",
+        "q3": "How does UptimeWatch reduce false alarms?",
+        "a3": "One failed check does not alert anyone. UptimeWatch repeats the check and asks other regions to check as well. An incident opens only when the failure is confirmed, and a problem on our own side, such as a probe that lost its connection, never pages you.",
+        "q4": "What can I monitor?",
+        "a4": "Websites and APIs over HTTP and HTTPS, keywords on a page, JSON responses, ping, TCP ports, DNS records, WebSockets, SSL certificates, domain expiry dates and cron jobs through heartbeat monitors.",
+        "q5": "Is there a free plan?",
+        "a5": "Yes. The Free plan has 20 monitors, 5 heartbeat monitors, checks every 3 minutes, 3 team members and one status page. It has no time limit, needs no card and may be used for commercial projects.",
+        "q6": "How do I get an alert when my website is down?",
+        "a6": "Create a monitor for the site and connect an alert channel: email, Slack, Microsoft Teams, Discord, Telegram, Google Chat, a webhook, PagerDuty and others. UptimeWatch sends a test message when the channel is saved. SMS and voice alerts are coming soon.",
+        "q7": "Do you charge per user?",
+        "a7": "No. Free includes 3 team members, Starter 5, and Pro and Business have unlimited members at the same flat price, including everyone on the on-call rotation.",
+        "q8": "How do I create a status page?",
+        "a8": "Open Status pages, pick the monitors to show as components and publish. The page gets its own address straight away, and you can connect your own domain, add your logo and let customers subscribe to updates by email.",
+        "q9": "Can I move from UptimeRobot, Uptime Kuma, Better Stack or Opsgenie?",
+        "a9": "Yes. Under Settings, Import, you can bring in monitors from UptimeRobot, Uptime Kuma and Better Stack, and schedules and escalation policies from Opsgenie. A dry run shows what will be created before you apply it."
+      },
+      "ctaTitle": "Start monitoring in a few minutes",
+      "ctaBody": "Paste a URL, pick where alerts go and send a test alert. No card, nothing to install.",
+      "ctaDocs": "Read the getting started guide"
+    },
+    "footerLinks": {
+      "website": "Website monitoring",
+      "cron": "Cron job monitoring",
+      "channels": "Alert channels",
+      "statusPages": "Status pages",
+      "faq": "Questions and answers"
+    }
   },
   "actionLink": {
     "title": "Incident action",
@@ -1491,12 +1659,12 @@
     "doneResolve": "Resolved #{number}.",
     "already": "#{number} is already {status}.",
     "used": "This link was already used.",
-    "open": "Open Watchpost"
+    "open": "Open UptimeWatch"
   },
   "invite": {
     "title": "Join a workspace",
     "loading": "Opening the invitation…",
-    "signInFirst": "You've been invited to a Watchpost workspace. Sign in, or create an account with the address the invitation was sent to.",
+    "signInFirst": "You've been invited to a UptimeWatch workspace. Sign in, or create an account with the address the invitation was sent to.",
     "signIn": "Sign in to accept",
     "signUp": "Create an account",
     "unavailable": "This invitation can't be opened while you're signed in as {email}. It may be for another address, expired or already used.",
@@ -1579,7 +1747,7 @@
     "tileBudgetsNone": "Budgets start with your first monitor.",
     "tileMonitorsWaiting": "{count, plural, one {# monitor is} other {# monitors are}} waiting for the first check.",
     "deployTitle": "Deploy markers",
-    "deployIntro": "Tell Watchpost when you deploy, and incidents will say \"started 2 minutes after deploy abc123\". Deploys also appear in each monitor's recent changes.",
+    "deployIntro": "Tell UptimeWatch when you deploy, and incidents will say \"started 2 minutes after deploy abc123\". Deploys also appear in each monitor's recent changes.",
     "deployNotConfigured": "No deploy URL yet.",
     "deployConfigured": "A deploy URL is set up. For security it is only shown when created; rotate it to see a new one.",
     "deployCreate": "Create deploy URL",
@@ -1644,7 +1812,7 @@
     "opsgenie": {
       "metaTitle": "An Opsgenie alternative with monitoring built in",
       "title": "Moving on from Opsgenie? Bring your schedules with you.",
-      "lead": "Watchpost has on-call schedules, escalation policies and alerts by push, email, SMS and phone call, together with the uptime monitoring that finds the problem in the first place. Import your Opsgenie schedules and escalations, run both side by side, and switch when you trust it.",
+      "lead": "UptimeWatch has on-call schedules, escalation policies and alerts by push, email, SMS and phone call, together with the uptime monitoring that finds the problem in the first place. Import your Opsgenie schedules and escalations, run both side by side, and switch when you trust it.",
       "cta": "Start free",
       "guide": "Read the migration guide",
       "noCard": "No card needed. Every workspace starts with a 14-day Pro trial.",
@@ -1688,7 +1856,7 @@
         },
         "parallel": {
           "title": "Run side by side.",
-          "body": "Watchpost can open and close alerts in Opsgenie or Jira Service Management, so your team keeps being paged the old way while you compare."
+          "body": "UptimeWatch can open and close alerts in Opsgenie or Jira Service Management, so your team keeps being paged the old way while you compare."
         },
         "switch": {
           "title": "Switch.",
@@ -1699,12 +1867,12 @@
       "honest": {
         "heartbeats": "Opsgenie heartbeats, teams and routing rules are not imported; heartbeats and alert routes are set up here by hand.",
         "integrations": "Opsgenie's long list of integrations is replaced by the inbound sources above plus webhooks. If a tool you need is missing, tell us.",
-        "mobile": "There is no native mobile app yet. Watchpost installs from the browser as an app with notifications; on iPhone it must be added to the Home Screen first."
+        "mobile": "There is no native mobile app yet. UptimeWatch installs from the browser as an app with notifications; on iPhone it must be added to the Home Screen first."
       },
       "pricingTitle": "Flat plans, not per seat",
       "pricingBody": "Plans have one price per workspace, not per seat. On-call schedules and escalation policies are part of the Starter plan and up; Pro and Business have no limit on members, schedules or policies. SMS and calls use prepaid alert credits.",
       "pricingLink": "See pricing",
-      "compareLink": "Watchpost and Opsgenie compared",
+      "compareLink": "UptimeWatch and Opsgenie compared",
       "sourcesTitle": "Sources"
     }
   },
@@ -1751,7 +1919,7 @@
     "updated": "Updated {time}",
     "feeds": "Feeds and links",
     "support": "Contact support",
-    "poweredBy": "Powered by Watchpost",
+    "poweredBy": "Powered by UptimeWatch",
     "subscribe": {
       "title": "Get updates by email",
       "intro": "We email you when an incident is reported, updated and resolved. You can unsubscribe with one click.",

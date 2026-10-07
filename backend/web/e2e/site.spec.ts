@@ -22,7 +22,7 @@ test("pricing shows every plan, what is coming soon, and the per-seat calculator
 
   const table = page.getByRole("table", { name: /Plan limits and features/ });
   await expect(table.getByRole("row", { name: /^Monitors 20 50 150 500$/ })).toBeVisible();
-  await expect(table.getByRole("row", { name: /Status pages Coming soon/ })).toBeVisible();
+  await expect(table.getByRole("row", { name: /Private probes Coming soon/ })).toBeVisible();
 
   await page.getByLabel("People on your team").fill("12");
   await expect(page.getByRole("row", { name: /Better Stack/ })).toContainText("$348");
@@ -32,9 +32,9 @@ test("pricing shows every plan, what is coming soon, and the per-seat calculator
 
 test("a comparison page states its sources and the date they were checked", async ({ page }) => {
   await page.goto("/pricing");
-  await page.getByRole("link", { name: "Watchpost vs Better Stack" }).click();
+  await page.getByRole("link", { name: "UptimeWatch vs Better Stack" }).click();
   await expect(
-    page.getByRole("heading", { level: 1, name: "Watchpost vs Better Stack" }),
+    page.getByRole("heading", { level: 1, name: "UptimeWatch vs Better Stack" }),
   ).toBeVisible();
   await expect(page.getByText(/Checked on 2026-09-30/)).toBeVisible();
   await expect(

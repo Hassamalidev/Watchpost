@@ -109,3 +109,24 @@
     @apply bg-background text-foreground font-sans antialiased;
   }
 }
+
+/*
+ * Landing page backdrop: a faint grid that fades out downwards, and a glow in the brand color
+ * behind the headline. Both are decoration and sit under the content.
+ */
+@utility landing-grid {
+  background-image:
+    linear-gradient(to right, var(--border) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 20%, transparent 75%);
+  opacity: 0.6;
+}
+
+@utility landing-glow {
+  background-image: radial-gradient(
+    ellipse 60% 45% at 50% 0%,
+    color-mix(in oklab, var(--brand) 20%, transparent),
+    transparent 70%
+  );
+}
