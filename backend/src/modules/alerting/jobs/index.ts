@@ -40,8 +40,19 @@ export function createAlertingProcessors(
           incidentId: z.uuid(),
           dueAt: z.number().int().positive(),
         }),
+        z.object({
+          kind: z.literal("escalate"),
+          incidentId: z.uuid(),
+          step: z.number().int().min(0),
+          dueAt: z.number().int().positive(),
+        }),
       ]),
       async handle(job, { logger }) {
+        if (job.kind === "escalate") {
+          const outcome = await service.escalationDue(job.incidentId, job.step, job.dueAt);
+          logger.info({ incidentId: job.incidentId, step: job.step, outcome }, "escalation step");
+          return;
+        }
         const planned = await service.reminderDue(job.incidentId, job.dueAt);
         logger.info({ incidentId: job.incidentId, planned }, "reminder processed");
       },

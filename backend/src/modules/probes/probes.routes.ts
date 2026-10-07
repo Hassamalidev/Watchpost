@@ -4,7 +4,7 @@
  * - "Test now" for users (/api/w/:workspaceId/*), behind the workspace guards.
  */
 import { Router, type RequestHandler } from "express";
-import { requireRole } from "../../middleware/roles.js";
+import { requirePermission } from "../../middleware/roles.js";
 import { validate } from "../../middleware/validate.js";
 import type { ProbesController } from "./probes.controller.js";
 import { monitorIdParams, taskIdParams } from "./validators/index.js";
@@ -26,10 +26,15 @@ export function createProbeUserRouter(
   router.use(guards.session, guards.workspace);
   router.post(
     "/monitors/:monitorId/test",
-    requireRole("member"),
+    requirePermission("monitor:write"),
     validate({ params: monitorIdParams }),
     controller.testNow,
   );
-  router.get("/probe-tasks/:taskId", validate({ params: taskIdParams }), controller.getTask);
+  router.get(
+    "/probe-tasks/:taskId",
+    requirePermission("monitor:read"),
+    validate({ params: taskIdParams }),
+    controller.getTask,
+  );
   return router;
 }

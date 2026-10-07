@@ -42,6 +42,8 @@ export type {
 export type { IntegrationsService, SlackInstallationView } from "./integrations.service.js";
 export type { PaidSends, PhonesService, ReplyTarget } from "./phones.service.js";
 export { smsText, voiceText } from "./adapters/phone.js";
+export { SLACK_ACK_ACTION, SLACK_RESOLVE_ACTION } from "./adapters/slack.js";
+export { TELEGRAM_ACK, TELEGRAM_RESOLVE } from "./adapters/telegram.js";
 export {
   ChannelDeliveryError,
   type AlertEvent,
@@ -67,6 +69,7 @@ export interface ChannelsModuleDeps {
     | "http"
     | "config"
     | "actionLinks"
+    | "webPush"
   >;
   guards: { session: RequestHandler; workspace: RequestHandler };
   /* Replaces the built-in adapters (tests use fakes). */
@@ -183,6 +186,8 @@ export function createChannelsModule(deps: ChannelsModuleDeps): ChannelsModule {
     logger: infra.logger.child({ module: "channels" }),
     newId,
     credits: deps.credits,
+    webPush: infra.webPush,
+    actionLinks: infra.actionLinks,
   });
   return {
     name: "channels",
@@ -205,7 +210,6 @@ export function createChannelsModule(deps: ChannelsModuleDeps): ChannelsModule {
         router: createIntegrationsPublicRouter(integrations, {
           session: deps.guards.session,
           webOrigin: config.webOrigin,
-          telegramSecret: config.telegram?.webhookSecret,
         }),
       },
     ],

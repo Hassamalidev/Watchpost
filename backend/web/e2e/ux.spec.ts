@@ -86,6 +86,24 @@ test("A acknowledges and R resolves an incident from the keyboard", async ({ pag
   await expect(page.getByRole("button", { name: "Resolve" })).toBeHidden();
 });
 
+test("an open incident keeps its actions in a bar that stays in reach", async ({ page }) => {
+  await page.goto(path("incidents"));
+  const created = await page.request.post(`/api/w/${workspace()}/incidents`, {
+    data: { title: `Command bar ${Date.now()}`, severity: "high" },
+    headers: { origin: new URL(page.url()).origin },
+  });
+  expect(created.status()).toBe(201);
+  const incident = (await created.json()) as { number: number };
+  await page.goto(path(`incidents/${incident.number}`));
+  const bar = page.getByRole("toolbar", { name: `Actions for incident #${incident.number}` });
+  await expect(bar).toContainText(`#${incident.number} · Triggered`);
+  await expect(bar).toHaveCSS("position", "sticky");
+  await bar.getByRole("button", { name: /Acknowledge/ }).click();
+  await expect(bar).toContainText(`#${incident.number} · Acknowledged`);
+  await expect(bar.getByRole("button", { name: /Acknowledge/ })).toHaveCount(0);
+  await noAxeViolations(page);
+});
+
 test("incidents filter by severity and keep the filter in the URL", async ({ page }) => {
   await page.goto(path("incidents?status=all"));
   await page.getByLabel("Filter by severity").selectOption("low");

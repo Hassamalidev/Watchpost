@@ -1,31 +1,31 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Request, Response } from "express";
+import type { Permission } from "@app/shared";
 import { ForbiddenError, NotFoundError } from "../../core/errors.js";
 import { createWorkspaceScope, type WorkspaceRole } from "../../core/workspace-scope.js";
 import { newId } from "../../infra/ids.js";
-import { hasRole, parseMemberRole, requireRole } from "../roles.js";
+import { hasPermission, isPermissionGuard, parseMemberRole, requirePermission } from "../roles.js";
 
-function runGuard(minimum: WorkspaceRole, role?: WorkspaceRole) {
+function runGuard(permission: Permission, role?: WorkspaceRole) {
   const next = vi.fn();
   const res = {
     locals: role ? { scope: createWorkspaceScope({ workspaceId: newId(), role }) } : {},
   } as unknown as Response;
-  requireRole(minimum)({} as Request, res, next);
+  requirePermission(permission)({} as Request, res, next);
   return next.mock.calls[0]?.[0];
 }
 
-describe("role ranking", () => {
-  it("orders viewer < member < admin < owner", () => {
-    expect(hasRole("owner", "admin")).toBe(true);
-    expect(hasRole("admin", "admin")).toBe(true);
-    expect(hasRole("member", "admin")).toBe(false);
-    expect(hasRole("viewer", "member")).toBe(false);
-    expect(hasRole("responder", "member")).toBe(false);
-    expect(hasRole("billing", "viewer")).toBe(false);
-    expect(hasRole("system", "owner")).toBe(true);
+describe("hasPermission", () => {
+  it("reads the shared table, and lets system work through", () => {
+    expect(hasPermission("owner", "billing:manage")).toBe(true);
+    expect(hasPermission("member", "channel:manage")).toBe(false);
+    expect(hasPermission("responder", "incident:respond")).toBe(true);
+    expect(hasPermission("responder", "monitor:write")).toBe(false);
+    expect(hasPermission("billing", "monitor:read")).toBe(false);
+    expect(hasPermission("system", "incident:drill")).toBe(true);
   });
 
-  it("parses Better Auth role strings, keeping the highest known role", () => {
+  it("parses Better Auth role strings, keeping the broadest known role", () => {
     expect(parseMemberRole("member")).toBe("member");
     expect(parseMemberRole("member,admin")).toBe("admin");
     expect(parseMemberRole(" viewer , unknown ")).toBe("viewer");
@@ -34,15 +34,24 @@ describe("role ranking", () => {
   });
 });
 
-describe("requireRole", () => {
-  it("lets the minimum role and higher through", () => {
-    expect(runGuard("admin", "admin")).toBeUndefined();
-    expect(runGuard("admin", "owner")).toBeUndefined();
+describe("requirePermission", () => {
+  it("lets roles with the permission through", () => {
+    expect(runGuard("channel:manage", "admin")).toBeUndefined();
+    expect(runGuard("incident:respond", "responder")).toBeUndefined();
+    expect(runGuard("billing:manage", "billing")).toBeUndefined();
   });
 
-  it("rejects lower roles with 403 and a missing scope with 404", () => {
-    expect(runGuard("admin", "member")).toBeInstanceOf(ForbiddenError);
-    expect(runGuard("member", "viewer")).toBeInstanceOf(ForbiddenError);
-    expect(runGuard("viewer")).toBeInstanceOf(NotFoundError);
+  it("rejects other roles with 403 and a missing scope with 404", () => {
+    expect(runGuard("channel:manage", "member")).toBeInstanceOf(ForbiddenError);
+    expect(runGuard("monitor:write", "responder")).toBeInstanceOf(ForbiddenError);
+    expect(runGuard("incident:read", "billing")).toBeInstanceOf(ForbiddenError);
+    expect(runGuard("monitor:read")).toBeInstanceOf(NotFoundError);
+  });
+
+  it("names its permission so tools can read what a route needs", () => {
+    const guard = requirePermission("deploy:manage");
+    expect(isPermissionGuard(guard)).toBe(true);
+    expect(guard.permission).toBe("deploy:manage");
+    expect(isPermissionGuard(() => undefined)).toBe(false);
   });
 });

@@ -33,6 +33,7 @@ import type {
   IncidentEventRow,
   IncidentRow,
   IncidentSeverity,
+  IncidentStatus,
 } from "./schema/incidents.js";
 
 export interface OpenForMonitorInput {
@@ -169,6 +170,34 @@ export interface ExpiryIncidentInput {
   evidence: Record<string, unknown>;
 }
 
+export interface InboundIncidentInput {
+  workspaceId: string;
+  /* One open incident per key; the inbound module scopes it to its source. */
+  dedupKey: string;
+  title: string;
+  severity: IncidentSeverity;
+  /* Where it came from and what the tool said, shown on the incident. */
+  evidence: Record<string, unknown>;
+}
+
+/* An incident in one line, for a handoff report. */
+export interface IncidentBrief {
+  number: number;
+  title: string;
+  severity: IncidentSeverity;
+  status: IncidentStatus;
+  startedAt: string;
+}
+
+export interface ShiftReport {
+  /* Incidents that started during the shift, newest first. */
+  started: IncidentBrief[];
+  /* How many of those are resolved. */
+  resolved: number;
+  /* Everything still open when the shift ended: what the next person inherits. */
+  open: IncidentBrief[];
+}
+
 export interface IncidentSummary {
   days: number;
   incidents: number;
@@ -228,7 +257,15 @@ export interface IncidentsService {
     tx: Tx,
     input: ExpiryIncidentInput,
   ): Promise<{ incident: IncidentRow; created: boolean }>;
-  /* System: resolves the open incident with this key (after a renewal). */
+  /*
+   * System: opens an incident for an alert from another tool, unless one with the same key is
+   * already open (then `created` is false and nothing changes: no second alert for a repeat).
+   */
+  openInbound(
+    tx: Tx,
+    input: InboundIncidentInput,
+  ): Promise<{ incident: IncidentRow; created: boolean }>;
+  /* System: resolves the open incident with this key (after a renewal, or the tool's recovery). */
   resolveByDedupKey(tx: Tx, workspaceId: string, dedupKey: string): Promise<boolean>;
   /*
    * Alert accuracy for the last `days` days: incidents, false alarms (marked by people), accuracy and
@@ -247,6 +284,8 @@ export interface IncidentsService {
     from: Date,
     to: Date,
   ): Promise<{ opened: number; resolved: number; mttrMinutes: number | null }>;
+  /* System: what happened in a workspace between two moments, for an on-call handoff. */
+  shiftReport(workspaceId: string, from: Date, to: Date): Promise<ShiftReport>;
   /* System: IDs of open incidents, paged by ID (reminder recovery). */
   openIncidentIds(options: { afterId?: string; limit: number }): Promise<string[]>;
   /* System: a timeline entry written by the platform (for example `delivery_failed`). */
@@ -653,11 +692,60 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
       return { incident: created, created: true };
     },
 
+    async openInbound(tx, input) {
+      const existing = await repo.findOpenByDedupKey(tx, input.workspaceId, input.dedupKey);
+      if (existing !== undefined) return { incident: existing, created: false };
+      const number = await deps.workspaces.nextIncidentNumber(
+        tx,
+        createWorkspaceScope({ workspaceId: input.workspaceId }),
+      );
+      const created = await repo.insertDeduplicated(tx, {
+        id: deps.newId(),
+        workspaceId: input.workspaceId,
+        number,
+        source: "inbound",
+        monitorId: null,
+        dedupKey: input.dedupKey,
+        title: input.title,
+        severity: input.severity,
+        failingRegions: [],
+        evidence: input.evidence,
+        startedAt: clock.now(),
+      });
+      /* Two deliveries of the same alert at once: the other one opened it. */
+      if (created === undefined) {
+        const winner = await repo.findOpenByDedupKey(tx, input.workspaceId, input.dedupKey);
+        if (winner === undefined) throw new Error(`incident ${input.dedupKey} vanished`);
+        return { incident: winner, created: false };
+      }
+      await announceTriggered(tx, created, {});
+      return { incident: created, created: true };
+    },
+
     async resolveByDedupKey(tx, workspaceId, dedupKey) {
       const open = await repo.findOpenByDedupKey(tx, workspaceId, dedupKey);
       if (open === undefined) return false;
       await markResolved(tx, open, { auto: true });
       return true;
+    },
+
+    async shiftReport(workspaceId, from, to) {
+      const brief = (row: IncidentRow): IncidentBrief => ({
+        number: row.number,
+        title: row.title,
+        severity: row.severity,
+        status: row.status,
+        startedAt: row.startedAt.toISOString(),
+      });
+      const [started, open] = await Promise.all([
+        repo.startedBetween(deps.db, workspaceId, from, to, 50),
+        repo.stillOpen(deps.db, workspaceId, 20),
+      ]);
+      return {
+        started: started.map(brief),
+        resolved: started.filter((row) => row.status === "resolved").length,
+        open: open.map(brief),
+      };
     },
 
     async addSystemEvent(incidentId, type, data) {

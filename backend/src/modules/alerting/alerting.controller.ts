@@ -4,6 +4,7 @@ import { inputOf } from "../../middleware/validate.js";
 import { scopeOf } from "../../middleware/workspace.js";
 import type { AlertingService } from "./alerting.service.js";
 import type {
+  defaultEscalationBody,
   channelIdParams,
   createPolicyBody,
   incidentIdParams,
@@ -12,7 +13,16 @@ import type {
 } from "./validators/index.js";
 
 export type AlertingController = Record<
-  "list" | "create" | "update" | "remove" | "routeToDefault" | "sendTest" | "deliveries",
+  | "list"
+  | "create"
+  | "update"
+  | "remove"
+  | "routeToDefault"
+  | "setDefaultEscalation"
+  | "sendTest"
+  | "deliveries"
+  | "escalation"
+  | "escalateNow",
   RequestHandler
 >;
 
@@ -32,9 +42,21 @@ export function createAlertingController(service: AlertingService): AlertingCont
       const { body } = inputOf<{ body: typeof updatePolicyBody }>(req, res);
       res.json(await service.updatePolicy(scopeOf(req, res), idOf(req, res), body));
     },
+    escalation: async (req, res) => {
+      const { params } = inputOf<{ params: typeof incidentIdParams }>(req, res);
+      res.json({ data: await service.escalationOf(scopeOf(req, res), params.incidentId) });
+    },
+    escalateNow: async (req, res) => {
+      const { params } = inputOf<{ params: typeof incidentIdParams }>(req, res);
+      res.json({ data: await service.escalateNow(scopeOf(req, res), params.incidentId) });
+    },
     deliveries: async (req, res) => {
       const { params } = inputOf<{ params: typeof incidentIdParams }>(req, res);
       res.json({ data: await service.deliveryLog(scopeOf(req, res), params.incidentId) });
+    },
+    setDefaultEscalation: async (req, res) => {
+      const { body } = inputOf<{ body: typeof defaultEscalationBody }>(req, res);
+      res.json(await service.setDefaultEscalation(scopeOf(req, res), body.escalationPolicyId));
     },
     routeToDefault: async (req, res) => {
       const { params } = inputOf<{ params: typeof channelIdParams }>(req, res);

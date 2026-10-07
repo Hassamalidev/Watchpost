@@ -188,6 +188,22 @@ const baseEnvSchema = z.object({
     .string()
     .regex(/^\+[1-9]\d{7,14}$/, "must be an E.164 number")
     .optional(),
+  /*
+   * Web push (P4-T08): a P-256 key pair in the form browsers use (make one with
+   * `pnpm --filter @app/api vapid:generate`) and a contact the push services can reach.
+   */
+  VAPID_PUBLIC_KEY: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{86,88}$/, "must be a base64url P-256 public key")
+    .optional(),
+  VAPID_PRIVATE_KEY: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{42,44}$/, "must be a base64url P-256 private key")
+    .optional(),
+  VAPID_SUBJECT: z
+    .string()
+    .regex(/^(mailto:|https:\/\/)/, "must be a mailto: or https: address")
+    .optional(),
   ...(Object.fromEntries(PADDLE_PRICE_ENV.map((key) => [key, paddlePriceId])) as Record<
     (typeof PADDLE_PRICE_ENV)[number],
     typeof paddlePriceId
@@ -212,6 +228,8 @@ export const envSchema = baseEnvSchema.superRefine((env, ctx) => {
   const groups: Array<[string, string[]]> = [
     ["Paddle", ["PADDLE_API_KEY", "PADDLE_WEBHOOK_SECRET"]],
     ["Twilio", ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN"]],
+    /* VAPID_SUBJECT alone is harmless (it has a default in .env.example); the keys come as a pair. */
+    ["Web push", ["VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY"]],
     ["R2", ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET"]],
     ["Slack", ["SLACK_CLIENT_ID", "SLACK_CLIENT_SECRET"]],
     ["Telegram", ["TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_USERNAME", "TELEGRAM_WEBHOOK_SECRET"]],
@@ -227,6 +245,13 @@ export const envSchema = baseEnvSchema.superRefine((env, ctx) => {
         });
       }
     }
+  }
+  if (env.VAPID_PUBLIC_KEY !== undefined && env.VAPID_SUBJECT === undefined) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["VAPID_SUBJECT"],
+      message: "is required with the VAPID keys (a mailto: or https: contact for push services)",
+    });
   }
   if (env.EMAIL_TRANSPORT === "resend" && env.RESEND_API_KEY === undefined) {
     ctx.addIssue({

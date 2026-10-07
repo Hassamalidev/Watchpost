@@ -9,7 +9,9 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/input";
+import Link from "next/link";
 import { api, errorMessage, wsPath } from "@/lib/api";
+import { workspaceHref } from "@/lib/navigation";
 
 const ZONES: string[] =
   typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : ["UTC"];
@@ -49,7 +51,7 @@ export function SettingsPage() {
           <Select
             id="settings-tz"
             value={current}
-            disabled={!can(workspace.role, "admin")}
+            disabled={!can(workspace.role, "settings:update")}
             onChange={(e) => setTimezone(e.target.value)}
           >
             {zones.map((zone) => (
@@ -59,7 +61,7 @@ export function SettingsPage() {
             ))}
           </Select>
         </Field>
-        {can(workspace.role, "admin") && (
+        {can(workspace.role, "settings:update") && (
           <div>
             <Button type="submit" disabled={save.isPending}>
               {save.isPending ? tc("saving") : tc("save")}
@@ -67,6 +69,22 @@ export function SettingsPage() {
           </div>
         )}
       </form>
+      {can(workspace.role, "settings:update") && (
+        <section className="grid gap-2 rounded-lg border p-4" aria-labelledby="import-heading">
+          <h2 id="import-heading" className="text-base font-semibold">
+            {t("importTitle")}
+          </h2>
+          <p className="text-sm text-muted-foreground">{t("importHint")}</p>
+          <div>
+            <Link
+              href={`${workspaceHref(ws, "settings")}/import`}
+              className="text-sm font-medium text-brand underline"
+            >
+              {t("importLink")}
+            </Link>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

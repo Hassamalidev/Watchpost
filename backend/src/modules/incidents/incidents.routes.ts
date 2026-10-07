@@ -4,7 +4,7 @@
  * and mark false alarms. The billing role sees billing pages only.
  */
 import { Router, type RequestHandler } from "express";
-import { requireRole } from "../../middleware/roles.js";
+import { requirePermission } from "../../middleware/roles.js";
 import { validate } from "../../middleware/validate.js";
 import type { IncidentsController } from "./incidents.controller.js";
 import {
@@ -22,9 +22,9 @@ export function createIncidentsRouter(
   guards: { session: RequestHandler; workspace: RequestHandler },
 ): Router {
   const router = Router({ mergeParams: true });
-  const read = requireRole("viewer");
-  const respond = requireRole("responder");
-  const write = requireRole("member");
+  const read = requirePermission("incident:read");
+  const respond = requirePermission("incident:respond");
+  const write = requirePermission("incident:write");
   const ref = validate({ params: incidentRefParams });
   router.use(["/incidents", "/alert-tuning"], guards.session, guards.workspace);
 
@@ -40,7 +40,7 @@ export function createIncidentsRouter(
   router.get("/incidents", read, validate({ query: listIncidentsQuery }), controller.list);
   router.get("/incidents/summary", read, validate({ query: summaryQuery }), controller.summary);
   /* Drills page everyone in the alert routes, so they are for admins. */
-  router.post("/incidents/drill", requireRole("admin"), controller.drill);
+  router.post("/incidents/drill", requirePermission("incident:drill"), controller.drill);
   router.post("/incidents", write, validate({ body: createIncidentBody }), controller.create);
   router.get("/incidents/:incidentRef", read, ref, controller.get);
   router.get("/incidents/:incidentRef/evidence", read, ref, controller.evidence);

@@ -57,7 +57,7 @@ export const PLAN_TABLE_ROWS: ReadonlyArray<{
   { key: "history" },
   { key: "credits", soon: true },
   { key: "statusPages", soon: true },
-  { key: "onCall", soon: true },
+  { key: "onCall" },
   { key: "ai", soon: true },
   { key: "privateProbes", soon: true },
   { key: "api", soon: true },

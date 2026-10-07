@@ -6,11 +6,12 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { api, ApiError, wsPath } from "@/lib/api";
 import { getSession, listWorkspaces } from "@/lib/auth";
+import { activeSegment, homeSegment, navItemsFor, workspaceHref } from "@/lib/navigation";
 import { WorkspaceContext, type CurrentWorkspace, type WorkspaceRole } from "./workspace-context";
 
 export function WorkspaceGate({
@@ -22,6 +23,7 @@ export function WorkspaceGate({
 }) {
   const t = useTranslations("app");
   const router = useRouter();
+  const pathname = usePathname();
   const query = useQuery({
     queryKey: ["workspace-gate", workspaceId],
     staleTime: 60_000,
@@ -52,7 +54,23 @@ export function WorkspaceGate({
     }
   }, [query.data, router]);
 
-  if (query.isPending || query.data === "signed-out") {
+  /*
+   * A section the role can't open (the billing role anywhere but billing) goes to the role's home
+   * instead of a page full of "not allowed" errors.
+   */
+  const role = typeof query.data === "object" ? query.data.role : undefined;
+  const segment = activeSegment(pathname);
+  const offLimits =
+    role !== undefined &&
+    segment !== undefined &&
+    !navItemsFor(role).some((item) => item.segment === segment);
+  React.useEffect(() => {
+    if (offLimits && role !== undefined) {
+      router.replace(workspaceHref(workspaceId, homeSegment(role)));
+    }
+  }, [offLimits, role, router, workspaceId]);
+
+  if (query.isPending || query.data === "signed-out" || offLimits) {
     return <p className="text-muted-foreground">{t("loading")}</p>;
   }
   if (query.isError || query.data === "no-access") {

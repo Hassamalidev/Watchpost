@@ -4,7 +4,7 @@
  */
 import { Router, type RequestHandler } from "express";
 import { phoneConfirmationSchema, phoneVerificationSchema } from "@app/shared";
-import { requireRole } from "../../middleware/roles.js";
+import { requirePermission } from "../../middleware/roles.js";
 import { inputOf, validate } from "../../middleware/validate.js";
 import { scopeOf } from "../../middleware/workspace.js";
 import type { PhonesService } from "./phones.service.js";
@@ -14,7 +14,7 @@ export function createPhonesRouter(
   guards: { session: RequestHandler; workspace: RequestHandler },
 ): Router {
   const router = Router({ mergeParams: true });
-  const admin = requireRole("admin");
+  const admin = requirePermission("channel:manage");
   router.use("/phone-numbers", guards.session, guards.workspace);
 
   router.get(

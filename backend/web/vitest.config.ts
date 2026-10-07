@@ -12,5 +12,7 @@ export default defineConfig({
     setupFiles: ["./test/setup.ts"],
     include: ["**/__tests__/**/*.test.{ts,tsx}"],
     exclude: ["node_modules", ".next", "e2e"],
+    /* Typing through a long form with user-event takes several seconds on a busy machine. */
+    testTimeout: 20_000,
   },
 });

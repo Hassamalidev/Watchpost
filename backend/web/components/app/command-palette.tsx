@@ -14,7 +14,8 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { NAV_ITEMS, workspaceHref } from "@/lib/navigation";
+import { useWorkspace } from "@/components/app/workspace-context";
+import { navItemsFor, workspaceHref } from "@/lib/navigation";
 
 export function isCommandShortcut(event: Pick<KeyboardEvent, "key" | "metaKey" | "ctrlKey">) {
   return event.key.toLowerCase() === "k" && (event.metaKey || event.ctrlKey);
@@ -24,6 +25,7 @@ export function CommandPalette({ workspace }: { workspace: string }) {
   const t = useTranslations();
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
+  const items = navItemsFor(useWorkspace().role);
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -53,7 +55,7 @@ export function CommandPalette({ workspace }: { workspace: string }) {
         <CommandList>
           <CommandEmpty>{t("command.empty")}</CommandEmpty>
           <CommandGroup heading={t("command.navigate")}>
-            {NAV_ITEMS.map(({ segment, labelKey, icon: Icon }) => (
+            {items.map(({ segment, labelKey, icon: Icon }) => (
               <CommandItem
                 key={segment}
                 value={t(`nav.${labelKey}`)}

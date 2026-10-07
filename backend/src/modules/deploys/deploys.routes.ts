@@ -7,7 +7,7 @@
 import express, { Router, type RequestHandler } from "express";
 import type { RedisClient } from "../../infra/redis.js";
 import { createRateLimiter } from "../../middleware/rate-limit.js";
-import { requireRole } from "../../middleware/roles.js";
+import { requirePermission } from "../../middleware/roles.js";
 import { inputOf, validate } from "../../middleware/validate.js";
 import { scopeOf } from "../../middleware/workspace.js";
 import type { DeploysService } from "./deploys.service.js";
@@ -24,7 +24,7 @@ export function createDeploysRouter(
 
   router.get(
     "/deploys",
-    requireRole("viewer"),
+    requirePermission("deploy:read"),
     validate({ query: listDeploysQuery }),
     async (req, res) => {
       const { query } = inputOf<{ query: typeof listDeploysQuery }>(req, res);
@@ -33,10 +33,10 @@ export function createDeploysRouter(
       res.json({ data: await service.list(scopeOf(req, res), from, to) });
     },
   );
-  router.get("/deploy-hook", requireRole("viewer"), async (req, res) => {
+  router.get("/deploy-hook", requirePermission("deploy:read"), async (req, res) => {
     res.json(await service.hook(scopeOf(req, res)));
   });
-  router.post("/deploy-hook", requireRole("admin"), async (req, res) => {
+  router.post("/deploy-hook", requirePermission("deploy:manage"), async (req, res) => {
     res.status(201).json(await service.rotateHook(scopeOf(req, res)));
   });
   return router;

@@ -21,6 +21,7 @@ import { formatDateTime, formatDuration } from "@/lib/format";
 import { workspaceHref } from "@/lib/navigation";
 import { ChangeTimeline } from "@/features/insights/components/changes";
 import { DeliveryLog } from "@/features/insights/components/deliveries";
+import { IncidentEscalation } from "@/features/oncall/components/incident-escalation";
 import { ExplanationCard } from "@/features/insights/components/explanation";
 import { incidentsApi, useIncident, useIncidentAction } from "../api";
 import { EvidencePanel } from "./evidence-panel";
@@ -35,7 +36,7 @@ export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
   const incident = useIncident(ws, incidentRef);
   const action = useIncidentAction(ws, incidentRef);
   const [comment, setComment] = React.useState("");
-  const canRespondNow = can(workspace.role, "responder");
+  const canRespondNow = can(workspace.role, "incident:respond");
 
   /* A acknowledges and R resolves, unless the user is typing (PRODUCT.md §14 keyboard-first). */
   React.useEffect(() => {
@@ -62,8 +63,8 @@ export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
   if (incident.isError) return <Alert tone="error">{errorMessage(incident.error)}</Alert>;
   const data = incident.data;
   /* Responders act on incidents; flagging false alarms is for members (PRODUCT.md §6.11). */
-  const canRespond = can(workspace.role, "responder");
-  const canFlag = can(workspace.role, "member");
+  const canRespond = can(workspace.role, "incident:respond");
+  const canFlag = can(workspace.role, "incident:write");
   const open = data.status !== "resolved";
 
   return (
@@ -100,7 +101,14 @@ export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
       </div>
 
       {canRespond && (
-        <div className="flex flex-wrap gap-2">
+        <div
+          role="toolbar"
+          aria-label={t("commandBar", { number: data.number })}
+          className="sticky top-0 z-10 -mx-2 flex flex-wrap items-center gap-2 border-b bg-background/95 px-2 py-2 backdrop-blur"
+        >
+          <span className="mr-1 text-sm font-medium text-muted-foreground">
+            #{data.number} · {t(`statuses.${data.status}`)}
+          </span>
           {data.status === "triggered" && (
             <Button
               className="h-11 px-6"
@@ -230,6 +238,8 @@ export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
         </Card>
       </div>
 
+      <IncidentEscalation ws={ws} incidentId={data.id} live={open} canRespond={canRespond} />
+
       <Card>
         <CardHeader>
           <CardTitle>{t("timeline")}</CardTitle>
@@ -248,6 +258,7 @@ export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
                 "comment",
                 "updated",
                 "delivery_failed",
+                "escalated",
                 "false_alarm_marked",
                 "false_alarm_cleared",
                 "flapping_started",

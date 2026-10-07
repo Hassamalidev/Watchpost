@@ -73,6 +73,7 @@ export async function SiteFooter() {
           links={[
             { href: "/pricing", label: t("navPricing") },
             { href: "/docs", label: t("navDocs") },
+            { href: "/alternatives/opsgenie", label: t("footerOpsgenie") },
             { href: "/login", label: t("signIn") },
             { href: "/signup", label: t("signUp") },
           ]}

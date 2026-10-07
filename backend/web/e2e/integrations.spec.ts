@@ -177,3 +177,54 @@ test("integrations the server can't deliver to say so and offer what works", asy
   await page.goto(path("integrations/new/carrier-pigeon"));
   await expect(page.getByText("We don't have that integration.")).toBeVisible();
 });
+
+test("an inbound source shows its URL once, checks a payload, and opens an incident", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(90_000);
+  const name = `Prometheus ${testInfo.project.name} ${Date.now()}`;
+  await page.goto(path("integrations"));
+  await expect(page.getByRole("heading", { name: "Inbound alerts" })).toBeVisible();
+  await page.getByLabel("Name", { exact: true }).fill(name);
+  await page.getByLabel("Sends").selectOption("alertmanager");
+  await page.getByRole("button", { name: "Add source" }).click();
+
+  const url = page.getByRole("textbox", { name: `URL for ${name}` });
+  await expect(url).toHaveValue(/\/api\/inbound\/[A-Za-z0-9_-]+$/);
+  await expect(page.getByText(/send_resolved: true/)).toBeVisible();
+  const row = page.getByRole("listitem").filter({ hasText: name });
+  await expect(row).toContainText("nothing received yet");
+
+  /* The tester starts with a firing sample and says what it would do. */
+  await row.getByRole("button", { name: "Try a payload" }).click();
+  await row.getByRole("button", { name: "Check payload" }).click();
+  await expect(row.getByText("Would open “5xx rate above 5% on api-1” (Critical)")).toBeVisible();
+  await row.getByRole("button", { name: "Sample: resolved" }).click();
+  await row.getByRole("button", { name: "Check payload" }).click();
+  await expect(row.getByText("Would resolve “5xx rate above 5% on api-1”")).toBeVisible();
+  await row.getByLabel("Payload", { exact: true }).fill("{ not json");
+  await row.getByRole("button", { name: "Check payload" }).click();
+  await expect(row.getByText("That isn't valid JSON.")).toBeVisible();
+  await noAxeViolations(page);
+
+  /* What Alertmanager would send: the incident opens, then closes on the recovery. */
+  const endpoint = new URL(await url.inputValue()).pathname;
+  const firing = {
+    alerts: [
+      {
+        status: "firing",
+        labels: { alertname: "E2E", severity: "critical" },
+        annotations: { summary: `${name} is on fire` },
+        fingerprint: `e2e-${Date.now()}`,
+      },
+    ],
+  };
+  const fired = await page.request.post(endpoint, { data: firing });
+  expect(fired.status()).toBe(202);
+  await page.goto(path("incidents"));
+  await expect(page.getByRole("link", { name: new RegExp(`${name} is on fire`) })).toBeVisible();
+  const cleared = await page.request.post(endpoint, {
+    data: { alerts: [{ ...firing.alerts[0], status: "resolved" }] },
+  });
+  expect(await cleared.json()).toMatchObject({ resolved: 1 });
+});

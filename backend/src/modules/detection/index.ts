@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { AppModule, Infra } from "../../composition/types.js";
 import { newId } from "../../infra/ids.js";
 import { probeOf } from "../../middleware/probe-auth.js";
-import { requireRole } from "../../middleware/roles.js";
+import { requirePermission } from "../../middleware/roles.js";
 import { inputOf, validate } from "../../middleware/validate.js";
 import { scopeOf } from "../../middleware/workspace.js";
 import type { DeploysService } from "../deploys/index.js";
@@ -72,7 +72,7 @@ function createUptimeRouter(
   guards: { session: RequestHandler; workspace: RequestHandler },
 ): Router {
   const router = Router({ mergeParams: true });
-  const read = [guards.session, guards.workspace, requireRole("viewer")];
+  const read = [guards.session, guards.workspace, requirePermission("monitor:read")];
   router.get("/monitor-states", ...read, async (req, res) => {
     const scope = scopeOf(req, res);
     res.json({

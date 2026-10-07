@@ -19,6 +19,10 @@ import { createDeploysModule } from "../modules/deploys/index.js";
 import { createBillingModule } from "../modules/billing/index.js";
 import { createCreditsModule } from "../modules/credits/index.js";
 import { createMaintenanceModule } from "../modules/maintenance/index.js";
+import { createContactsModule } from "../modules/contacts/index.js";
+import { createOncallModule } from "../modules/oncall/index.js";
+import { createInboundModule } from "../modules/inbound/index.js";
+import { createImportsModule } from "../modules/imports/index.js";
 /* new-module:imports */
 
 export function createModules(infra: Infra): AppModule[] {
@@ -107,12 +111,30 @@ export function createModules(infra: Infra): AppModule[] {
     credits: credits.service,
   });
   modules.push(channels);
+  const contacts = createContactsModule({
+    infra,
+    workspaces: workspaces.service,
+    phones: channels.phones,
+    guards: workspaces.guards,
+  });
+  modules.push(contacts);
+  const oncall = createOncallModule({
+    infra,
+    workspaces: workspaces.service,
+    contacts: contacts.service,
+    incidents: incidents.service,
+    limits: (scope) => billing.service.limits(scope),
+    guards: workspaces.guards,
+  });
+  modules.push(oncall);
   modules.push(
     createAlertingModule({
       infra,
       incidents: incidents.service,
       channels: channels.service,
       workspaces: workspaces.service,
+      contacts: contacts.service,
+      oncall: oncall.service,
       credits: credits.service,
       guards: workspaces.guards,
     }),
@@ -124,6 +146,12 @@ export function createModules(infra: Infra): AppModule[] {
       workspaces: workspaces.service,
       phones: channels.phones,
       messaging: channels.messaging,
+      channels: channels.service,
+      integrations: channels.integrations,
+      contacts: contacts.service,
+      oncall: oncall.service,
+      maintenance: maintenance.service,
+      monitors: monitors.service,
     }),
   );
   modules.push(
@@ -133,6 +161,23 @@ export function createModules(infra: Infra): AppModule[] {
       incidents: incidents.service,
       detection: detection.service,
       monitors: monitors.service,
+    }),
+  );
+  modules.push(
+    createInboundModule({
+      infra,
+      incidents: incidents.service,
+      limits: (scope) => billing.service.limits(scope),
+      guards: workspaces.guards,
+    }),
+  );
+  modules.push(
+    createImportsModule({
+      infra,
+      monitors: monitors.service,
+      oncall: oncall.service,
+      workspaces: workspaces.service,
+      guards: workspaces.guards,
     }),
   );
   /* new-module:create */

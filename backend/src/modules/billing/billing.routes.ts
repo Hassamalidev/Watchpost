@@ -5,27 +5,14 @@
  * - /api/webhooks/paddle: raw body, signature checked before anything is parsed (§7.9 step 3).
  */
 import express, { Router, type RequestHandler } from "express";
-import { ForbiddenError } from "../../core/errors.js";
 import type { RedisClient } from "../../infra/redis.js";
 import { PADDLE_SIGNATURE_HEADER } from "../../infra/paddle/index.js";
 import { createRateLimiter } from "../../middleware/rate-limit.js";
+import { requirePermission } from "../../middleware/roles.js";
 import { validate } from "../../middleware/validate.js";
-import { scopeOf } from "../../middleware/workspace.js";
 import type { BillingController } from "./billing.controller.js";
 import type { PaddleSync } from "./paddle-sync.js";
 import { buyCreditsBody, cancelBody, planBody } from "./validators/index.js";
-
-const MANAGERS = new Set(["owner", "admin", "billing", "system"]);
-
-/* Owners, admins and the billing role manage the subscription. */
-export const requireBillingManager: RequestHandler = (req, res, next) => {
-  const scope = scopeOf(req, res);
-  if (!MANAGERS.has(scope.role)) {
-    next(new ForbiddenError("Only owners, admins and billing members can change billing."));
-    return;
-  }
-  next();
-};
 
 export function createBillingRouter(
   controller: BillingController,
@@ -34,10 +21,12 @@ export function createBillingRouter(
   const router = Router({ mergeParams: true });
   router.use(["/entitlements", "/billing"], guards.session, guards.workspace);
 
-  router.get("/entitlements", controller.entitlements);
-  router.get("/billing", controller.state);
+  const read = requirePermission("billing:read");
+  router.get("/entitlements", read, controller.entitlements);
+  router.get("/billing", read, controller.state);
 
-  const manage = [requireBillingManager];
+  /* Owners, admins and the billing role manage the subscription. */
+  const manage = [requirePermission("billing:manage")];
   router.post("/billing/checkout", ...manage, validate({ body: planBody }), controller.checkout);
   router.post("/billing/plan", ...manage, validate({ body: planBody }), controller.changePlan);
   router.post(

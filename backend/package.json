@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
+    "vapid:generate": "tsx scripts/vapid-generate.ts",
     "auth:generate": "auth generate --config scripts/auth-cli.config.ts --output src/infra/auth/schema.ts --yes && tsx scripts/auth-schema-postprocess.ts && prettier --write src/infra/auth/schema.ts",
     "db:migrate": "tsx src/migrate.ts",
     "new:module": "tsx scripts/new-module.ts",

@@ -55,3 +55,30 @@ test("docs and legal drafts are reachable and the drafts say they are drafts", a
   await expect(page.getByText(/Draft, needs owner review/)).toBeVisible();
   await noAxeViolations(page);
 });
+
+test("the Opsgenie page states the dates with sources and leads to the migration guide", async ({
+  page,
+}) => {
+  await page.goto("/alternatives/opsgenie");
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: "Moving on from Opsgenie? Bring your schedules with you.",
+    }),
+  ).toBeVisible();
+  await expect(page.getByText("Support for Opsgenie ends on April 5, 2027.")).toBeVisible();
+  await expect(page.getByText(/checked on 2026-09-30/)).toBeVisible();
+  await expect(page.getByRole("link", { name: /^https:\/\// }).first()).toBeVisible();
+  await noAxeViolations(page);
+
+  await page.getByRole("link", { name: "Read the migration guide" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Moving from Opsgenie" })).toBeVisible();
+  await expect(page.getByText(/api\.opsgenie\.com\/v2\/schedules\?expand=rotation/)).toBeVisible();
+  await noAxeViolations(page);
+
+  /* The comparison page no longer calls the importer "planned". */
+  await page.goto("/compare/opsgenie");
+  await expect(
+    page.getByText(/an importer for Opsgenie schedules and escalations are included/),
+  ).toBeVisible();
+});

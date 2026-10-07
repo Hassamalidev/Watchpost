@@ -1,4 +1,5 @@
 /* Better Auth endpoints the web app uses (email + password, sessions, workspaces as organizations). */
+import type { WorkspaceRole } from "@app/shared";
 import { api } from "@/lib/api";
 
 export interface Session {
@@ -69,11 +70,10 @@ export const rejectInvitation = (invitationId: string) =>
     body: { invitationId },
   });
 
-export const inviteMember = (
-  workspaceId: string,
-  email: string,
-  role: "admin" | "member" | "viewer",
-) =>
+/* Ownership isn't handed out by invitation. */
+export type InvitableRole = Exclude<WorkspaceRole, "owner">;
+
+export const inviteMember = (workspaceId: string, email: string, role: InvitableRole) =>
   api<unknown>("/api/auth/organization/invite-member", {
     method: "POST",
     body: { email, role, organizationId: workspaceId },

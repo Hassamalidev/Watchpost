@@ -15,6 +15,8 @@ export interface OutboundRequest {
   url: string;
   headers?: Record<string, string>;
   body?: string;
+  /* A binary body (an encrypted push message); takes the place of `body`. */
+  bodyBytes?: Buffer;
   timeoutMs?: number;
   /*
    * Set when the caller needs the whole body (JSON APIs): a larger response fails with `too_large`
@@ -115,9 +117,11 @@ export function createOutboundHttp(options: {
             method: req.method,
             headers: {
               "user-agent": userAgent,
-              ...(req.body === undefined
-                ? {}
-                : { "content-length": String(Buffer.byteLength(req.body)) }),
+              ...(req.bodyBytes !== undefined
+                ? { "content-length": String(req.bodyBytes.length) }
+                : req.body === undefined
+                  ? {}
+                  : { "content-length": String(Buffer.byteLength(req.body)) }),
               ...req.headers,
             },
             /* Pin the connection to the vetted address; TLS still verifies the hostname. */
@@ -170,7 +174,8 @@ export function createOutboundHttp(options: {
           reject(err instanceof OutboundError ? err : new OutboundError("network", err.message));
         });
         request.on("close", () => clearTimeout(deadline));
-        if (req.body !== undefined) request.write(req.body);
+        if (req.bodyBytes !== undefined) request.write(req.bodyBytes);
+        else if (req.body !== undefined) request.write(req.body);
         request.end();
       });
     },

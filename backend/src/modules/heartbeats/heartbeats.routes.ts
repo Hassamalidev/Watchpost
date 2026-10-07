@@ -6,7 +6,7 @@
  */
 import express, { Router, type RequestHandler } from "express";
 import { z } from "zod";
-import { requireRole } from "../../middleware/roles.js";
+import { requirePermission } from "../../middleware/roles.js";
 import { inputOf, validate } from "../../middleware/validate.js";
 import { scopeOf } from "../../middleware/workspace.js";
 import type { HeartbeatsService, PingSignal } from "./heartbeats.service.js";
@@ -21,12 +21,12 @@ export function createHeartbeatsRouter(
   const router = Router({ mergeParams: true });
   router.use("/heartbeats", guards.session, guards.workspace);
 
-  router.get("/heartbeats", requireRole("viewer"), async (req, res) => {
+  router.get("/heartbeats", requirePermission("monitor:read"), async (req, res) => {
     res.json({ data: await service.list(scopeOf(req, res)) });
   });
   router.get(
     "/heartbeats/:monitorId",
-    requireRole("viewer"),
+    requirePermission("monitor:read"),
     validate({ params: monitorParams }),
     async (req, res) => {
       const { params } = inputOf<{ params: typeof monitorParams }>(req, res);
@@ -35,7 +35,7 @@ export function createHeartbeatsRouter(
   );
   router.post(
     "/heartbeats/:monitorId/token",
-    requireRole("member"),
+    requirePermission("monitor:write"),
     validate({ params: monitorParams }),
     async (req, res) => {
       const { params } = inputOf<{ params: typeof monitorParams }>(req, res);

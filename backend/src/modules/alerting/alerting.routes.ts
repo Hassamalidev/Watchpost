@@ -3,11 +3,12 @@
  * Viewers and above read; admins change routing (policies are part of integrations).
  */
 import { Router, type RequestHandler } from "express";
-import { requireRole } from "../../middleware/roles.js";
+import { requirePermission } from "../../middleware/roles.js";
 import { validate } from "../../middleware/validate.js";
 import type { AlertingController } from "./alerting.controller.js";
 import {
   channelIdParams,
+  defaultEscalationBody,
   createPolicyBody,
   incidentIdParams,
   policyIdParams,
@@ -19,8 +20,8 @@ export function createAlertingRouter(
   guards: { session: RequestHandler; workspace: RequestHandler },
 ): Router {
   const router = Router({ mergeParams: true });
-  const read = requireRole("viewer");
-  const admin = requireRole("admin");
+  const read = requirePermission("alertPolicy:read");
+  const admin = requirePermission("alertPolicy:write");
   router.use("/alert-policies", guards.session, guards.workspace);
 
   router.get("/alert-policies", read, controller.list);
@@ -31,6 +32,13 @@ export function createAlertingRouter(
     admin,
     validate({ params: channelIdParams }),
     controller.routeToDefault,
+  );
+  /* Which escalation policy the default route pages through: one setting, changed atomically. */
+  router.put(
+    "/alert-policies/default/escalation",
+    admin,
+    validate({ body: defaultEscalationBody }),
+    controller.setDefaultEscalation,
   );
   router.patch(
     "/alert-policies/:policyId",
@@ -49,16 +57,33 @@ export function createAlertingRouter(
     "/incidents/:incidentId/deliveries",
     guards.session,
     guards.workspace,
-    requireRole("viewer"),
+    requirePermission("incident:read"),
     validate({ params: incidentIdParams }),
     controller.deliveries,
+  );
+  /* Where the incident's escalation stands, and "escalate now" for whoever is responding. */
+  router.get(
+    "/incidents/:incidentId/escalation",
+    guards.session,
+    guards.workspace,
+    requirePermission("incident:read"),
+    validate({ params: incidentIdParams }),
+    controller.escalation,
+  );
+  router.post(
+    "/incidents/:incidentId/escalate",
+    guards.session,
+    guards.workspace,
+    requirePermission("incident:respond"),
+    validate({ params: incidentIdParams }),
+    controller.escalateNow,
   );
   /* "Send test" lives here: alerting builds alert events (it knows the workspace name). */
   router.post(
     "/channels/:channelId/test",
     guards.session,
     guards.workspace,
-    admin,
+    requirePermission("channel:manage"),
     validate({ params: channelIdParams }),
     controller.sendTest,
   );

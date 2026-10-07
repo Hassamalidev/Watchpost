@@ -13,6 +13,7 @@ import { createTokenCipher } from "../infra/crypto.js";
 import { createEmailRequester } from "../infra/email/index.js";
 import { createDb, createDbPool, pingDb } from "../infra/db/index.js";
 import { createOutboundHttp, type OutboundHttp } from "../infra/http/outbound.js";
+import { createWebPush } from "../infra/webpush.js";
 import { createLocks } from "../infra/locks.js";
 import { createLogger, type Logger } from "../infra/logger.js";
 import { createOutbox, OUTBOX_MAX_LAG_SECONDS } from "../infra/outbox/index.js";
@@ -125,6 +126,12 @@ export function createInfra(
         ? createFileObjectStore(resolve(process.cwd(), ".data", "objects"))
         : undefined);
 
+  const http =
+    options.http ??
+    createOutboundHttp({
+      policy: createAddressPolicy({ allowCidrs: config.outbound.allowCidrs }),
+    });
+
   return {
     config,
     logger,
@@ -149,11 +156,11 @@ export function createInfra(
       webOrigin: config.webOrigin,
       clock: options.clock ?? systemClock,
     }),
-    http:
-      options.http ??
-      createOutboundHttp({
-        policy: createAddressPolicy({ allowCidrs: config.outbound.allowCidrs }),
-      }),
+    http,
+    webPush:
+      config.webPush === undefined
+        ? undefined
+        : createWebPush({ ...config.webPush, http, clock: options.clock ?? systemClock }),
   };
 }
 

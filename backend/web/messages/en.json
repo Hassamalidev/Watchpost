@@ -21,6 +21,7 @@
     "maintenance": "Maintenance",
     "integrations": "Integrations",
     "reports": "Reports",
+    "notifications": "My notifications",
     "team": "Team",
     "settings": "Settings",
     "billing": "Billing"
@@ -251,7 +252,8 @@
       "false_alarm_marked": "Marked as a false alarm",
       "false_alarm_cleared": "False-alarm mark removed",
       "flapping_started": "Started flapping",
-      "flapping_stopped": "Stopped flapping"
+      "flapping_stopped": "Stopped flapping",
+      "escalated": "Escalated to the next step"
     },
     "statuses": {
       "triggered": "Triggered",
@@ -285,7 +287,8 @@
       "bodyStart": "Start of the response body",
       "expired": "The stored evidence for this region is no longer available. It is kept for 30 days.",
       "note": "Recorded when the incident opened and kept privately for 30 days."
-    }
+    },
+    "commandBar": "Actions for incident #{number}"
   },
   "integrations": {
     "title": "Integrations",
@@ -689,7 +692,40 @@
     "phoneSendCode": "Send code by SMS ({credits, plural, one {# credit} other {# credits}})",
     "phoneCode": "6-digit code",
     "phoneConfirm": "Verify number",
-    "phoneVerified": "Number verified. You can save now."
+    "phoneVerified": "Number verified. You can save now.",
+    "inbound": {
+      "title": "Inbound alerts",
+      "hint": "Let your other tools open and close incidents here: Prometheus Alertmanager, Grafana, Datadog, anything that can post JSON, or email. A repeat of an open alert adds nothing, and the tool's recovery closes the incident.",
+      "empty": "No inbound sources yet.",
+      "name": "Name",
+      "namePlaceholder": "Production Prometheus",
+      "kind": "Sends",
+      "add": "Add source",
+      "url": "URL for {name}",
+      "shownOnce": "Copy it now. It is shown only once; anyone who has it can open incidents in this workspace. \"New URL\" replaces it.",
+      "setup": {
+        "generic": "POST JSON with at least a title. Use status \"trigger\" or \"resolve\" and the same dedup_key on both.",
+        "alertmanager": "In alertmanager.yml add a receiver with webhook_configs: url set to this URL, and send_resolved: true.",
+        "grafana": "In Grafana add a contact point of type Webhook with this URL, and leave \"Disable resolved message\" off.",
+        "datadog": "In Datadog's Webhooks integration add a webhook with this URL and this payload, then mention it in a monitor's message:",
+        "email": "Point your inbound-mail provider's webhook at this URL. It should post JSON with from, subject and text; a subject starting with RECOVERY, RESOLVED or OK closes the incident."
+      },
+      "never": "nothing received yet",
+      "lastReceived": "last alert {when}",
+      "tryPayload": "Try a payload",
+      "newUrl": "New URL",
+      "delete": "Delete",
+      "deleteNamed": "Delete {name}",
+      "payload": "Payload",
+      "payloadHint": "Paste what the tool sends, as JSON. Nothing is opened: this only shows what would happen.",
+      "check": "Check payload",
+      "sampleTrigger": "Sample: firing",
+      "sampleResolve": "Sample: resolved",
+      "notJson": "That isn't valid JSON.",
+      "result": "What this payload would do",
+      "wouldOpen": "Would open “{title}” ({severity})",
+      "wouldResolve": "Would resolve “{title}”"
+    }
   },
   "heartbeats": {
     "title": "Heartbeats",
@@ -722,13 +758,313 @@
       "responder": "Responder",
       "viewer": "Viewer",
       "billing": "Billing"
+    },
+    "roleHints": {
+      "admin": "Everything except deleting the workspace: monitors, integrations, alert routing, members and billing.",
+      "member": "Manages monitors, maintenance and incidents. Can't change integrations, members or billing.",
+      "responder": "Sees everything and can acknowledge, resolve and comment on incidents. Can't change monitors.",
+      "viewer": "Read-only: sees monitors, incidents and maintenance, changes nothing.",
+      "billing": "Billing pages only: the plan, usage, credits and invoices. Sees no monitors or incidents."
+    }
+  },
+  "oncall": {
+    "title": "On-call",
+    "lead": "Who gets paged, and when. Each schedule rotates through its people; overrides cover a stretch by hand.",
+    "new": "New schedule",
+    "create": "Create schedule",
+    "cancel": "Cancel",
+    "schedules": "Schedules",
+    "empty": "No schedules yet.",
+    "emptyHintAdmin": "Create one to say who is on call each week. Until then, alerts go to every channel in your alert routes.",
+    "emptyHint": "An admin can create one. Until then, alerts go to every channel in your alert routes.",
+    "nobody": "Nobody is on call right now",
+    "nobodyShort": "Nobody",
+    "onCallNow": "On call now: {name}",
+    "formerMember": "A former member",
+    "back": "All schedules",
+    "notFound": "This schedule doesn't exist any more.",
+    "edit": "Edit schedule",
+    "save": "Save schedule",
+    "delete": "Delete",
+    "deleteConfirm": "Delete the schedule \"{name}\"? Its overrides go with it.",
+    "summary": "{timezone} · {layers, plural, one {# layer} other {# layers}}",
+    "nowTitle": "On call now",
+    "until": "Until {time}",
+    "untilOverride": "Covering by override until {time}",
+    "next": "Next: {name}, from {time}",
+    "calendar": "Next two weeks",
+    "calendarCaption": "Who is on call for {name}, day by day",
+    "earlier": "Earlier",
+    "today": "Today",
+    "later": "Later",
+    "timesIn": "Times in {timezone}",
+    "day": "Day",
+    "whoOnCall": "On call",
+    "override": "override",
+    "overrides": "Overrides",
+    "overridesHint": "Put someone on call for a stretch, whatever the rotation says: cover a doctor's appointment, swap a weekend.",
+    "noOverrides": "No overrides ahead.",
+    "removeOverride": "Remove",
+    "addOverride": "Add an override",
+    "overrideWho": "Who covers",
+    "overrideFrom": "From",
+    "overrideTo": "Until",
+    "yourTime": "In your own time zone.",
+    "me": "Me ({name})",
+    "addOverrideButton": "Add override",
+    "overrideAdded": "Override added.",
+    "overrideTimes": "The override must end after it starts.",
+    "feed": {
+      "title": "Your on-call calendar",
+      "hint": "Subscribe from Google Calendar, Outlook or Apple Calendar to see your own shifts next to your meetings. The link is private: anyone who has it can see when you are on call.",
+      "create": "Create my calendar link",
+      "replace": "Replace the link",
+      "turnOff": "Turn off",
+      "url": "Calendar link",
+      "shownOnce": "Copy it now. It is shown only once; replacing it stops the old link working.",
+      "active": "Your calendar link has been active since {date}."
+    },
+    "form": {
+      "name": "Schedule name",
+      "timezone": "Time zone",
+      "timezoneHint": "Handoffs and working hours follow this zone's clock, daylight saving included.",
+      "defaultLayer": "Primary",
+      "layer": "Layer {number}",
+      "layerName": "Layer name",
+      "rotation": "Hands off",
+      "rotations": {
+        "daily": "Every day",
+        "weekly": "Every week",
+        "custom": "Every N hours"
+      },
+      "shiftHours": "Hours per shift",
+      "firstHandoff": "First handoff",
+      "firstHandoffHint": "In your own time zone. Later handoffs keep this time of day.",
+      "people": "People, in rotation order",
+      "noPeople": "Nobody yet. Add at least one person.",
+      "addPerson": "Add a person",
+      "choosePerson": "Choose…",
+      "add": "Add",
+      "remove": "Remove",
+      "removePerson": "Remove {name}",
+      "limit": "On call",
+      "limits": {
+        "always": "Around the clock",
+        "window": "Only during set hours"
+      },
+      "days": "Days",
+      "weekdays": {
+        "1": "Mon",
+        "2": "Tue",
+        "3": "Wed",
+        "4": "Thu",
+        "5": "Fri",
+        "6": "Sat",
+        "7": "Sun"
+      },
+      "from": "From",
+      "to": "To",
+      "removeLayer": "Remove this layer",
+      "addLayer": "Add a layer",
+      "layersHint": "Where layers overlap, the last one wins. Outside its hours a layer hands back to the one above it in this list.",
+      "problems": {
+        "name": "Give the schedule a name.",
+        "start": "Layer {number} needs a first handoff date and time.",
+        "participants": "Layer {number} needs at least one person.",
+        "shiftHours": "Layer {number}: hours per shift must be a whole number from 1 to 672.",
+        "days": "Layer {number}: choose at least one day."
+      }
+    },
+    "escalation": {
+      "title": "Escalation policies",
+      "hint": "Who is paged when an incident opens, and who is paged next if nobody acknowledges. Each person is reached through their own notification rules.",
+      "empty": "No escalation policies yet. Alerts go to your channels only.",
+      "new": "New escalation policy",
+      "create": "Create policy",
+      "cancel": "Cancel",
+      "name": "Policy name",
+      "repeat": "Repeat",
+      "repeatHint": "How often the steps run again if nobody acknowledges.",
+      "repeatTimes": "{count, plural, =0 {Don't repeat} one {Once more} other {# more times}}",
+      "step": "Step {number}",
+      "page": "Page",
+      "choose": "Choose…",
+      "schedules": "Schedules",
+      "people": "People",
+      "onCallFor": "Whoever is on call for {name}",
+      "delayFirst": "Minutes after the incident opens",
+      "delay": "Minutes after the step before",
+      "remove": "Remove",
+      "removeStep": "Remove step {number}",
+      "addStep": "Add a step",
+      "delete": "Delete",
+      "deleteNamed": "Delete {name}",
+      "inUse": "in use for alerts",
+      "someone": "someone",
+      "stepNow": "At once: {who}",
+      "stepAfter": "After {minutes, plural, one {# minute} other {# minutes}}: {who}",
+      "thenRepeat": "Then {count, plural, one {once more} other {# more times}} from the top",
+      "use": "Page through this policy when an incident opens",
+      "useHint": "Applies to the default alert route. Channels still get every alert.",
+      "useNone": "None: channels only",
+      "problems": {
+        "name": "Give the policy a name.",
+        "target": "Step {number}: choose who to page.",
+        "delay": "Step {number}: the delay must be a whole number of minutes from 0 to 1440."
+      }
+    },
+    "incident": {
+      "title": "Escalation",
+      "progress": "{name}: {run} of {total, plural, one {# step} other {# steps}} run",
+      "nextAt": "Next step at {time} unless someone acknowledges.",
+      "escalateNow": "Escalate now",
+      "finished": {
+        "acknowledged": "Stopped: someone acknowledged the incident.",
+        "resolved": "Stopped: the incident is resolved.",
+        "exhausted": "Every step has run. Nobody else will be paged."
+      }
+    },
+    "mine": {
+      "title": "My on-call",
+      "notNow": "You are not on call right now.",
+      "now": "On call now",
+      "onCallFor": "You are on call for",
+      "until": "until {time}.",
+      "untilOverride": "by override until {time}.",
+      "next": "Your next shifts",
+      "noUpcoming": "No shifts in the next five weeks.",
+      "hint": "Times are in your own time zone. When a shift ends you get a handoff report by email: what happened and what is still open."
+    },
+    "importFromOpsgenie": "Moving from Opsgenie? Import your schedules and escalation policies."
+  },
+  "imports": {
+    "title": "Import from another tool",
+    "lead": "Preview first: you see what every monitor, schedule and escalation policy would become here, and what can't come over and why. Nothing is created until you say so.",
+    "back": "Settings",
+    "adminsOnly": "Importing creates monitors and schedules in bulk, so it is for admins and owners.",
+    "step1": "1. Where from",
+    "step2": "2. What would be imported",
+    "source": "Tool",
+    "how": {
+      "uptimerobot": "Give a read-only API key (UptimeRobot → Integrations & API → Read-only API key), or paste the JSON answer of the getMonitors API.",
+      "uptime_kuma": "In Uptime Kuma open Settings → Backup, export, and paste the file's contents.",
+      "better_stack": "Paste the JSON answer of Better Stack's monitors API (GET /api/v2/monitors). To bring heartbeats too, paste an object with \"monitors\" and \"heartbeats\", each holding that API's answer.",
+      "opsgenie": "Paste an object with \"schedules\" and \"escalations\", each holding the data list from Opsgenie's API (GET /v2/schedules?expand=rotation and GET /v2/escalations). People are matched to members here by email, so invite them first."
+    },
+    "apiKey": "Read-only API key",
+    "apiKeyHint": "Used once for this import and never stored.",
+    "export": "Export (JSON)",
+    "exportOr": "Or paste the export (JSON)",
+    "exportHint": "It is read for the preview and the import, and not kept.",
+    "needExport": "Paste the export first.",
+    "needExportOrKey": "Give an API key or paste the export first.",
+    "notJson": "That isn't valid JSON.",
+    "preview": "Preview",
+    "coverage": "{mapped} of {total} can be imported ({percent}%).",
+    "itemsCaption": "What each object becomes",
+    "item": "In the other tool",
+    "outcome": "Here",
+    "kinds": {
+      "monitor": "Monitor",
+      "schedule": "Schedule",
+      "escalation": "Escalation policy"
+    },
+    "skipped": "Not imported:",
+    "failed": "Failed:",
+    "created": "Created:",
+    "apply": "Import {count, plural, one {# item} other {# items}}",
+    "done": "Import finished",
+    "result": "{created, plural, one {# item was} other {# items were}} created{failed, plural, =0 {.} one {; # could not be created (see below).} other {; # could not be created (see below).}}",
+    "history": "Earlier imports",
+    "noHistory": "No imports yet.",
+    "historyLine": "{created} of {total} created"
+  },
+  "notifications": {
+    "title": "My notifications",
+    "lead": "How Watchpost reaches you when an incident is yours to handle. These settings are yours alone; teammates set their own.",
+    "methods": "Contact methods",
+    "methodsHint": "An address or number is used only after you enter the code we send to it. Your account email is ready to use.",
+    "types": {
+      "email": "Email",
+      "sms": "SMS",
+      "voice": "Phone call",
+      "push": "Device notification"
+    },
+    "verified": "Verified",
+    "unverified": "Not verified yet",
+    "remove": "Remove",
+    "removeAddress": "Remove {address}",
+    "codeFor": "Code sent to {address}",
+    "codeHint": "Six digits, valid for 10 minutes.",
+    "verify": "Verify",
+    "resend": "Send a new code",
+    "codeSent": "A new code is on its way to {address}.",
+    "add": "Add a contact method",
+    "address": "Email address",
+    "addressHint": "We'll email a code to confirm it's yours.",
+    "label": "Label (optional)",
+    "addButton": "Add and send code",
+    "rules": "When to notify me",
+    "rulesHint": "Delays count from the moment an incident reaches you. Later steps are skipped once someone acknowledges it.",
+    "urgency": {
+      "high": {
+        "title": "High urgency",
+        "hint": "Critical and high-severity incidents: something is down."
+      },
+      "low": {
+        "title": "Low urgency",
+        "hint": "Low-severity incidents, such as a certificate that expires soon."
+      }
+    },
+    "delay": {
+      "off": "Don't use",
+      "now": "Immediately",
+      "after": "After {minutes, plural, one {# minute} other {# minutes}}"
+    },
+    "pickOne": "Choose at least one contact method, or these incidents couldn't reach you.",
+    "saveRules": "Save rules",
+    "rulesSaved": "Rules saved.",
+    "kind": "Type",
+    "phone": "Phone number",
+    "phoneHint": "International format, like +14155550123. The verification text and every alert text or call use the workspace's alert credits.",
+    "chat": {
+      "title": "Linked chat accounts",
+      "hint": "Link your Slack user so that what you do in Slack (a button on an alert, a /watchpost command) is recorded under your name and with your role.",
+      "empty": "None yet. In Slack, type /watchpost link and open the link it gives you.",
+      "providers": {
+        "slack": "Slack",
+        "telegram": "Telegram"
+      },
+      "unnamed": "unnamed user",
+      "confirm": "Link the {provider} user “{name}” to your account?",
+      "confirmHint": "Only confirm if that is you. Whoever uses that chat account will act as you.",
+      "link": "Yes, link it",
+      "notMe": "No, that isn't me",
+      "expired": "This link has expired or isn't for this workspace. Type /watchpost link in Slack for a new one.",
+      "since": "linked {date}",
+      "unlink": "Unlink"
+    },
+    "device": {
+      "title": "Notifications on this device",
+      "hint": "Get alerts as notifications on this phone or computer, with an Acknowledge button on them. It is the fastest way to be reached and costs no credits.",
+      "turnOn": "Turn on for this device",
+      "turnOff": "Turn off for this device",
+      "on": "On for {name}.",
+      "thisDevice": "this device",
+      "unsupported": "This browser can't show notifications from websites. On iPhone and iPad, add Watchpost to the Home Screen first (Share, then Add to Home Screen) and open it from there.",
+      "notConfigured": "Notifications on devices aren't set up on this server yet.",
+      "denied": "Notifications are blocked for this site. Allow them in the browser's site settings, then come back.",
+      "install": "Tip: add Watchpost to your phone's home screen (the browser menu, then Add to Home screen or Install app) so alerts arrive even when the browser is closed."
     }
   },
   "settings": {
     "title": "Settings",
     "timezone": "Time zone",
     "timezoneHint": "Used for schedules, reports and dates.",
-    "saved": "Settings saved."
+    "saved": "Settings saved.",
+    "importTitle": "Moving from another tool?",
+    "importHint": "Bring your monitors from UptimeRobot, Uptime Kuma or Better Stack, and your schedules and escalation policies from Opsgenie.",
+    "importLink": "Import from another tool"
   },
   "billing": {
     "title": "Billing",
@@ -848,11 +1184,6 @@
         "what": "Public status pages on your own domain, with components, 90-day uptime bars, incident updates and subscribers.",
         "meanwhile": "Until then, every monitor page shows 90-day uptime and response times you can share with your team.",
         "action": "Open monitors"
-      },
-      "onCall": {
-        "what": "Schedules, rotations, overrides and escalation policies, with no per-seat pricing.",
-        "meanwhile": "Until then, alerts go to every channel in your alert routes, with reminders while an incident stays open.",
-        "action": "Set up alert channels"
       },
       "reports": {
         "what": "Monthly SLA reports as PDF and CSV, and uptime history you can send to clients.",
@@ -1117,7 +1448,8 @@
         "pro": "Email, 1 business day",
         "business": "Priority, 4 business hours"
       }
-    }
+    },
+    "footerOpsgenie": "Moving from Opsgenie"
   },
   "actionLink": {
     "title": "Incident action",
@@ -1279,6 +1611,74 @@
       "start": "Choose when it starts.",
       "end": "Choose an end after the start.",
       "monitors": "Choose at least one monitor, or all monitors."
+    }
+  },
+  "alternatives": {
+    "opsgenie": {
+      "metaTitle": "An Opsgenie alternative with monitoring built in",
+      "title": "Moving on from Opsgenie? Bring your schedules with you.",
+      "lead": "Watchpost has on-call schedules, escalation policies and alerts by push, email, SMS and phone call, together with the uptime monitoring that finds the problem in the first place. Import your Opsgenie schedules and escalations, run both side by side, and switch when you trust it.",
+      "cta": "Start free",
+      "guide": "Read the migration guide",
+      "noCard": "No card needed. Every workspace starts with a 14-day Pro trial.",
+      "datesTitle": "The dates, as reported",
+      "dateSales": "New Opsgenie sales ended on June 4, 2025.",
+      "dateSupport": "Support for Opsgenie ends on April 5, 2027.",
+      "dateData": "Data that has not been migrated by then is deleted.",
+      "datesNote": "Reported by the sources below, checked on {date}. Confirm the dates for your own account with Atlassian.",
+      "coversTitle": "What you get",
+      "covers": {
+        "schedules": {
+          "title": "On-call schedules",
+          "body": "Layers, daily and weekly rotations, working-hours windows and overrides, with handoffs that keep their clock time across daylight-saving changes. A private calendar link shows your shifts next to your meetings."
+        },
+        "escalation": {
+          "title": "Escalation policies",
+          "body": "Page a person or whoever is on call, then the next step after the minutes you choose, for as many rounds as you want. An acknowledgement stops it."
+        },
+        "reach": {
+          "title": "Reach people where they are",
+          "body": "Each person sets their own rules: a notification on their phone and an email at once, a text after two minutes, a call after five. Acknowledge from the notification, the text or the call."
+        },
+        "chat": {
+          "title": "Slack and Telegram, both ways",
+          "body": "Alerts carry Acknowledge and Resolve buttons, and /watchpost answers who is on call or starts a maintenance window."
+        },
+        "inbound": {
+          "title": "Alerts from your other tools",
+          "body": "Prometheus Alertmanager, Grafana, Datadog, generic JSON and email open and close incidents here, without duplicates."
+        },
+        "monitoring": {
+          "title": "Monitoring included",
+          "body": "HTTP, keyword, TCP, ping, DNS, SSL and domain expiry checks and heartbeats from several regions, with a failure confirmed before anyone is paged."
+        }
+      },
+      "stepsTitle": "How the move works",
+      "steps": {
+        "import": {
+          "title": "Import.",
+          "body": "Export your schedules and escalations with two API calls and paste them in. You see what each one becomes before anything is created."
+        },
+        "parallel": {
+          "title": "Run side by side.",
+          "body": "Watchpost can open and close alerts in Opsgenie or Jira Service Management, so your team keeps being paged the old way while you compare."
+        },
+        "switch": {
+          "title": "Switch.",
+          "body": "Choose the escalation policy your alerts page through, run an alert drill, and turn the old integration off."
+        }
+      },
+      "honestTitle": "What does not come over",
+      "honest": {
+        "heartbeats": "Opsgenie heartbeats, teams and routing rules are not imported; heartbeats and alert routes are set up here by hand.",
+        "integrations": "Opsgenie's long list of integrations is replaced by the inbound sources above plus webhooks. If a tool you need is missing, tell us.",
+        "mobile": "There is no native mobile app yet. Watchpost installs from the browser as an app with notifications; on iPhone it must be added to the Home Screen first."
+      },
+      "pricingTitle": "Flat plans, not per seat",
+      "pricingBody": "Plans have one price per workspace, not per seat. On-call schedules and escalation policies are part of the Starter plan and up; Pro and Business have no limit on members, schedules or policies. SMS and calls use prepaid alert credits.",
+      "pricingLink": "See pricing",
+      "compareLink": "Watchpost and Opsgenie compared",
+      "sourcesTitle": "Sources"
     }
   }
 }

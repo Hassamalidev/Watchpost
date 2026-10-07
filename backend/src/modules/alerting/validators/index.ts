@@ -6,6 +6,7 @@ export const policyIdParams = z.object({ policyId: z.uuid() });
 export const channelIdParams = z.object({ channelId: z.uuid() });
 export const incidentIdParams = z.object({ incidentId: z.uuid() });
 export const createPolicyBody = alertPolicyBodySchema;
+export const defaultEscalationBody = z.object({ escalationPolicyId: z.uuid().nullable() }).strict();
 export const updatePolicyBody = z
   .object({
     name: z.string().trim().min(1).max(100).optional(),

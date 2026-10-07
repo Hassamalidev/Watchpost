@@ -449,6 +449,152 @@ export const EMAIL_TEMPLATES = {
     subject: (d: { subject: string }) => d.subject,
     component: AlertEmail,
   },
+  "contact-code": {
+    data: z.object({ code: z.string().regex(/^\d{6}$/), workspaceName: z.string() }),
+    subject: (d: { code: string }) => `${d.code} is your Watchpost code`,
+    component: (d: { code: string; workspaceName: string }) => (
+      <EmailLayout
+        preview={`Your code is ${d.code}`}
+        footer="You get this email because someone added this address as a contact method."
+      >
+        <Heading as="h1" className="wp-text" style={styles.heading}>
+          Confirm this address for alerts
+        </Heading>
+        <Text className="wp-text" style={styles.text}>
+          Enter this code in Watchpost to get {d.workspaceName} alerts at this address:
+        </Text>
+        <Text
+          className="wp-text"
+          style={{ ...styles.text, fontSize: "28px", fontWeight: 700, letterSpacing: "4px" }}
+        >
+          {d.code}
+        </Text>
+        <Text className="wp-muted" style={styles.muted}>
+          The code expires in 10 minutes. If you didn&apos;t ask for it, ignore this email and
+          nothing will be sent here.
+        </Text>
+      </EmailLayout>
+    ),
+  },
+  "shift-notice": {
+    data: z.object({
+      kind: z.enum(["start", "end"]),
+      scheduleName: z.string(),
+      workspaceName: z.string(),
+      timezone: z.string(),
+      at: z.iso.datetime({ offset: true }),
+      until: z.iso.datetime({ offset: true }).optional(),
+      otherName: z.string().optional(),
+      /* The handoff report: what happened during the shift that just ended. */
+      report: z
+        .object({
+          from: z.iso.datetime({ offset: true }),
+          started: z.number().int().min(0),
+          resolved: z.number().int().min(0),
+          open: z.array(z.object({ number: z.number().int(), title: z.string() })).max(10),
+        })
+        .optional(),
+      incidentsUrl: z.url().optional(),
+      url,
+    }),
+    subject: (d: { kind: "start" | "end"; scheduleName: string; report?: unknown }) =>
+      d.kind === "start"
+        ? `You are on call for ${d.scheduleName}`
+        : d.report === undefined
+          ? `Your on-call shift for ${d.scheduleName} has ended`
+          : `Handoff report: your shift for ${d.scheduleName} has ended`,
+    component: (d: {
+      kind: "start" | "end";
+      scheduleName: string;
+      workspaceName: string;
+      timezone: string;
+      at: string;
+      until?: string | undefined;
+      otherName?: string | undefined;
+      report?:
+        | {
+            from: string;
+            started: number;
+            resolved: number;
+            open: { number: number; title: string }[];
+          }
+        | undefined;
+      incidentsUrl?: string | undefined;
+      url: string;
+    }) => {
+      const when = (iso: string) =>
+        `${new Intl.DateTimeFormat("en", {
+          timeZone: d.timezone,
+          dateStyle: "medium",
+          timeStyle: "short",
+        }).format(new Date(iso))} (${d.timezone})`;
+      return (
+        <EmailLayout
+          preview={
+            d.kind === "start"
+              ? `Your shift for ${d.scheduleName} has started`
+              : `Your shift for ${d.scheduleName} has ended`
+          }
+          footer="You get this email because you are on an on-call schedule. Change where it goes under My notifications."
+        >
+          <Heading as="h1" className="wp-text" style={styles.heading}>
+            {d.kind === "start" ? "You are on call" : "Your shift has ended"}
+          </Heading>
+          <Text className="wp-text" style={styles.text}>
+            {d.kind === "start"
+              ? `Your shift for ${d.scheduleName} in ${d.workspaceName} started at ${when(d.at)}.`
+              : `Your shift for ${d.scheduleName} in ${d.workspaceName} ended at ${when(d.at)}.`}
+          </Text>
+          {d.kind === "start" && d.until !== undefined && (
+            <Text className="wp-text" style={styles.text}>
+              It runs until {when(d.until)}.
+            </Text>
+          )}
+          {d.otherName !== undefined && (
+            <Text className="wp-text" style={styles.text}>
+              {d.kind === "start"
+                ? `You took over from ${d.otherName}.`
+                : `${d.otherName} is on call now.`}
+            </Text>
+          )}
+          {d.report !== undefined && (
+            <>
+              <Heading as="h2" className="wp-text" style={{ ...styles.heading, fontSize: "16px" }}>
+                {d.kind === "end" ? "Your shift in short" : "What you are taking over"}
+              </Heading>
+              <Text className="wp-text" style={styles.text}>
+                {d.report.started === 0
+                  ? `No incidents since ${when(d.report.from)}.`
+                  : `${d.report.started} incident${d.report.started === 1 ? "" : "s"} since ${when(
+                      d.report.from,
+                    )}, ${d.report.resolved} resolved.`}
+              </Text>
+              {d.report.open.length === 0 ? (
+                <Text className="wp-text" style={styles.text}>
+                  Nothing is open right now.
+                </Text>
+              ) : (
+                <>
+                  <Text className="wp-text" style={{ ...styles.text, fontWeight: 700 }}>
+                    Still open:
+                  </Text>
+                  {d.report.open.map((incident) => (
+                    <Text key={incident.number} className="wp-text" style={styles.text}>
+                      #{incident.number} {incident.title}
+                    </Text>
+                  ))}
+                </>
+              )}
+            </>
+          )}
+          <Action href={d.report !== undefined && d.incidentsUrl ? d.incidentsUrl : d.url}>
+            {d.report !== undefined && d.incidentsUrl ? "Open incidents" : "Open the schedule"}
+          </Action>
+          <Fallback href={d.url} />
+        </EmailLayout>
+      );
+    },
+  },
   "channel-failing": {
     data: z.object({
       workspaceName: z.string(),

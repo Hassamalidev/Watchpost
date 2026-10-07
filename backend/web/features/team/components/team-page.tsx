@@ -1,4 +1,4 @@
-/* Team: members with their roles, and invitations (admins). */
+/* Team: members with their roles, and invitations in any role but owner (admins). */
 "use client";
 
 import * as React from "react";
@@ -12,8 +12,17 @@ import { Field } from "@/components/ui/field";
 import { Input, Select } from "@/components/ui/input";
 import { Loading } from "@/components/ui/skeleton";
 import { api, errorMessage, wsPath } from "@/lib/api";
-import { inviteMember } from "@/lib/auth";
+import { inviteMember, type InvitableRole } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
+
+/* From the most access to the least; billing sees billing pages only. */
+const INVITABLE_ROLES: readonly InvitableRole[] = [
+  "admin",
+  "member",
+  "responder",
+  "viewer",
+  "billing",
+];
 
 interface Member {
   userId: string;
@@ -31,10 +40,10 @@ export function TeamPage() {
     queryKey: ["members", ws],
     queryFn: async () => (await api<{ data: Member[] }>(wsPath(ws, "/members"))).data,
     /* The member list is for admins (§6.11). */
-    enabled: can(workspace.role, "admin"),
+    enabled: can(workspace.role, "roster:read"),
   });
   const [email, setEmail] = React.useState("");
-  const [role, setRole] = React.useState<"admin" | "member" | "viewer">("member");
+  const [role, setRole] = React.useState<InvitableRole>("member");
   const invite = useMutation({ mutationFn: () => inviteMember(ws, email.trim(), role) });
 
   return (
@@ -44,7 +53,7 @@ export function TeamPage() {
         <h2 id="members-heading" className="text-base font-semibold">
           {t("members")}
         </h2>
-        {!can(workspace.role, "admin") ? null : members.isPending ? (
+        {!can(workspace.role, "roster:read") ? null : members.isPending ? (
           <Loading rows={2} />
         ) : (
           <ul className="divide-y rounded-lg border">
@@ -61,7 +70,7 @@ export function TeamPage() {
           </ul>
         )}
       </section>
-      {can(workspace.role, "admin") && (
+      {can(workspace.role, "roster:read") && (
         <Card>
           <CardHeader>
             <CardTitle>{t("invite")}</CardTitle>
@@ -85,15 +94,17 @@ export function TeamPage() {
                   required
                 />
               </Field>
-              <Field label={t("role")} htmlFor="invite-role">
+              <Field label={t("role")} htmlFor="invite-role" hint={t(`roleHints.${role}`)}>
                 <Select
                   id="invite-role"
                   value={role}
-                  onChange={(e) => setRole(e.target.value as typeof role)}
+                  onChange={(e) => setRole(e.target.value as InvitableRole)}
                 >
-                  <option value="admin">{t("roles.admin")}</option>
-                  <option value="member">{t("roles.member")}</option>
-                  <option value="viewer">{t("roles.viewer")}</option>
+                  {INVITABLE_ROLES.map((r) => (
+                    <option key={r} value={r}>
+                      {t(`roles.${r}`)}
+                    </option>
+                  ))}
                 </Select>
               </Field>
               <div>

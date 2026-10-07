@@ -21,7 +21,8 @@ export function createAlertingEventHandlers(
         eventKey: meta.eventId,
       });
       await service.scheduleReminders(incidentId);
-      meta.logger.info({ incidentId, planned }, "alert deliveries planned");
+      const escalating = await service.startEscalation(incidentId);
+      meta.logger.info({ incidentId, planned, escalating }, "alert deliveries planned");
     },
     "incident.acknowledged": async ({ incidentId, byUserId }, meta) => {
       await service.planIncidentEvent({

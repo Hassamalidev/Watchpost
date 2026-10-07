@@ -1,8 +1,17 @@
+import type * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/render";
-import { NAV_ITEMS, activeSegment, workspaceHref } from "@/lib/navigation";
+import { WORKSPACE_ROLES } from "@app/shared";
+import { WorkspaceContext, type WorkspaceRole } from "@/components/app/workspace-context";
+import {
+  NAV_ITEMS,
+  activeSegment,
+  homeSegment,
+  navItemsFor,
+  workspaceHref,
+} from "@/lib/navigation";
 
 const push = vi.fn();
 let pathname = "/w/acme/monitors";
@@ -20,11 +29,41 @@ beforeEach(() => {
   pathname = "/w/acme/monitors";
 });
 
+function renderAs(role: WorkspaceRole, ui: React.ReactElement) {
+  return renderWithProviders(
+    <WorkspaceContext.Provider
+      value={{ id: "acme", name: "Acme", role, user: { id: "u1", email: "a@b.co", name: "A" } }}
+    >
+      {ui}
+    </WorkspaceContext.Provider>,
+  );
+}
+
 describe("navigation helpers", () => {
   it("builds workspace links and finds the active section", () => {
     expect(workspaceHref("acme co", "monitors")).toBe("/w/acme%20co/monitors");
     expect(activeSegment("/w/acme/monitors/123")).toBe("monitors");
     expect(activeSegment("/pricing")).toBeUndefined();
+  });
+
+  it("shows each role the sections it may open", () => {
+    const segments = (role: WorkspaceRole) => navItemsFor(role).map((item) => item.segment);
+    expect(segments("owner")).toEqual(NAV_ITEMS.map((item) => item.segment));
+    expect(segments("admin")).toEqual(segments("owner"));
+    for (const role of ["member", "responder"] as const) {
+      expect(segments(role)).toEqual(segments("owner").filter((s) => s !== "team"));
+    }
+    /* Viewers are never paged, so they have no notification settings. */
+    expect(segments("viewer")).toEqual(
+      segments("owner").filter((s) => s !== "team" && s !== "notifications"),
+    );
+    expect(segments("billing")).toEqual(["billing"]);
+  });
+
+  it("sends each role to a section it can see", () => {
+    for (const role of WORKSPACE_ROLES) {
+      expect(homeSegment(role)).toBe(role === "billing" ? "billing" : "overview");
+    }
   });
 
   it("recognizes ⌘K and Ctrl+K only", () => {
@@ -36,7 +75,7 @@ describe("navigation helpers", () => {
 
 describe("SidebarNav", () => {
   it("renders every section inside a labelled nav and marks the current page", () => {
-    renderWithProviders(<SidebarNav workspace="acme" />);
+    renderAs("owner", <SidebarNav workspace="acme" />);
     const nav = screen.getByRole("navigation", { name: "Primary" });
     expect(nav.querySelectorAll("a")).toHaveLength(NAV_ITEMS.length);
     expect(screen.getByRole("link", { name: "Monitors" })).toHaveAttribute("aria-current", "page");
@@ -48,10 +87,20 @@ describe("SidebarNav", () => {
   });
 });
 
+describe("SidebarNav for the billing role", () => {
+  it("shows billing and nothing else", () => {
+    pathname = "/w/acme/billing";
+    renderAs("billing", <SidebarNav workspace="acme" />);
+    const links = screen.getByRole("navigation", { name: "Primary" }).querySelectorAll("a");
+    expect([...links].map((a) => a.textContent)).toEqual(["Billing"]);
+    expect(screen.getByRole("link", { name: "Billing" })).toHaveAttribute("aria-current", "page");
+  });
+});
+
 describe("CommandPalette", () => {
   it("opens with Ctrl+K, filters, and navigates on select", async () => {
     const user = userEvent.setup();
-    renderWithProviders(<CommandPalette workspace="acme" />);
+    renderAs("member", <CommandPalette workspace="acme" />);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
     await user.keyboard("{Control>}k{/Control}");
@@ -65,7 +114,7 @@ describe("CommandPalette", () => {
 
   it("opens from the header button", async () => {
     const user = userEvent.setup();
-    renderWithProviders(<CommandPalette workspace="acme" />);
+    renderAs("member", <CommandPalette workspace="acme" />);
     await user.click(screen.getByRole("button", { name: /Search or jump to/ }));
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });

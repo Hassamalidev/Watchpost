@@ -1,9 +1,10 @@
 /*
  * /api/w/:workspaceId/{monitors,monitor-groups,tags}: session → workspace → role → validate → controller.
- * Everyone in the workspace can read; members and above change configuration (§6.11).
+ * Everyone but billing reads; members and above change configuration (§6.11). The billing role
+ * reads only the usage meters.
  */
 import { Router, type RequestHandler } from "express";
-import { requireRole } from "../../middleware/roles.js";
+import { requirePermission } from "../../middleware/roles.js";
 import { validate } from "../../middleware/validate.js";
 import type { MonitorsController } from "./monitors.controller.js";
 import {
@@ -20,12 +21,13 @@ export function createMonitorsRouter(
   guards: { session: RequestHandler; workspace: RequestHandler },
 ): Router {
   const router = Router({ mergeParams: true });
-  const write = requireRole("member");
+  const read = requirePermission("monitor:read");
+  const write = requirePermission("monitor:write");
   router.use(guards.session, guards.workspace);
 
-  router.get("/monitors", validate({ query: listMonitorsQuery }), controller.list);
+  router.get("/monitors", read, validate({ query: listMonitorsQuery }), controller.list);
   router.post("/monitors", write, validate({ body: createMonitorBody }), controller.create);
-  router.get("/monitors/:monitorId", validate({ params: monitorIdParams }), controller.get);
+  router.get("/monitors/:monitorId", read, validate({ params: monitorIdParams }), controller.get);
   router.patch(
     "/monitors/:monitorId",
     write,
@@ -52,11 +54,11 @@ export function createMonitorsRouter(
   );
 
   /* Active monitors against the plan's limits (billing page meters, upgrade prompts). */
-  router.get("/monitor-usage", controller.usage);
+  router.get("/monitor-usage", requirePermission("billing:read"), controller.usage);
 
-  router.get("/tags", controller.tags);
+  router.get("/tags", read, controller.tags);
 
-  router.get("/monitor-groups", controller.groups);
+  router.get("/monitor-groups", read, controller.groups);
   router.post("/monitor-groups", write, validate({ body: groupBody }), controller.createGroup);
   router.patch(
     "/monitor-groups/:groupId",

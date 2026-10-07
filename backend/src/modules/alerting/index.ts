@@ -3,8 +3,10 @@ import type { RequestHandler } from "express";
 import type { AppModule, Infra } from "../../composition/types.js";
 import { newId } from "../../infra/ids.js";
 import type { ChannelsService } from "../channels/index.js";
+import type { ContactsService } from "../contacts/index.js";
 import type { CreditsService } from "../credits/index.js";
 import type { IncidentsService } from "../incidents/index.js";
+import type { OncallService } from "../oncall/index.js";
 import type { WorkspacesService } from "../workspaces/index.js";
 import { createAlertingController } from "./alerting.controller.js";
 import { createAlertingRepository } from "./alerting.repository.js";
@@ -18,6 +20,7 @@ export type {
   DeliveryLogEntry,
   DeliveryOutcome,
   DeliveryView,
+  EscalationOutcome,
   TimerJob,
 } from "./alerting.service.js";
 export { NOTIFY_ATTEMPTS, RetryDeliveryError } from "./alerting.service.js";
@@ -27,6 +30,10 @@ export interface AlertingModuleDeps {
   incidents: IncidentsService;
   channels: ChannelsService;
   workspaces: WorkspacesService;
+  /* Personal contact methods and rules (§9.5); optional so tests can build alerting without them. */
+  contacts?: Pick<ContactsService, "fanOut" | "pushSubscription" | "dropPush">;
+  /* Escalation policies and who is on call (§9.5); optional like contacts. */
+  oncall?: Pick<OncallService, "escalationPolicy" | "whoIsOnCall">;
   /* False-alarm refunds (§5); optional so tests can build alerting without credits. */
   credits?: Pick<CreditsService, "refundIncident" | "refundCharge">;
   guards: { session: RequestHandler; workspace: RequestHandler };
@@ -44,6 +51,8 @@ export function createAlertingModule(deps: AlertingModuleDeps): AlertingModule {
     incidents: deps.incidents,
     channels: deps.channels,
     workspaces: deps.workspaces,
+    contacts: deps.contacts,
+    oncall: deps.oncall,
     credits: deps.credits,
     outbox: infra.outbox,
     clock: infra.clock,
@@ -68,6 +77,7 @@ export function createAlertingModule(deps: AlertingModuleDeps): AlertingModule {
     recoverySweeps: [
       { name: "notify-deliveries", run: () => service.recoverDeliveries() },
       { name: "reminders", run: () => service.recoverReminders() },
+      { name: "escalations", run: () => service.recoverEscalations() },
     ],
     /* A job can also go missing while the worker runs (Redis eviction, a crash mid-send). */
     sweeps: [

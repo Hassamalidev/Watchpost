@@ -3,7 +3,12 @@
  * one alert event to one destination; the unique (event_key, destination_key) pair makes planning
  * idempotent, and the row's status makes sending at most once per successful attempt.
  */
-import type { AlertEventKind, AlertPolicyRules } from "@app/shared";
+import type {
+  AlertEventKind,
+  AlertPolicyRules,
+  ContactMethodType,
+  EscalationStep,
+} from "@app/shared";
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -50,9 +55,16 @@ export const notificationDeliveries = pgTable(
     incidentId: uuid("incident_id").notNull(),
     /* The outbox event ID, or `reminder.<incident>.<dueAt>` for reminders. */
     eventKey: text("event_key").notNull(),
-    /* `channel:<id>` now; users and contact methods join with on-call (P2). */
+    /* `channel:<id>`, or `user:<id>:method:<id>` for a person's own contact method. */
     destinationKey: text("destination_key").notNull(),
     channelId: uuid("channel_id"),
+    /* Set together for a delivery to a person: who, through which of their contact methods. */
+    userId: uuid("user_id"),
+    contactMethodId: uuid("contact_method_id"),
+    contactType: text("contact_type").$type<ContactMethodType>(),
+    contactAddress: text("contact_address"),
+    /* When a personal rule delays the delivery; null means at once. */
+    dueAt: timestamp("due_at", { withTimezone: true }),
     kind: text("kind").$type<AlertEventKind>().notNull(),
     /* Display name of whoever acted, for "Acknowledged by Sara". */
     actorName: text("actor_name"),
@@ -87,5 +99,36 @@ export const alertFallbackNotices = pgTable(
   (t) => [primaryKey({ columns: [t.workspaceId, t.hourStart] })],
 );
 
+/*
+ * One row per incident that is being escalated (§9.5). The policy's steps are copied in when the
+ * incident opens, so editing the policy doesn't change an escalation under way. `next_step` counts
+ * across rounds; the timer job for a step is rebuilt from `next_step` and `next_due_at`.
+ */
+export const escalations = pgTable(
+  "escalations",
+  {
+    incidentId: uuid("incident_id").primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    policyId: uuid("policy_id").notNull(),
+    policyName: text("policy_name").notNull(),
+    steps: jsonb("steps").$type<EscalationStep[]>().notNull(),
+    repeat: integer("repeat").notNull().default(0),
+    nextStep: integer("next_step").notNull().default(0),
+    nextDueAt: timestamp("next_due_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    finishedReason: text("finished_reason").$type<"acknowledged" | "resolved" | "exhausted">(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("escalations_unfinished_idx")
+      .on(t.nextDueAt)
+      .where(sql`${t.finishedAt} is null`),
+  ],
+);
+
+export type EscalationRow = typeof escalations.$inferSelect;
 export type AlertPolicyRow = typeof alertPolicies.$inferSelect;
 export type DeliveryRow = typeof notificationDeliveries.$inferSelect;
