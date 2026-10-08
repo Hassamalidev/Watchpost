@@ -5,6 +5,8 @@
  * a field the documentation doesn't list. `/api/v1/openapi.json` describes it all and needs no key.
  */
 import { Router, type RequestHandler } from "express";
+import { scopeAllows } from "@app/shared";
+import { handleMcpMessage, mcpToolsOf } from "../core/mcp.js";
 import { buildOpenApi } from "../core/openapi.js";
 import type { PublicRoute } from "../core/public-api.js";
 import { UnauthorizedError } from "../core/errors.js";
@@ -13,6 +15,16 @@ import { inputOf, validate } from "../middleware/validate.js";
 import type { AppModule, MountedRouter } from "./types.js";
 
 export const PUBLIC_API_PREFIX = "/api/v1";
+
+/* Told to the assistant once, when it connects. */
+const MCP_INSTRUCTIONS = [
+  "These tools read and act on one workspace of an uptime monitoring and on-call service.",
+  'Use list_incidents with status "open" to see what is wrong now, and get_incident for one incident.',
+  "An incident can be addressed by its number (12 for #12) or its ID.",
+  "Acknowledging stops escalation: do it only when the person you are helping asks for it or says they are handling the incident.",
+  "A maintenance window silences alerts for its monitors while it is in effect: create one only for a period the person names.",
+  "Times are ISO 8601 in UTC.",
+].join(" ");
 
 function handlerOf(route: PublicRoute): RequestHandler {
   return async (req, res) => {
@@ -52,6 +64,46 @@ export function publicApi(
     res.set("cache-control", "public, max-age=300").json(document);
   });
   router.use(guards.authenticate, guards.rateLimit);
+
+  /*
+   * The MCP server: one address AI assistants post JSON-RPC messages to, with the same key. Every
+   * answer is a single JSON document; we open no event stream, so GET is refused.
+   */
+  const tools = mcpToolsOf(routes);
+  router.post("/mcp", async (req, res) => {
+    const scope = res.locals.scope;
+    const key = res.locals.apiKey;
+    if (scope === undefined || key === undefined) throw new UnauthorizedError();
+    const answer = await handleMcpMessage(req.body, {
+      serverInfo: { name: info.title, version: "1" },
+      instructions: MCP_INSTRUCTIONS,
+      /* A key is shown the tools its scopes allow (a write scope includes reading). */
+      tools: tools.filter(
+        (tool) => tool.route.scope === null || scopeAllows(key.scopes, tool.route.scope),
+      ),
+      async call(tool, input) {
+        const { route } = tool;
+        if (route.scope !== null) await guards.assertScope(key, scope, route.scope);
+        const result = await route.handle({ scope, key, ...input });
+        return route.response === undefined ? undefined : route.response.parse(result);
+      },
+    });
+    if (answer === undefined) {
+      res.status(202).end();
+      return;
+    }
+    res.json(answer);
+  });
+  router.all("/mcp", (_req, res) => {
+    res
+      .set("allow", "POST")
+      .status(405)
+      .json({
+        jsonrpc: "2.0",
+        id: null,
+        error: { code: -32600, message: "Post JSON-RPC messages to this address." },
+      });
+  });
   for (const route of routes) {
     router[route.method](
       route.path,

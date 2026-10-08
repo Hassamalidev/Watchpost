@@ -30,6 +30,11 @@ export function incidentsPublicRoutes(service: IncidentsService): PublicRoute[] 
       scope: "incidents:read",
       tag,
       summary: "List incidents",
+      tool: {
+        name: "list_incidents",
+        description:
+          'List incidents, newest first. `status: "open"` gives everything not resolved, which answers "what is down right now?". Filter by status, severity or `monitorId`. Paged with `cursor`.',
+      },
       description: "Newest first. `status=open` means everything that isn't resolved.",
       query: listIncidentsQuery,
       status: 200,
@@ -45,6 +50,11 @@ export function incidentsPublicRoutes(service: IncidentsService): PublicRoute[] 
       scope: "incidents:read",
       tag,
       summary: "Get an incident",
+      tool: {
+        name: "get_incident",
+        description:
+          "One incident by its number (12 for #12) or ID: title, status, severity, cause code, failing regions, and when it started, was acknowledged and was resolved.",
+      },
       description: ref,
       params: incidentRefParams,
       status: 200,
@@ -57,6 +67,12 @@ export function incidentsPublicRoutes(service: IncidentsService): PublicRoute[] 
       scope: "incidents:write",
       tag,
       summary: "Acknowledge an incident",
+      tool: {
+        name: "acknowledge_incident",
+        description:
+          "Acknowledge an incident: it tells the team someone is on it and stops escalation to further people. Only when the person you are helping asks for it. It does not resolve the incident.",
+        idempotent: true,
+      },
       description: `${ref} Escalation stops. Acknowledging twice changes nothing.`,
       params: incidentRefParams,
       status: 200,
@@ -70,6 +86,12 @@ export function incidentsPublicRoutes(service: IncidentsService): PublicRoute[] 
       scope: "incidents:write",
       tag,
       summary: "Resolve an incident",
+      tool: {
+        name: "resolve_incident",
+        description:
+          "Mark an incident as resolved. Only when the person you are helping says it is over. An incident opened by a monitor opens again if the monitor still fails.",
+        idempotent: true,
+      },
       description: `${ref} An incident opened by a monitor opens again if the monitor still fails.`,
       params: incidentRefParams,
       status: 200,

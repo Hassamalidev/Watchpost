@@ -34,6 +34,16 @@ export interface PublicRoute {
   /* Status and shape of a successful answer; no schema means an empty answer. */
   status: number;
   response?: z.ZodType;
+  /*
+   * Set to also offer the route to AI assistants as an MCP tool (core/mcp.ts). The description is
+   * written for a model choosing between tools: what it does and when to use it.
+   */
+  tool?: {
+    name: string;
+    description: string;
+    /* For a POST that sets a state (acknowledge): calling it twice changes nothing more. */
+    idempotent?: boolean;
+  };
   handle(ctx: {
     scope: WorkspaceScope;
     key: ApiKeyContext;

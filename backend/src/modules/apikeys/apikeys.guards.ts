@@ -14,6 +14,8 @@ import {
   UnauthorizedError,
   ValidationError,
 } from "../../core/errors.js";
+import type { ApiKeyContext } from "../../core/public-api.js";
+import type { WorkspaceScope } from "../../core/workspace-scope.js";
 import type { RedisClient } from "../../infra/redis.js";
 import "../../middleware/context.js";
 import { createRateLimiter } from "../../middleware/rate-limit.js";
@@ -60,6 +62,20 @@ export function createApiKeyGuards(deps: {
     keyOf: (_req, res) => res.locals.apiKey?.id ?? "none",
   });
 
+  async function assertScope(
+    key: ApiKeyContext,
+    scope: WorkspaceScope,
+    needed: ApiScope,
+  ): Promise<void> {
+    if (!scopeAllows(key.scopes, needed)) {
+      throw new ForbiddenError(`This key doesn't have the \`${needed}\` scope.`);
+    }
+    /* The plan is asked now, not when the key was made: it may have changed since. */
+    if (isWriteScope(needed) && !(await service.hasFeature(scope, "apiWrite"))) {
+      throw new QuotaExceededError(WRITE_NEEDS_PLAN);
+    }
+  }
+
   function requireScope(needed: ApiScope): RequestHandler {
     return async (_req, res, next) => {
       const key = res.locals.apiKey;
@@ -68,15 +84,7 @@ export function createApiKeyGuards(deps: {
         next(new UnauthorizedError());
         return;
       }
-      if (!scopeAllows(key.scopes, needed)) {
-        next(new ForbiddenError(`This key doesn't have the \`${needed}\` scope.`));
-        return;
-      }
-      /* The plan is asked now, not when the key was made: it may have changed since. */
-      if (isWriteScope(needed) && !(await service.hasFeature(scope, "apiWrite"))) {
-        next(new QuotaExceededError(WRITE_NEEDS_PLAN));
-        return;
-      }
+      await assertScope(key, scope, needed);
       next();
     };
   }
@@ -137,5 +145,5 @@ export function createApiKeyGuards(deps: {
     next();
   };
 
-  return { authenticate, rateLimit, requireScope, idempotent };
+  return { authenticate, rateLimit, requireScope, assertScope, idempotent };
 }

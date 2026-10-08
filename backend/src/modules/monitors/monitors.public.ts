@@ -35,6 +35,11 @@ export function monitorsPublicRoutes(service: MonitorsService): PublicRoute[] {
       scope: "monitors:read",
       tag,
       summary: "List monitors",
+      tool: {
+        name: "list_monitors",
+        description:
+          "List the workspace's monitors (the websites, APIs, ports and jobs being checked), with type, interval, regions, tags and whether each is paused. Filter by text (`q`), type, tag or paused. Paged: pass `nextCursor` as `cursor` for more.",
+      },
       query: listMonitorsQuery,
       status: 200,
       response: v1MonitorPageSchema,
@@ -62,6 +67,11 @@ export function monitorsPublicRoutes(service: MonitorsService): PublicRoute[] {
       scope: "monitors:read",
       tag,
       summary: "Get a monitor",
+      tool: {
+        name: "get_monitor",
+        description:
+          "One monitor by its ID, with what it checks (`config`) and its settings. Use it after list_monitors or when an incident names a `monitorId`.",
+      },
       params: monitorIdParams,
       status: 200,
       response: v1MonitorSchema,

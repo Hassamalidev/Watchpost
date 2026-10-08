@@ -337,6 +337,60 @@ const ok = crypto.timingSafeEqual(Buffer.from(v1), Buffer.from(expected));`,
       },
     ],
   },
+  {
+    slug: "mcp",
+    title: "AI assistants (MCP)",
+    summary:
+      "Let Claude, Cursor and other assistants read your monitors and incidents, acknowledge and plan maintenance.",
+    sections: [
+      {
+        heading: "What it is",
+        paragraphs: [
+          "UptimeWatch has a Model Context Protocol server built in. Connect an assistant and ask it what is down, what happened last night, or to silence alerts for tonight's deploy. It uses an API key, so it can do exactly what the key's scopes allow and nothing else.",
+        ],
+      },
+      {
+        heading: "Connect",
+        paragraphs: [
+          "Make a key under Settings, API keys. Give it read scopes only unless the assistant should also act. Then add the server to your assistant. In Claude Code:",
+        ],
+        code: `claude mcp add --transport http uptimewatch https://YOUR-HOST/api/v1/mcp \\
+  --header "Authorization: Bearer $UPTIMEWATCH_API_KEY"`,
+      },
+      {
+        heading: "Other clients",
+        paragraphs: ["Clients set up with a JSON file take the address and the header like this:"],
+        code: `{
+  "mcpServers": {
+    "uptimewatch": {
+      "url": "https://YOUR-HOST/api/v1/mcp",
+      "headers": { "Authorization": "Bearer wp_..." }
+    }
+  }
+}`,
+      },
+      {
+        heading: "Tools",
+        list: [
+          "whoami: the workspace and what the key may do.",
+          "list_monitors, get_monitor: what is being checked.",
+          "list_incidents, get_incident: what is wrong now and what happened before.",
+          "acknowledge_incident, resolve_incident: need the incidents:write scope.",
+          "list_maintenance_windows, create_maintenance_window: creating needs maintenance:write.",
+          "An assistant sees only the tools its key allows. Tools that change something need a paid plan, as in the API.",
+        ],
+      },
+      {
+        heading: "Keep it safe",
+        list: [
+          "Start with a read-only key. Add write scopes when you want the assistant to act for you.",
+          "Creating, changing and deleting monitors are not tools on purpose.",
+          "Everything an assistant changes shows on the incident timeline as coming from the API.",
+          "Revoke the key under Settings, API keys to disconnect the assistant at once.",
+        ],
+      },
+    ],
+  },
 ];
 
 export const findDocsPage = (slug: string) => DOCS_PAGES.find((page) => page.slug === slug);

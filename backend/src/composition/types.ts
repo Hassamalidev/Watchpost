@@ -4,7 +4,8 @@ import type { ApiScope } from "@app/shared";
 import type { Redis } from "ioredis";
 import type { AppConfig } from "../config/index.js";
 import type { Clock } from "../core/clock.js";
-import type { PublicRoute } from "../core/public-api.js";
+import type { ApiKeyContext, PublicRoute } from "../core/public-api.js";
+import type { WorkspaceScope } from "../core/workspace-scope.js";
 import type { ActionLinks } from "../infra/action-links.js";
 import type { AuthService } from "../infra/auth/index.js";
 import type { TokenCipher } from "../infra/crypto.js";
@@ -68,6 +69,8 @@ export interface PublicApiGuards {
   rateLimit: RequestHandler;
   /* 403 when the key lacks the scope; 402 when the plan doesn't include writing. */
   requireScope(scope: ApiScope): RequestHandler;
+  /* The same check outside a route (an MCP tool call): throws what the middleware would answer. */
+  assertScope(key: ApiKeyContext, scope: WorkspaceScope, needed: ApiScope): Promise<void>;
   /* Replays the stored answer when an Idempotency-Key is used again. */
   idempotent: RequestHandler;
 }

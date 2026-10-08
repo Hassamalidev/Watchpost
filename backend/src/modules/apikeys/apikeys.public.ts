@@ -11,6 +11,11 @@ export function apikeysPublicRoutes(service: ApikeysService): PublicRoute[] {
       scope: null,
       tag: "Key",
       summary: "The key in use",
+      tool: {
+        name: "whoami",
+        description:
+          "Which workspace these tools act on, and what this connection may do (its scopes). Use it first when unsure whether an action is allowed.",
+      },
       description:
         "A quick way to check that a key works, which workspace it opens and what it may do.",
       status: 200,

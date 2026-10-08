@@ -33,6 +33,11 @@ export function maintenancePublicRoutes(service: MaintenanceService): PublicRout
       scope: "maintenance:read",
       tag,
       summary: "List maintenance windows",
+      tool: {
+        name: "list_maintenance_windows",
+        description:
+          "List maintenance windows: planned periods in which the listed monitors don't alert. `active` says which are in effect now.",
+      },
       status: 200,
       response: v1MaintenanceListSchema,
       handle: async ({ scope }) => ({ data: (await service.list(scope)).map(toV1) }),
@@ -43,6 +48,11 @@ export function maintenancePublicRoutes(service: MaintenanceService): PublicRout
       scope: "maintenance:write",
       tag,
       summary: "Create a maintenance window",
+      tool: {
+        name: "create_maintenance_window",
+        description:
+          'Create a maintenance window so the given monitors (or all, with `scope: {"all": true}`) don\'t alert between `startsAt` and `endsAt` (ISO 8601, at most 30 days). Use it for planned work the person names, such as a deploy. `rrule` repeats it.',
+      },
       description:
         "While a window is in effect its monitors don't alert (unless `suppressAlerts` is false) and the time doesn't count as downtime. Use it around a deploy: create the window, deploy, delete the window.",
       body: createWindowBody,
