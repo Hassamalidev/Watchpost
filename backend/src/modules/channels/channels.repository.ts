@@ -135,6 +135,17 @@ export function createChannelsRepository() {
       return rows[0]?.providerRef ?? null;
     },
 
+    /* Every channel that carries a first message about this incident, with its reference. */
+    async threadRefs(
+      tx: DbOrTx,
+      incidentId: string,
+    ): Promise<Array<{ channelId: string; providerRef: string }>> {
+      return tx
+        .select({ channelId: messageRefs.channelId, providerRef: messageRefs.providerRef })
+        .from(messageRefs)
+        .where(eq(messageRefs.incidentId, incidentId));
+    },
+
     async setConfig(tx: DbOrTx, id: string, configEnc: string): Promise<void> {
       await tx
         .update(channels)

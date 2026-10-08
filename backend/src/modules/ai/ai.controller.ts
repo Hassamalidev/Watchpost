@@ -5,10 +5,17 @@ import { scopeOf } from "../../middleware/workspace.js";
 import type { AiService } from "./ai.service.js";
 import type { feedbackBody, generationIdParams } from "./validators/index.js";
 
-export type AiController = Record<"feedback", RequestHandler>;
+export type AiController = Record<"feedback" | "get", RequestHandler>;
 
 export function createAiController(service: AiService): AiController {
   return {
+    get: async (req, res) => {
+      const { params } = inputOf<{ params: typeof generationIdParams }>(req, res);
+      res.json({
+        generationId: params.generationId,
+        feedback: await service.feedbackOf(scopeOf(req, res), params.generationId),
+      });
+    },
     feedback: async (req, res) => {
       const { params, body } = inputOf<{
         params: typeof generationIdParams;

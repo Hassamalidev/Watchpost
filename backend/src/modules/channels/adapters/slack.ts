@@ -211,6 +211,15 @@ export function createSlackAdapter(deps: {
       });
       return { providerRef: sent.ts ? `${config.channelId}:${sent.ts}` : undefined };
     },
+    async note(config, ref, text) {
+      const [channel, ts] = ref.split(":");
+      await api(config.installationId, "chat.postMessage", {
+        channel,
+        text,
+        thread_ts: ts,
+        unfurl_links: false,
+      });
+    },
     async update(config, ref, message) {
       const [channel, ts] = ref.split(":");
       await api(config.installationId, "chat.update", {

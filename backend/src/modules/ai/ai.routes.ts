@@ -13,6 +13,14 @@ export function createAiRouter(
   guards: { session: RequestHandler; workspace: RequestHandler },
 ): Router {
   const router = Router({ mergeParams: true });
+  router.get(
+    "/ai/generations/:generationId",
+    guards.session,
+    guards.workspace,
+    requirePermission("incident:read"),
+    validate({ params: generationIdParams }),
+    controller.get,
+  );
   router.put(
     "/ai/generations/:generationId/feedback",
     guards.session,

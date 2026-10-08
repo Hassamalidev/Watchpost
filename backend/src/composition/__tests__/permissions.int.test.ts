@@ -77,6 +77,7 @@ describe("workspace route permissions", () => {
         "DELETE /status-pages/:pageId → statusPage:write",
         "DELETE /status-pages/:pageId/incidents/:incidentId → statusPage:write",
         "DELETE /status-pages/:pageId/subscribers/:subscriberId → statusPage:write",
+        "GET /ai/generations/:generationId → incident:read",
         "GET /alert-policies → alertPolicy:read",
         "GET /alert-tuning → incident:read",
         "GET /alert-tuning/:monitorId → incident:read",

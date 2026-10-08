@@ -23,6 +23,7 @@ import { ChangeTimeline } from "@/features/insights/components/changes";
 import { DeliveryLog } from "@/features/insights/components/deliveries";
 import { IncidentEscalation } from "@/features/oncall/components/incident-escalation";
 import { ExplanationCard } from "@/features/insights/components/explanation";
+import { AiSummaryCard } from "./ai-summary";
 import { incidentsApi, useIncident, useIncidentAction } from "../api";
 import { EvidencePanel } from "./evidence-panel";
 import { IncidentStatusLabel } from "./incident-list";
@@ -184,6 +185,8 @@ export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
           })}
         </Alert>
       )}
+      {data.aiSummary && <AiSummaryCard ws={ws} summary={data.aiSummary} canRate={canRespond} />}
+
       {data.explanation && open && (
         <ExplanationCard
           explanation={data.explanation}
@@ -281,6 +284,7 @@ export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
                 "flapping_stopped",
                 "suppressed",
                 "unsuppressed",
+                "ai_summary",
               ] as const;
               const type = known.find((k) => k === event.type);
               return (

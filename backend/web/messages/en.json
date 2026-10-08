@@ -279,7 +279,8 @@
       "flapping_stopped": "Stopped flapping",
       "escalated": "Escalated to the next step",
       "suppressed": "Kept quiet: a monitor it depends on is down",
-      "unsuppressed": "Announced: the monitor it depends on recovered"
+      "unsuppressed": "Announced: the monitor it depends on recovered",
+      "ai_summary": "AI summary added"
     },
     "suppressedBy": "No alerts were sent for this incident: a monitor it depends on is already down. See <link>{incident}</link>.",
     "statuses": {
@@ -315,7 +316,22 @@
       "expired": "The stored evidence for this region is no longer available. It is kept for 30 days.",
       "note": "Recorded when the incident opened and kept privately for 30 days."
     },
-    "commandBar": "Actions for incident #{number}"
+    "commandBar": "Actions for incident #{number}",
+    "ai": {
+      "title": "AI summary",
+      "label": "AI",
+      "disclaimer": "Written by AI from what the failing check saw. Verify before acting on it.",
+      "confidence": {
+        "low": "Low confidence",
+        "medium": "Medium confidence",
+        "high": "High confidence"
+      },
+      "checkFirst": "Check first",
+      "helpful": "Was this helpful?",
+      "up": "Helpful",
+      "down": "Not helpful",
+      "thanks": "Thanks. Your rating helps us improve these summaries."
+    }
   },
   "integrations": {
     "title": "Integrations",

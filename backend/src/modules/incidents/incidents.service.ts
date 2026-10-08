@@ -17,6 +17,8 @@ import {
   type NoiseStats,
   type TuningSettings,
   type TuningSuggestion,
+  aiExplanationSchema,
+  type AiExplanation,
 } from "@app/shared";
 import type { Clock } from "../../core/clock.js";
 import { ConflictError, NotFoundError } from "../../core/errors.js";
@@ -71,6 +73,15 @@ export interface IncidentView {
   durationSeconds: number;
   /* Set while a parent monitor's incident explains this one: nobody is notified about it (§9.6). */
   suppressedByIncidentId: string | null;
+  /* The AI explanation, once there is one; always shown labeled "AI" (§9.10). */
+  aiSummary: StoredAiSummary | null;
+}
+
+/* What is kept of an AI explanation on the incident. */
+export interface StoredAiSummary extends AiExplanation {
+  generationId: string;
+  model: string;
+  createdAt: string;
 }
 
 export interface TimelineEntry {
@@ -106,6 +117,25 @@ export interface IncidentDetail extends IncidentView {
   recentDeploy: RecentDeploy | null;
   /* The parent monitor's incident, while this one is suppressed by it. */
   suppressedBy: { id: string; number: number; title: string } | null;
+}
+
+/* An AI summary as stored, or null when the column is empty or was written by something else. */
+function storedSummary(value: Record<string, unknown> | null): StoredAiSummary | null {
+  if (value === null) return null;
+  const parsed = aiExplanationSchema.safeParse({
+    headline: value.headline,
+    likelyCause: value.likelyCause,
+    confidence: value.confidence,
+    evidenceRefs: value.evidenceRefs,
+    nextChecks: value.nextChecks,
+  });
+  if (!parsed.success || typeof value.generationId !== "string") return null;
+  return {
+    ...parsed.data,
+    generationId: value.generationId,
+    model: typeof value.model === "string" ? value.model : "",
+    createdAt: typeof value.createdAt === "string" ? value.createdAt : "",
+  };
 }
 
 /* How far up a dependency chain an explanation is looked for. */
@@ -258,6 +288,19 @@ export interface IncidentsService {
   findOpenForMonitor(tx: DbOrTx, monitorId: string): Promise<IncidentRow | undefined>;
   /* System: routing and rendering context for alerting; undefined if the incident is gone. */
   alertContext(incidentId: string): Promise<AlertContext | undefined>;
+  /*
+   * System: what a failing check saw, for the AI explainer: the incident's own facts and, when
+   * stored, the first evidence bundle (response headers, start of the body, timings). Undefined if
+   * the incident is gone.
+   */
+  aiEvidence(
+    incidentId: string,
+  ): Promise<{ workspaceId: string; evidence: Record<string, unknown> } | undefined>;
+  /*
+   * System: stores an AI explanation on the incident and tells subscribers it is there. Returns
+   * false when the incident is gone or already has this one.
+   */
+  setAiSummary(incidentId: string, summary: StoredAiSummary): Promise<boolean>;
   /*
    * System: opens a low-severity expiry incident, or updates the open one with the same key (new
    * title and evidence, an `updated` timeline entry and `incident.updated` so people hear about it).
@@ -423,6 +466,7 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
       snoozedUntil: iso(row.snoozedUntil),
       durationSeconds: Math.max(0, Math.round((end.getTime() - row.startedAt.getTime()) / 1_000)),
       suppressedByIncidentId: row.suppressedByIncidentId ?? null,
+      aiSummary: storedSummary(row.aiSummary),
     };
   };
   const toEntry = (e: IncidentEventRow): TimelineEntry => ({
@@ -603,7 +647,7 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
     );
   }
 
-  return {
+  const service: IncidentsService = {
     async openForMonitor(tx, input) {
       const existing = await repo.findOpenForMonitor(tx, input.monitorId);
       if (existing) return { incident: existing, created: false };
@@ -673,6 +717,70 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
     },
 
     findOpenForMonitor: (tx, monitorId) => repo.findOpenForMonitor(tx, monitorId),
+
+    async aiEvidence(incidentId) {
+      const ctx = await service.alertContext(incidentId);
+      if (ctx === undefined) return undefined;
+      const { incident, monitor, recentDeploy } = ctx;
+      const stored = incident.evidence ?? {};
+      /* The bundle list is storage plumbing, not evidence. */
+      const { bundles: _bundles, ...facts } = stored as Record<string, unknown>;
+      void _bundles;
+      let firstBundle: Record<string, unknown> | undefined;
+      try {
+        const items = await service.evidence(
+          createWorkspaceScope({ workspaceId: ctx.workspaceId }),
+          incident.id,
+        );
+        const available = items.find((item) => item.available);
+        if (available?.available === true) {
+          const { region, checkedAt, available: _yes, ...rest } = available;
+          void _yes;
+          firstBundle = { region, checkedAt, ...rest };
+        }
+      } catch {
+        /* Evidence is a bonus: the explainer works from the incident's own facts without it. */
+      }
+      return {
+        workspaceId: ctx.workspaceId,
+        evidence: {
+          title: incident.title,
+          severity: incident.severity,
+          source: incident.source,
+          startedAt: incident.startedAt,
+          monitor:
+            monitor === null
+              ? null
+              : { name: monitor.name, target: monitor.target, regionCount: monitor.regionCount },
+          causeCode: incident.causeCode,
+          failingRegions: incident.failingRegions,
+          timing: describeEvidenceTiming(incident.evidence),
+          ...facts,
+          ...(firstBundle === undefined ? {} : { failingCheck: firstBundle }),
+          recentDeploy,
+        },
+      };
+    },
+
+    async setAiSummary(incidentId, summary) {
+      return deps.db.transaction(async (tx) => {
+        const incident = await repo.findById(tx, incidentId);
+        if (incident === undefined) return false;
+        if (storedSummary(incident.aiSummary)?.generationId === summary.generationId) return false;
+        await repo.update(tx, incidentId, { aiSummary: { ...summary } });
+        await addEvent(tx, incident, "ai_summary", "system", {
+          generationId: summary.generationId,
+          headline: summary.headline,
+        });
+        await deps.outbox.emit(
+          tx,
+          "incident.ai_summary_ready",
+          { incidentId, generationId: summary.generationId },
+          { workspaceId: incident.workspaceId },
+        );
+        return true;
+      });
+    },
 
     async alertContext(incidentId) {
       const row = await repo.findById(deps.db, incidentId);
@@ -1070,4 +1178,5 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
       });
     },
   };
+  return service;
 }

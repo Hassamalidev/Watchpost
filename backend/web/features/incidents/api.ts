@@ -50,7 +50,19 @@ export interface IncidentDetail extends Incident {
     minutesBefore: number;
   } | null;
   suppressedBy?: { id: string; number: number; title: string } | null;
+  /* The AI explanation, once the model has answered; absent on servers without AI. */
+  aiSummary?: AiSummary | null;
 }
+
+export interface AiSummary {
+  headline: string;
+  likelyCause: string;
+  confidence: "low" | "medium" | "high";
+  nextChecks: string[];
+  generationId: string;
+}
+
+export type AiFeedback = "up" | "down";
 
 export interface IncidentQuery {
   status?: string;
@@ -59,6 +71,13 @@ export interface IncidentQuery {
 }
 
 export const incidentsApi = {
+  aiFeedback: (ws: string, generationId: string) =>
+    api<{ feedback: AiFeedback | null }>(wsPath(ws, `/ai/generations/${generationId}`)),
+  setAiFeedback: (ws: string, generationId: string, feedback: AiFeedback | null) =>
+    api<{ feedback: AiFeedback | null }>(wsPath(ws, `/ai/generations/${generationId}/feedback`), {
+      method: "PUT",
+      body: { feedback },
+    }),
   list: (ws: string, query: IncidentQuery) => {
     const params = new URLSearchParams({ limit: "100" });
     if (query.status) params.set("status", query.status);

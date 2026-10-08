@@ -48,7 +48,10 @@ export function createAlertingEventHandlers(
     "incident.snoozed": later,
     "incident.reopened": later,
     "incident.escalation_requested": later,
-    "incident.ai_summary_ready": later,
+    "incident.ai_summary_ready": async ({ incidentId }, meta) => {
+      const posted = await service.postAiSummary(incidentId);
+      if (posted > 0) meta.logger.info({ incidentId, posted }, "AI summary posted under the alert");
+    },
     /* A false alarm gives back the SMS and voice credits its alerts used (§5). */
     "incident.false_alarm_marked": async ({ incidentId }, meta) => {
       if (credits === undefined || meta.workspaceId === null) return;

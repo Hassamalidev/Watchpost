@@ -254,6 +254,18 @@ describe("Slack adapter", () => {
     return { provider, adapter };
   };
 
+  it("posts a plain note in the thread of the first message", async () => {
+    const { provider, adapter } = make(() => ({ body: '{"ok":true,"ts":"1700000000.000200"}' }));
+    await adapter.note?.(config, "C0123ABC:1700000000.000100", "AI summary: gateway error");
+    expect(provider.requests[0]?.url).toBe("https://slack.com/api/chat.postMessage");
+    expect(provider.body(0)).toEqual({
+      channel: "C0123ABC",
+      text: "AI summary: gateway error",
+      thread_ts: "1700000000.000100",
+      unfurl_links: false,
+    });
+  });
+
   it("posts Block Kit with the bot token and threads follow-ups", async () => {
     const { provider, adapter } = make(() => ({ body: '{"ok":true,"ts":"1700000000.000100"}' }));
     const first = await adapter.send(config, adapter.render(event()), meta());
@@ -326,6 +338,20 @@ describe("Telegram adapter", () => {
     return { provider, adapter };
   };
   const linked = { chatId: "-100200", chatTitle: "Ops" };
+
+  it("posts a plain note as a reply to the first message, in its own chat only", async () => {
+    const { provider, adapter } = make(() => ({ body: '{"ok":true,"result":{"message_id":42}}' }));
+    await adapter.note?.(linked, "-100200:41", "AI summary: gateway error");
+    expect(provider.body(0)).toEqual({
+      chat_id: "-100200",
+      text: "AI summary: gateway error",
+      link_preview_options: { is_disabled: true },
+      reply_parameters: { message_id: 41, allow_sending_without_reply: true },
+    });
+    /* A reference from another chat is never followed. */
+    await adapter.note?.(linked, "-999:41", "x");
+    expect(provider.requests).toHaveLength(1);
+  });
 
   it("sends to the linked chat and replies to the first message on follow-ups", async () => {
     const { provider, adapter } = make(() => ({ body: '{"ok":true,"result":{"message_id":41}}' }));

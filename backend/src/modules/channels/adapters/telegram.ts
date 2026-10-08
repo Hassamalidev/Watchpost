@@ -98,6 +98,16 @@ export function createTelegramAdapter(deps: {
         providerRef: typeof messageId === "number" ? `${config.chatId}:${messageId}` : undefined,
       };
     },
+    async note(config, ref, text) {
+      const [chatId, messageId] = ref.split(":");
+      if (config.chatId === null || chatId !== config.chatId) return;
+      await deps.api.call("sendMessage", {
+        chat_id: chatId,
+        text,
+        link_preview_options: { is_disabled: true },
+        reply_parameters: { message_id: Number(messageId), allow_sending_without_reply: true },
+      });
+    },
     async update(config, ref, message) {
       const [chatId, messageId] = ref.split(":");
       if (config.chatId === null || chatId !== config.chatId) return;

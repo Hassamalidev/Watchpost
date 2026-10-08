@@ -101,6 +101,11 @@ export interface ChannelAdapter<C = unknown> {
   render(event: AlertEvent): RenderedMessage;
   send(config: C, message: RenderedMessage, meta: SendMeta): Promise<SendResult>;
   update?(config: C, ref: string, message: RenderedMessage): Promise<void>;
+  /*
+   * A plain-text note under the incident's first message (a thread reply), for follow-ups that are
+   * not alerts, such as the AI summary. Channels without threads leave it out.
+   */
+  note?(config: C, ref: string, text: string): Promise<void>;
   health?(config: C): Promise<{ ok: boolean; error?: string }>;
 }
 

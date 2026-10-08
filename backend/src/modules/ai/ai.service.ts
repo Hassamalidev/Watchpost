@@ -10,7 +10,7 @@
 import type { AiFeedback } from "@app/shared";
 import type { Clock } from "../../core/clock.js";
 import { NotFoundError } from "../../core/errors.js";
-import type { WorkspaceScope } from "../../core/workspace-scope.js";
+import { createWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
 import {
   AiError,
   aiCostMicros,
@@ -19,6 +19,7 @@ import {
 } from "../../infra/anthropic/index.js";
 import type { Logger } from "../../infra/logger.js";
 import type { CreditsService } from "../credits/index.js";
+import type { IncidentsService } from "../incidents/index.js";
 import type { AiRepository } from "./ai.repository.js";
 import { PROMPTS, promptSchema, type PromptKey, type PromptOutput } from "./prompts.js";
 import { redact } from "./redact.js";
@@ -56,6 +57,8 @@ export interface AiService {
     prompt: PromptKey,
     refId: string,
   ): Promise<AiGenerationRow | undefined>;
+  /* The feedback a stored answer has now. */
+  feedbackOf(scope: WorkspaceScope, generationId: string): Promise<AiFeedback | null>;
   /* 👍, 👎 or nothing on a stored answer. */
   feedback(
     scope: WorkspaceScope,
@@ -64,6 +67,12 @@ export interface AiService {
   ): Promise<AiGenerationRow>;
   /* Whether AI can be used at all on this server (a key is set). */
   configured(): boolean;
+  /*
+   * The incident explainer (§6.9): explains one incident from its evidence and stores the answer
+   * on it. Runs after the alert is already on its way; whatever happens here, the alert is not
+   * affected. Returns what happened, for the log.
+   */
+  explainIncident(incidentId: string): Promise<"explained" | "already" | "skipped" | "failed">;
 }
 
 export interface AiServiceDeps {
@@ -71,6 +80,8 @@ export interface AiServiceDeps {
   /* Undefined until the owner sets ANTHROPIC_API_KEY: every call is then skipped. */
   client: AiClient | undefined;
   credits: Pick<CreditsService, "aiBudget" | "recordUsage">;
+  /* Optional so the generation path can be tested on its own. */
+  incidents?: Pick<IncidentsService, "aiEvidence" | "setAiSummary"> | undefined;
   clock: Clock;
   logger: Logger;
   newId: () => string;
@@ -93,8 +104,29 @@ export function createAiService(deps: AiServiceDeps): AiService {
     }
   }
 
-  return {
+  const service: AiService = {
     configured: () => deps.client !== undefined,
+
+    async explainIncident(incidentId) {
+      if (deps.incidents === undefined || deps.client === undefined) return "skipped";
+      const found = await deps.incidents.aiEvidence(incidentId);
+      if (found === undefined) return "skipped";
+      /* Fire drills and expiry warnings explain themselves. */
+      const source = found.evidence.source;
+      if (source === "drill" || source === "expiry") return "skipped";
+      const result = await service.generate(
+        createWorkspaceScope({ workspaceId: found.workspaceId }),
+        { prompt: "explainer", refId: incidentId, evidence: found.evidence, once: true },
+      );
+      if (!result.ok) return result.status;
+      const stored = await deps.incidents.setAiSummary(incidentId, {
+        ...result.output,
+        generationId: result.generationId,
+        model: result.model,
+        createdAt: result.createdAt,
+      });
+      return stored ? "explained" : "already";
+    },
 
     latest: (scope, prompt, refId) => repo.latestOk(scope, PROMPTS[prompt].key, refId),
 
@@ -224,10 +256,17 @@ export function createAiService(deps: AiServiceDeps): AiService {
       };
     },
 
+    async feedbackOf(scope, generationId) {
+      const row = await repo.find(scope, generationId);
+      if (row === undefined) throw new NotFoundError("AI answer not found.");
+      return row.feedback;
+    },
+
     async feedback(scope, generationId, feedback) {
       const row = await repo.setFeedback(scope, generationId, feedback, scope.actorUserId ?? null);
       if (row === undefined) throw new NotFoundError("AI answer not found.");
       return row;
     },
   };
+  return service;
 }

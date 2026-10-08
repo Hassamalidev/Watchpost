@@ -206,6 +206,7 @@ export function createModules(infra: Infra): AppModule[] {
     createAiModule({
       infra,
       credits: credits.service,
+      incidents: incidents.service,
       guards: workspaces.guards,
     }),
   );

@@ -147,6 +147,11 @@ export interface AlertingService {
   recoverEscalations(): Promise<number>;
   /* One send attempt for a delivery (the notify job). Throws RetryDeliveryError to retry. */
   deliver(deliveryId: string): Promise<DeliveryOutcome>;
+  /*
+   * Posts the incident's AI summary under its alert where the channel has threads. It comes after
+   * the alert and never instead of it (§9.10). Returns how many channels got it.
+   */
+  postAiSummary(incidentId: string): Promise<number>;
   /* Schedules the first reminder for a newly triggered incident, if its monitor wants reminders. */
   scheduleReminders(incidentId: string): Promise<boolean>;
   reminderDue(incidentId: string, dueAt: number): Promise<number>;
@@ -171,7 +176,13 @@ export interface AlertingServiceDeps {
   incidents: Pick<IncidentsService, "alertContext" | "openIncidentIds" | "addSystemEvent">;
   channels: Pick<
     ChannelsService,
-    "existing" | "deliver" | "deliverDirect" | "markFailing" | "summary" | "retryPolicy"
+    | "existing"
+    | "deliver"
+    | "deliverDirect"
+    | "markFailing"
+    | "summary"
+    | "retryPolicy"
+    | "noteIncident"
   >;
   /* Personal rules; optional so tests can build alerting without contacts. */
   contacts?: Pick<ContactsService, "fanOut" | "pushSubscription" | "dropPush"> | undefined;
@@ -952,6 +963,23 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
         if (channel !== undefined) await sendFallback(channel, message, ctx.incident.title);
         return "failed";
       }
+    },
+
+    async postAiSummary(incidentId) {
+      const ctx = await deps.incidents.alertContext(incidentId);
+      const summary = ctx?.incident.aiSummary;
+      if (ctx === undefined || summary == null) return 0;
+      if (ctx.incident.suppressedByIncidentId !== null) return 0;
+      const lines = [
+        `AI summary: ${summary.headline}`,
+        summary.likelyCause,
+        ...(summary.nextChecks.length > 0
+          ? ["", "Check first:", ...summary.nextChecks.map((check) => `• ${check}`)]
+          : []),
+        "",
+        `Confidence: ${summary.confidence}. Written by AI from the check's evidence; verify before acting.`,
+      ];
+      return deps.channels.noteIncident({ incidentId, text: lines.join("\n") });
     },
 
     async scheduleReminders(incidentId) {

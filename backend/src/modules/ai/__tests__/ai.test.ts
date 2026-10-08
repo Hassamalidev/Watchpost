@@ -203,6 +203,26 @@ const GOOD = EXPLAINER_CASES[0]?.answer;
 const scope = createWorkspaceScope({ workspaceId: "0190e2e0-0000-7000-8000-0000000000a1" });
 const REF = "0190e2e0-0000-7000-8000-0000000000b2";
 
+function memoryRepository(): AiRepository {
+  const rows: AiGenerationRow[] = [];
+  return {
+    async insert(_scope, row) {
+      const full = { ...row, workspaceId: scope.workspaceId, feedback: null, feedbackBy: null };
+      rows.push(full as AiGenerationRow);
+      return full as AiGenerationRow;
+    },
+    async latestOk(_scope, kind, refId) {
+      return rows.findLast((r) => r.kind === kind && r.refId === refId && r.status === "ok");
+    },
+    async find() {
+      return undefined;
+    },
+    async setFeedback() {
+      return undefined;
+    },
+  };
+}
+
 function harness(options: {
   client?: AiClient | undefined;
   budget?: Partial<AiBudget>;
@@ -395,6 +415,91 @@ describe("generating", () => {
     expect(first.ok && second.ok && second.reused).toBe(true);
     expect(first.ok && second.ok && second.generationId === first.generationId).toBe(true);
     expect(client.requests).toHaveLength(1);
+  });
+});
+
+describe("the incident explainer", () => {
+  const INCIDENT = "0190e2e0-0000-7000-8000-0000000000c3";
+  function explainer(source: string, client = createFakeAiClient(() => GOOD)) {
+    const stored: Array<Record<string, unknown>> = [];
+    const service = createAiService({
+      repository: memoryRepository(),
+      client,
+      credits: {
+        async aiBudget() {
+          return {
+            allowed: true,
+            reason: "ok",
+            funded: true,
+            budgetMicros: 1,
+            spentMicros: 0,
+            remainingMicros: 1,
+            periodStart: "2026-10-01T00:00:00.000Z",
+          };
+        },
+        async recordUsage() {
+          return true;
+        },
+      },
+      incidents: {
+        async aiEvidence(incidentId) {
+          return incidentId === INCIDENT
+            ? {
+                workspaceId: scope.workspaceId,
+                evidence: { ...EXPLAINER_CASES[0]?.evidence, source },
+              }
+            : undefined;
+        },
+        async setAiSummary(_incidentId, summary) {
+          if (stored.some((s) => s.generationId === summary.generationId)) return false;
+          stored.push({ ...summary });
+          return true;
+        },
+      },
+      clock: createFakeClock("2026-10-07T12:00:00Z"),
+      logger: pino({ level: "silent" }),
+      newId: () => "0190e2e0-0000-7000-8000-0000000000d4",
+    });
+    return { service, stored, client };
+  }
+
+  it("explains an incident once and stores the answer on it", async () => {
+    const { service, stored, client } = explainer("monitor");
+    expect(await service.explainIncident(INCIDENT)).toBe("explained");
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toMatchObject({
+      headline: GOOD?.headline,
+      generationId: "0190e2e0-0000-7000-8000-0000000000d4",
+      model: "fake-model",
+    });
+    /* A second event for the same incident pays for nothing and stores nothing new. */
+    expect(await service.explainIncident(INCIDENT)).toBe("already");
+    expect(client.requests).toHaveLength(1);
+    for (const secret of EXPLAINER_CASES[0]?.secrets ?? []) {
+      expect(client.requests[0]?.user).not.toContain(secret);
+    }
+  });
+
+  it("leaves fire drills, expiry warnings and unknown incidents alone", async () => {
+    for (const source of ["drill", "expiry"]) {
+      const { service, client } = explainer(source);
+      expect(await service.explainIncident(INCIDENT)).toBe("skipped");
+      expect(client.requests).toHaveLength(0);
+    }
+    const { service } = explainer("monitor");
+    expect(await service.explainIncident("0190e2e0-0000-7000-8000-00000000ffff")).toBe("skipped");
+  });
+
+  it("a model that fails leaves the incident without a summary and nothing else changes", async () => {
+    const broken: AiClient = {
+      model: "m",
+      async complete() {
+        throw new AiError("The AI provider answered HTTP 400.", false);
+      },
+    };
+    const { service, stored } = explainer("monitor", broken as never);
+    expect(await service.explainIncident(INCIDENT)).toBe("failed");
+    expect(stored).toEqual([]);
   });
 });
 

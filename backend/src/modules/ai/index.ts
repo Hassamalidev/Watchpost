@@ -3,6 +3,7 @@ import type { RequestHandler } from "express";
 import type { AppModule, Infra } from "../../composition/types.js";
 import { newId } from "../../infra/ids.js";
 import type { CreditsService } from "../credits/index.js";
+import type { IncidentsService } from "../incidents/index.js";
 import { createAiController } from "./ai.controller.js";
 import { createAiRepository } from "./ai.repository.js";
 import { createAiRouter } from "./ai.routes.js";
@@ -15,6 +16,7 @@ export { internalDetailIn, redact, redactText } from "./redact.js";
 export interface AiModuleDeps {
   infra: Pick<Infra, "db" | "clock" | "logger" | "ai">;
   credits: Pick<CreditsService, "aiBudget" | "recordUsage">;
+  incidents: Pick<IncidentsService, "aiEvidence" | "setAiSummary">;
   guards: { session: RequestHandler; workspace: RequestHandler };
 }
 
@@ -27,6 +29,7 @@ export function createAiModule(deps: AiModuleDeps): AiModule {
     repository: createAiRepository(deps.infra.db),
     client: deps.infra.ai,
     credits: deps.credits,
+    incidents: deps.incidents,
     clock: deps.infra.clock,
     logger: deps.infra.logger,
     newId,
@@ -40,6 +43,6 @@ export function createAiModule(deps: AiModuleDeps): AiModule {
         router: createAiRouter(createAiController(service), deps.guards),
       },
     ],
-    processors: createAiProcessors(deps.infra.db),
+    processors: createAiProcessors(service, deps.infra.db),
   };
 }

@@ -108,6 +108,12 @@ export interface ChannelsService {
     providerRef: string,
     incidentId: string,
   ): Promise<{ workspaceId: string; channelId: string; channelName: string } | undefined>;
+  /*
+   * System: posts a plain note under the incident's alert in every channel that has threads (Slack,
+   * Telegram). Best effort: a channel that fails is logged and skipped, and nothing is retried, so a
+   * note is never posted twice. Returns how many channels got it.
+   */
+  noteIncident(input: { incidentId: string; text: string }): Promise<number>;
   /* System: alerting gave up on a delivery through this channel. */
   markFailing(channelId: string): Promise<void>;
   /* How often and how patiently deliveries to this channel type are retried. */
@@ -506,6 +512,25 @@ export function createChannelsService(deps: {
       await repo.recordSuccess(deps.db, channelId, clock.now());
       if (row.status === "failing") await setHealth(channelId, row.workspaceId, "healthy");
       return { providerRef };
+    },
+
+    async noteIncident({ incidentId, text }) {
+      let posted = 0;
+      for (const ref of await repo.threadRefs(deps.db, incidentId)) {
+        const row = await repo.findById(deps.db, ref.channelId);
+        const adapter = row === undefined ? undefined : adapters.get(row.type);
+        if (row === undefined || adapter?.note === undefined) continue;
+        try {
+          await adapter.note(adapter.parseConfig(configOf(row)), ref.providerRef, text);
+          posted += 1;
+        } catch (err) {
+          deps.logger.warn(
+            { err, channelId: ref.channelId, incidentId },
+            "posting a note under an alert failed",
+          );
+        }
+      }
+      return posted;
     },
 
     retryPolicy: (type) => adapters.get(type)?.retry,

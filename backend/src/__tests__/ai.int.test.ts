@@ -134,6 +134,10 @@ describe("AI generations", () => {
     expect(up.status, up.text).toBe(200);
     expect(up.body).toEqual({ generationId, feedback: "up" });
     expect((await put(owner, "down")).body.feedback).toBe("down");
+    const read = await owner
+      .get(`/api/w/${ws}/ai/generations/${generationId}`)
+      .set("Origin", WEB_ORIGIN);
+    expect(read.body).toEqual({ generationId, feedback: "down" });
     expect((await put(owner, null)).body.feedback).toBeNull();
     expect((await put(owner, "maybe")).status).toBe(400);
     expect((await put(owner, "up", uuidv7())).status).toBe(404);
