@@ -215,6 +215,18 @@ export const gotifyChannelConfigSchema = z
   .strict();
 export type GotifyChannelConfig = z.infer<typeof gotifyChannelConfigSchema>;
 
+/*
+ * Home Assistant: a webhook trigger of an automation. Whoever knows the webhook ID can fire it, so
+ * the ID is kept like a secret.
+ */
+export const homeAssistantChannelConfigSchema = z
+  .object({
+    serverUrl,
+    webhookId: token(8, 200),
+  })
+  .strict();
+export type HomeAssistantChannelConfig = z.infer<typeof homeAssistantChannelConfigSchema>;
+
 /* A phone number in international format: + and 8 to 15 digits, no spaces. */
 export const phoneNumberSchema = z
   .string()

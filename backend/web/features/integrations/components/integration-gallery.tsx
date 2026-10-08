@@ -16,6 +16,8 @@ import {
   type IntegrationDefinition,
 } from "@app/shared";
 import { EmptyState } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { api, errorMessage, wsPath } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { workspaceHref } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
@@ -66,6 +68,46 @@ function IntegrationCard({
         {footer && <p className="mt-auto text-xs font-medium">{footer}</p>}
       </Link>
     </li>
+  );
+}
+
+/* "We don't have it" becomes a line in our request log, which orders what we build next. */
+function RequestIntegration({ ws, name }: { ws: string; name: string }) {
+  const t = useTranslations("integrations");
+  /* What was asked for and how it went; the thanks belongs to that name, not to what is typed next. */
+  const [sent, setSent] = React.useState<{ name: string; problem?: string } | "sending" | null>(
+    null,
+  );
+  if (name.length < 2 || name.length > 80) return null;
+  async function send() {
+    setSent("sending");
+    try {
+      await api<{ recorded: boolean }>(wsPath(ws, "/integration-requests"), {
+        method: "POST",
+        body: { name },
+      });
+      setSent({ name });
+    } catch (err) {
+      setSent({ name, problem: errorMessage(err) });
+    }
+  }
+  const done = sent !== null && sent !== "sending" && sent.name === name ? sent : undefined;
+  return (
+    <p className="mt-3" role="status">
+      {done !== undefined && done.problem === undefined ? (
+        t("requestThanks", { name })
+      ) : (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={sent === "sending"}
+          onClick={() => void send()}
+        >
+          {t("requestAction", { name })}
+        </Button>
+      )}
+      {done?.problem !== undefined && <span className="ml-2 text-sm">{done.problem}</span>}
+    </p>
   );
 }
 
@@ -136,6 +178,7 @@ export function IntegrationGallery({
               {t("noResultsAction")}
             </Link>
           </p>
+          <RequestIntegration ws={ws} name={query.trim()} />
         </EmptyState>
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

@@ -573,6 +573,10 @@
       "voice": {
         "summary": "A phone call that reads the alert aloud. Press 1 to acknowledge. Uses alert credits.",
         "steps": "Enter the number in international format, like +14155550123.\nCheck what a call to that country costs in credits, then send a code to the number by SMS.\nEnter the code to verify the number, then save. Calls are placed for new and ongoing incidents only."
+      },
+      "home-assistant": {
+        "summary": "Fire a Home Assistant automation: flash a light, sound a siren or speak when something goes down.",
+        "steps": "In Home Assistant, create an automation with a Webhook trigger and copy its webhook ID. Allow it from the internet (untick \"Only accessible from the local network\").\nEnter your Home Assistant address and the webhook ID below.\nIn the automation, read the alert as trigger.json: event is triggered, acknowledged or resolved, and incident.severity says how bad it is."
       }
     },
     "fields": {
@@ -743,6 +747,14 @@
           "label": "Phone number",
           "hint": "International format, starting with + and the country code."
         }
+      },
+      "home_assistant": {
+        "serverUrl": {
+          "label": "Home Assistant address"
+        },
+        "webhookId": {
+          "label": "Webhook ID"
+        }
       }
     },
     "phoneIntro": "This number must be verified before alerts go to it.",
@@ -820,7 +832,9 @@
       "manual": "sent by hand",
       "replay": "Replay",
       "replayNamed": "Replay {type} from {when}"
-    }
+    },
+    "requestAction": "Tell us you need “{name}”",
+    "requestThanks": "Thanks. “{name}” is on our list."
   },
   "heartbeats": {
     "title": "Heartbeats",

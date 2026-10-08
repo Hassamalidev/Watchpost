@@ -143,6 +143,7 @@ export const CHANNEL_FIELDS: Record<ChannelType, readonly ChannelField[]> = {
     secret("accessToken", false),
   ],
   gotify: [url("serverUrl", "https://gotify.example.com", false), secret("appToken")],
+  home_assistant: [url("serverUrl", "https://home.example.com", false), secret("webhookId")],
   sms: [{ key: "phone", kind: "phone", required: true, placeholder: "+14155550123" }],
   voice: [{ key: "phone", kind: "phone", required: true, placeholder: "+14155550123" }],
 };
@@ -172,6 +173,7 @@ export const CHANNEL_CAPABILITIES: Record<ChannelType, ChannelCapabilities> = {
   pushbullet: caps("separate"),
   ntfy: caps("update"),
   gotify: caps("separate"),
+  home_assistant: caps("separate"),
   sms: caps("separate"),
   voice: caps("separate"),
 };
@@ -197,6 +199,7 @@ export const CHANNEL_LABELS: Record<ChannelType, string> = {
   pushbullet: "Pushbullet",
   ntfy: "ntfy",
   gotify: "Gotify",
+  home_assistant: "Home Assistant",
   sms: "SMS",
   voice: "Voice call",
 };
@@ -228,6 +231,7 @@ export const INTEGRATION_IDS = [
   "zapier",
   "make",
   "n8n",
+  "home-assistant",
 ] as const;
 export type IntegrationId = (typeof INTEGRATION_IDS)[number];
 
@@ -292,6 +296,13 @@ export const INTEGRATIONS: readonly IntegrationDefinition[] = [
   entry("n8n", "webhook", "automation", ["automation", "workflow", "self-hosted"], {
     name: "n8n",
   }),
+  entry("home-assistant", "home_assistant", "automation", [
+    "hass",
+    "smart home",
+    "lights",
+    "siren",
+    "self-hosted",
+  ]),
 ];
 
 export function findIntegration(id: string): IntegrationDefinition | undefined {

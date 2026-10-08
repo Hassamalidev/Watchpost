@@ -196,6 +196,7 @@ describe("workspace route permissions", () => {
         "POST /incidents/:incidentRef/postmortem/draft → incident:write",
         "POST /incidents/:incidentRef/resolve → incident:respond",
         "POST /incidents/drill → incident:drill",
+        "POST /integration-requests → channel:read",
         "POST /maintenance-windows → maintenance:write",
         "POST /me/chat-links → contact:manage",
         "POST /me/contact-methods → contact:manage",

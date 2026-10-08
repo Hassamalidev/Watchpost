@@ -248,6 +248,15 @@ describe("IntegrationGallery", () => {
       "href",
       "/w/ws1/integrations/new/webhook",
     );
+    /* And what was looked for can be sent to us as a wish. */
+    const fetchMock = vi.fn(async () => new Response('{"recorded":true}', { status: 202 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await user.click(screen.getByRole("button", { name: "Tell us you need “fax machine”" }));
+    expect(await screen.findByText("Thanks. “fax machine” is on our list.")).toBeInTheDocument();
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, { body: string }];
+    expect(url).toContain("/api/w/ws1/integration-requests");
+    expect(JSON.parse(init.body)).toEqual({ name: "fax machine" });
+    vi.unstubAllGlobals();
   });
 });
 

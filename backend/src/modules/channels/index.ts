@@ -10,6 +10,7 @@ import { createDiscordAdapter } from "./adapters/discord.js";
 import { createEmailAdapter } from "./adapters/email.js";
 import { createGoogleChatAdapter } from "./adapters/google-chat.js";
 import { createGotifyAdapter } from "./adapters/gotify.js";
+import { createHomeAssistantAdapter } from "./adapters/home-assistant.js";
 import { createMatrixAdapter } from "./adapters/matrix.js";
 import { createMattermostAdapter } from "./adapters/mattermost.js";
 import { createNtfyAdapter } from "./adapters/ntfy.js";
@@ -28,6 +29,7 @@ import { createZulipAdapter } from "./adapters/zulip.js";
 import { createChannelsController } from "./channels.controller.js";
 import { createChannelsRepository } from "./channels.repository.js";
 import { createChannelsRouter } from "./channels.routes.js";
+import { createIntegrationRequestsRouter } from "./requests.js";
 import { createChannelsService, type ChannelsService } from "./channels.service.js";
 import { createIntegrationsPublicRouter, createIntegrationsRouter } from "./integrations.routes.js";
 import { createIntegrationsService, type IntegrationsService } from "./integrations.service.js";
@@ -162,6 +164,7 @@ export function createChannelsModule(deps: ChannelsModuleDeps): ChannelsModule {
     createPushbulletAdapter(http),
     createNtfyAdapter(http),
     createGotifyAdapter(http),
+    createHomeAssistantAdapter(http),
     ...(config.slack
       ? [
           createSlackAdapter({
@@ -203,6 +206,13 @@ export function createChannelsModule(deps: ChannelsModuleDeps): ChannelsModule {
       {
         path: "/api/w/:workspaceId",
         router: createIntegrationsRouter(integrations, deps.guards),
+      },
+      {
+        path: "/api/w/:workspaceId",
+        router: createIntegrationRequestsRouter(
+          { db: infra.db, clock: infra.clock, newId },
+          deps.guards,
+        ),
       },
       { path: "/api/w/:workspaceId", router: createPhonesRouter(phones, deps.guards) },
       {

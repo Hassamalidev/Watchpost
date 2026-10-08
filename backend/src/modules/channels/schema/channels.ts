@@ -146,6 +146,28 @@ export const phoneNumbers = pgTable(
   ],
 );
 
+/*
+ * The request log (PRODUCT.md §21.2): what people looked for in the integration gallery and didn't
+ * find. Read by us, to decide which integration to build next.
+ */
+export const integrationRequests = pgTable(
+  "integration_requests",
+  {
+    id: uuid("id").primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    userId: uuid("user_id"),
+    /* What they typed, lower-cased, so the same wish from many workspaces adds up. */
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("integration_requests_name_idx").on(t.name),
+    index("integration_requests_workspace_idx").on(t.workspaceId, t.createdAt),
+  ],
+);
+
 export type ChannelRow = typeof channels.$inferSelect;
 export type PhoneNumberRow = typeof phoneNumbers.$inferSelect;
 export type SlackInstallationRow = typeof slackInstallations.$inferSelect;

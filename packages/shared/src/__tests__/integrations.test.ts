@@ -28,6 +28,7 @@ import {
 import {
   googleChatChannelConfigSchema,
   gotifyChannelConfigSchema,
+  homeAssistantChannelConfigSchema,
   phoneChannelConfigSchema,
   matrixChannelConfigSchema,
   mattermostChannelConfigSchema,
@@ -61,6 +62,7 @@ const FORM_SCHEMAS: Partial<Record<ChannelType, z.ZodObject>> = {
   pushbullet: pushbulletChannelConfigSchema,
   ntfy: ntfyChannelConfigSchema,
   gotify: gotifyChannelConfigSchema,
+  home_assistant: homeAssistantChannelConfigSchema,
   sms: phoneChannelConfigSchema,
   voice: phoneChannelConfigSchema,
 };

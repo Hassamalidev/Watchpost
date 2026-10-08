@@ -15,6 +15,7 @@ import type {
 import { createDiscordAdapter } from "../adapters/discord.js";
 import { createGoogleChatAdapter } from "../adapters/google-chat.js";
 import { createGotifyAdapter } from "../adapters/gotify.js";
+import { createHomeAssistantAdapter } from "../adapters/home-assistant.js";
 import { createMatrixAdapter } from "../adapters/matrix.js";
 import { createMattermostAdapter } from "../adapters/mattermost.js";
 import { createNtfyAdapter } from "../adapters/ntfy.js";
@@ -999,6 +1000,49 @@ describe("webhook custom headers", () => {
     }
     const cleared = await adapter.prepare!(base, { workspaceId: "w", previous: stored });
     expect(cleared.headers).toBeUndefined();
+  });
+});
+
+describe("Home Assistant", () => {
+  it("fires the webhook trigger with the alert as JSON, under a sub-path too", async () => {
+    const provider = stub();
+    const adapter = createHomeAssistantAdapter({ http: provider.http });
+    const config = adapter.parseConfig({
+      serverUrl: "https://home.example.com/ha/",
+      webhookId: "watchpost-alerts-9f2c",
+    });
+    await deliver(adapter, config);
+    expect(provider.requests[0]?.url).toBe(
+      "https://home.example.com/ha/api/webhook/watchpost-alerts-9f2c",
+    );
+    expect(provider.body(0)).toMatchObject({
+      event: "triggered",
+      title: "[Critical] #482 Checkout API is down",
+      incident: {
+        number: 482,
+        severity: "critical",
+        status: "triggered",
+        url: "https://app.example.com/w/acme/incidents/482",
+      },
+      monitor: "Checkout API",
+    });
+    await deliver(adapter, config, event("resolved"));
+    expect(provider.body(1).event).toBe("resolved");
+    /* A deleted automation answers 404 or 405: retrying can't help. */
+    for (const status of [404, 405]) {
+      expect(await failure(createHomeAssistantAdapter({ http: failsWith(status) }), config)).toBe(
+        "permanent",
+      );
+    }
+    expect(await failure(createHomeAssistantAdapter({ http: failsWith(502) }), config)).toBe(
+      "transient",
+    );
+    expect(() =>
+      adapter.parseConfig({ serverUrl: "http://home.local", webhookId: "watchpost-alerts" }),
+    ).toThrow();
+    expect(() =>
+      adapter.parseConfig({ serverUrl: "https://home.example.com", webhookId: "has space" }),
+    ).toThrow();
   });
 });
 

@@ -26,6 +26,7 @@
         "pushbullet",
         "ntfy",
         "gotify",
+        "home_assistant",
         "sms",
         "voice"
       ]

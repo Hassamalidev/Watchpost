@@ -27,6 +27,7 @@ export const CHANNEL_TYPES = [
   "pushbullet",
   "ntfy",
   "gotify",
+  "home_assistant",
   /* Paid, through the messaging provider (P3-T05): each message costs alert credits. */
   "sms",
   "voice",

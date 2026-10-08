@@ -37,6 +37,7 @@ export const MONOGRAMS: Record<IntegrationId, string> = {
   ntfy: "nt",
   pushbullet: "Pb",
   gotify: "Go",
+  "home-assistant": "HA",
   email: "@",
   webhook: "{ }",
   zapier: "Zp",
