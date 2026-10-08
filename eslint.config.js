@@ -16,6 +16,8 @@ export default tseslint.config(
       "**/next-env.d.ts",
       "**/playwright-report/**",
       "**/test-results/**",
+      /* The sync tool's committed bundle (generated). */
+      "tools/sync/action/**",
     ],
   },
   js.configs.recommended,

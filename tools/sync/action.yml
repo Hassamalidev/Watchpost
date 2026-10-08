@@ -1,0 +1,28 @@
+name: Monitoring sync
+description: Keep a workspace's monitors in step with a YAML file in your repository.
+inputs:
+  file:
+    description: Path of the monitoring file (YAML or JSON).
+    required: true
+    default: monitoring.yml
+  mode:
+    description: '"plan" shows what would change; "apply" changes it.'
+    required: true
+    default: plan
+  prune:
+    description: Delete managed monitors that are no longer in the file.
+    required: false
+    default: "false"
+  force:
+    description: Apply every monitor again, also those whose entry didn't change.
+    required: false
+    default: "false"
+  api-key:
+    description: An API key with the monitors:write scope (monitors:read is enough to plan). Use a repository secret.
+    required: true
+  url:
+    description: The address of the app, for example https://app.example.com.
+    required: true
+runs:
+  using: node20
+  main: action/index.mjs

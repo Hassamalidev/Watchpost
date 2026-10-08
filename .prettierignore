@@ -8,3 +8,4 @@ backend/drizzle/meta
 docs/schemas/*.json
 pnpm-lock.yaml
 PRODUCT.md
+tools/sync/action
