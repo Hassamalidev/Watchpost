@@ -42,7 +42,8 @@ export async function connectVetted(options: {
   port: number;
   policy: AddressPolicy;
   timeoutMs: number;
-  tls?: { rejectUnauthorized: boolean; ca?: string[] | undefined };
+  /* `alpn` offers protocols during the handshake (gRPC needs "h2"). */
+  tls?: { rejectUnauthorized: boolean; ca?: string[] | undefined; alpn?: string[] | undefined };
   resolver?: Resolver;
 }): Promise<ConnectResult> {
   const deadline = Date.now() + options.timeoutMs;
@@ -92,6 +93,7 @@ export async function connectVetted(options: {
       ...(servername ? { servername } : {}),
       rejectUnauthorized: options.tls?.rejectUnauthorized ?? true,
       ...(options.tls?.ca ? { ca: [...nodeTls.rootCertificates, ...options.tls.ca] } : {}),
+      ...(options.tls?.alpn ? { ALPNProtocols: options.tls.alpn } : {}),
     });
     const timer = setTimeout(
       () => {

@@ -331,6 +331,35 @@ function explainCode(facts: FailureFacts): Omit<Explanation, "scope"> {
         detail: "The port is open but the service answered differently than expected.",
         nextSteps: ["Check the service behind the port."],
       };
+    case "auth_failed":
+      return {
+        category: "config",
+        headline: `${host} refused the login`,
+        detail:
+          "The service is reachable but didn't accept the username or password the monitor uses.",
+        nextSteps: [
+          "Check whether the password was changed or the account removed.",
+          "Update the monitor's credentials if they changed on purpose.",
+        ],
+      };
+    case "protocol_error":
+      return {
+        category: "content",
+        headline: `${host} answered, but not as expected`,
+        detail:
+          "Something is listening on the port, but its answer isn't what this kind of service sends.",
+        nextSteps: [
+          "Check that the right service runs on this port.",
+          "Check whether it is starting up, overloaded or behind a proxy that answers for it.",
+        ],
+      };
+    case "service_unhealthy":
+      return {
+        category: "content",
+        headline: `${host} reports it isn't serving`,
+        detail: "The server is up and says the service is not ready to take requests.",
+        nextSteps: ["Check the service's own logs and what it depends on (database, queue)."],
+      };
     case "ping_loss":
       return {
         category: "network",

@@ -125,7 +125,7 @@ describe("CRUD", () => {
     expect((await get(owner, `/api/w/${ws}/monitors?type=tcp`)).body.data).toHaveLength(1);
     expect((await get(owner, `/api/w/${ws}/monitors?tag=prod`)).body.data).toHaveLength(10);
     expect((await get(owner, `/api/w/${ws}/monitors?q=keyword`)).body.data[0].type).toBe("keyword");
-    expect((await get(owner, `/api/w/${ws}/monitors?type=grpc`)).status).toBe(400);
+    expect((await get(owner, `/api/w/${ws}/monitors?type=smtp`)).status).toBe(400);
   });
 
   it("updates settings and config, keeps the type fixed, and validates the merged result", async () => {

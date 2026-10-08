@@ -27,8 +27,28 @@ import { workspaceHref } from "@/lib/navigation";
 import { monitorsApi, type CreateMonitorBody, type Monitor } from "../api";
 import { monitorKeys, useCreateMonitor, useMonitorGroups, useMonitors } from "../hooks";
 
-const FORM_TYPES = ["http", "keyword", "tcp", "ping", "dns", "ssl", "domain"] as const;
+const FORM_TYPES = [
+  "http",
+  "keyword",
+  "tcp",
+  "ping",
+  "dns",
+  "ssl",
+  "domain",
+  "redis",
+  "mqtt",
+  "grpc",
+] as const;
 type FormType = (typeof FORM_TYPES)[number];
+/* Checks of services inside a network: offered once the workspace has a private probe. */
+const PRIVATE_TYPES: readonly FormType[] = ["redis", "mqtt", "grpc"];
+const DEFAULT_PORT: Partial<Record<FormType, string>> = {
+  tcp: "443",
+  ssl: "443",
+  redis: "6379",
+  mqtt: "1883",
+  grpc: "443",
+};
 const INTERVALS = [180, 300, 600, 900, 1_800, 3_600];
 
 interface Values {
@@ -40,6 +60,11 @@ interface Values {
   host: string;
   port: string;
   recordType: (typeof DNS_RECORD_TYPES)[number];
+  /* Service checks (Redis, MQTT, gRPC). */
+  tls: boolean;
+  username: string;
+  password: string;
+  service: string;
   intervalSeconds: string;
   regions: string[];
   minFailingRegions: string;
@@ -109,6 +134,24 @@ function toBody(v: Values): CreateMonitorBody {
       return { settings, config: { type: "ssl", host, port: Number(v.port || 443) } };
     case "domain":
       return { settings, config: { type: "domain", domain: host } };
+    case "redis":
+    case "mqtt":
+      return {
+        settings,
+        config: {
+          type: v.type,
+          host,
+          port: Number(v.port),
+          tls: v.tls,
+          ...(v.username.trim() === "" ? {} : { username: v.username.trim() }),
+          ...(v.password === "" ? {} : { password: v.password }),
+        },
+      };
+    case "grpc":
+      return {
+        settings,
+        config: { type: "grpc", host, port: Number(v.port), tls: v.tls, service: v.service.trim() },
+      };
   }
 }
 
@@ -145,6 +188,10 @@ const DEFAULTS: Values = {
   host: "",
   port: "443",
   recordType: "A",
+  tls: false,
+  username: "",
+  password: "",
+  service: "",
   intervalSeconds: "300",
   regions: ["eu-central", "us-east"],
   minFailingRegions: "2",
@@ -175,6 +222,11 @@ function valuesOf(monitor: Monitor): Values {
     recordType: (DNS_RECORD_TYPES as readonly string[]).includes(text("recordType"))
       ? (text("recordType") as Values["recordType"])
       : "A",
+    tls: c.tls === true,
+    username: text("username"),
+    /* A saved password comes back masked; sending the mask back keeps it. */
+    password: text("password"),
+    service: text("service"),
     intervalSeconds: String(monitor.intervalSeconds),
     regions: monitor.regions,
     minFailingRegions: String(monitor.minFailingRegions ?? 2),
@@ -203,14 +255,29 @@ export function MonitorForm({ ws, monitor }: { ws: string; monitor?: Monitor }) 
     const chosen = groups.data?.find((g) => g.id === groupId);
     form.setValue("groupAlerts", chosen?.groupAlerts ?? false);
   }, [groupId, groups.data, form]);
+  const privateProbes = usePrivateProbes(ws);
   const type = form.watch("type");
   const errors = form.formState.errors;
   const regionCount = form.watch("regions").length;
   /* A monitor runs from our regions or on one private probe, never both. */
-  const privateProbes = usePrivateProbes(ws);
   const privateRegion = form.watch("regions").find(isPrivateRegion);
   const usesUrl = type === "http" || type === "keyword";
-  const usesPort = type === "tcp" || type === "ssl";
+  const isService = (PRIVATE_TYPES as readonly string[]).includes(type);
+  const usesPort = type === "tcp" || type === "ssl" || isService;
+  const hasProbes = (privateProbes.data ?? []).length > 0;
+  /* A service check runs on a private probe: picking the type picks the first probe and its port. */
+  const firstProbeRegion = privateProbes.data?.[0]?.region;
+  React.useEffect(() => {
+    if (monitor !== undefined) return;
+    const port = DEFAULT_PORT[type];
+    if (port !== undefined) form.setValue("port", port);
+    form.setValue("tls", type === "grpc");
+    if ((PRIVATE_TYPES as readonly string[]).includes(type) && firstProbeRegion !== undefined) {
+      if (!form.getValues("regions").some(isPrivateRegion)) {
+        form.setValue("regions", [firstProbeRegion]);
+      }
+    }
+  }, [type, monitor, form, firstProbeRegion]);
   /* Saved credentials stay with the target they were entered for (the API enforces it too). */
   const hasSavedSecrets = monitor !== undefined && JSON.stringify(monitor.config).includes(MASKED);
   const retargeted =
@@ -301,7 +368,9 @@ export function MonitorForm({ ws, monitor }: { ws: string; monitor?: Monitor }) 
       {formError && <Alert tone="error">{formError}</Alert>}
       <Field label={t("type")} htmlFor="monitor-type">
         <Select id="monitor-type" disabled={monitor !== undefined} {...form.register("type")}>
-          {FORM_TYPES.map((value) => (
+          {FORM_TYPES.filter(
+            (value) => hasProbes || value === type || !PRIVATE_TYPES.includes(value),
+          ).map((value) => (
             <option key={value} value={value}>
               {t(`types.${value}`)}
             </option>
@@ -328,6 +397,37 @@ export function MonitorForm({ ws, monitor }: { ws: string; monitor?: Monitor }) 
         <Field label={t("port")} htmlFor="monitor-port" error={errors.port?.message}>
           <Input id="monitor-port" inputMode="numeric" {...form.register("port")} />
         </Field>
+      )}
+      {isService && (
+        <>
+          <label className="flex min-h-6 items-center gap-2 text-sm">
+            <input type="checkbox" {...form.register("tls")} />
+            {t("useTls")}
+          </label>
+          {type === "grpc" ? (
+            <Field label={t("grpcService")} htmlFor="monitor-service" hint={t("grpcServiceHint")}>
+              <Input id="monitor-service" autoComplete="off" {...form.register("service")} />
+            </Field>
+          ) : (
+            <>
+              <Field label={t("serviceUsername")} htmlFor="monitor-username">
+                <Input id="monitor-username" autoComplete="off" {...form.register("username")} />
+              </Field>
+              <Field
+                label={t("servicePassword")}
+                htmlFor="monitor-password"
+                hint={t("servicePasswordHint")}
+              >
+                <Input
+                  id="monitor-password"
+                  type="password"
+                  autoComplete="new-password"
+                  {...form.register("password")}
+                />
+              </Field>
+            </>
+          )}
+        </>
       )}
       {type === "keyword" && (
         <>

@@ -6,6 +6,7 @@ import type { CheckRunners } from "../executor/executor.js";
 import { runDns } from "./dns.js";
 import { runHttp, runJsonQuery, runKeyword } from "./http.js";
 import { runPing } from "./ping.js";
+import { runGrpc, runMqtt, runRedis } from "./protocols.js";
 import { runSsl } from "./ssl.js";
 import { runTcp } from "./tcp.js";
 import { runWebSocket } from "./websocket.js";
@@ -19,4 +20,7 @@ export const defaultCheckRunners: CheckRunners = {
   dns: runDns,
   websocket: runWebSocket,
   ssl: runSsl,
+  redis: runRedis,
+  mqtt: runMqtt,
+  grpc: runGrpc,
 };

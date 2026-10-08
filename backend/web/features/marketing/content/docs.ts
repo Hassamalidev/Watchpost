@@ -414,6 +414,16 @@ const ok = crypto.timingSafeEqual(Buffer.from(v1), Buffer.from(expected));`,
         ],
       },
       {
+        heading: "Service checks",
+        list: [
+          "Redis (also Valkey, KeyDB, Dragonfly): the server answers PING, after logging in when a password is set.",
+          "MQTT broker: the broker accepts a connection, with the login when set.",
+          "gRPC health: the server's standard health service answers SERVING for the server or a named service.",
+          "These types are offered once the workspace has a private probe. Passwords are stored encrypted; a monitoring account with the least rights is enough.",
+          "For anything else inside the network, a TCP port check works today. Tell us what you need from the integration gallery.",
+        ],
+      },
+      {
         heading: "Good to know",
         list: [
           "With one location there is no second region to confirm a failure, so a monitor on a private probe goes down after two failed checks in a row.",

@@ -32,6 +32,20 @@ Private probes are part of the Pro plan (one) and the Business plan (five); more
 - **Removing** a probe makes its token stop working at once. A probe that still has monitors can't be removed: move or delete them first.
 - The token is the probe's signing key. Anyone who has it can report results for the monitors on that probe, so treat it like a password. If it leaks, remove the probe and add a new one.
 
+## Service checks
+
+Three monitor types exist only on private probes, because the services they check live inside a network. They are offered in the monitor form once the workspace has a private probe, and each needs the host, the port and whether to use TLS. A password is stored encrypted and never shown again; the probe gets it, because it has to log in.
+
+| Type                                                                   | What "up" means                                                                                                                      | Settings                                        |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
+| **Redis** (also Valkey, KeyDB, Dragonfly)                              | The server answers `PING` with `PONG`, after `AUTH` when a password is set                                                           | port (6379), TLS, username, password            |
+| **MQTT broker** (3.1.1: Mosquitto, EMQX, HiveMQ, RabbitMQ's plugin, …) | The broker accepts a connection (`CONNACK` 0), with the login when set; the probe disconnects cleanly                                | port (1883), TLS, username, password, client ID |
+| **gRPC health**                                                        | The server's standard health service (`grpc.health.v1.Health/Check`) answers `SERVING` for the whole server or for the named service | port, TLS (on by default), service name         |
+
+What goes wrong is told apart: a refused login (`auth_failed`), something on the port that isn't that kind of service (`protocol_error`), a gRPC service that says it is not serving or doesn't exist (`service_unhealthy`), and the usual connection and TLS failures. The probe never runs a command beyond the handshake, so a monitoring account with the least rights is enough (Redis: an ACL user with only `+ping`; MQTT: a user that may connect and nothing else).
+
+Not built yet (P6-T08b): Docker containers, databases (Postgres, MySQL, MSSQL, MongoDB), Kafka, RabbitMQ (AMQP), SNMP, RADIUS, game servers and a per-monitor proxy. A TCP port check works for any of them in the meantime, and the integration request log says which to build first.
+
 ## Requirements
 
 - Docker on Linux (amd64 or arm64), about 300 MB of memory.

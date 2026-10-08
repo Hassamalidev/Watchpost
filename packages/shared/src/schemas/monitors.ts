@@ -18,8 +18,15 @@ export const MONITOR_TYPES = [
   "ssl",
   "domain",
   "heartbeat",
+  /* Protocol checks for services inside a network: private probes only (§6.1). */
+  "redis",
+  "mqtt",
+  "grpc",
 ] as const;
 export type MonitorType = (typeof MONITOR_TYPES)[number];
+
+/* Types that run on a private probe and nowhere else. */
+export const PRIVATE_PROBE_MONITOR_TYPES: readonly MonitorType[] = ["redis", "mqtt", "grpc"];
 
 /* Hostname (RFC 1123 labels) or an IPv4/IPv6 literal. */
 const HOSTNAME = /^(?=.{1,253}$)(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))*\.?$/i;
@@ -193,6 +200,44 @@ export const heartbeatConfigSchema = z.object({
     .optional(),
 });
 
+/* A login for a service; the password is stored encrypted and never returned. */
+const credentials = {
+  username: z.string().min(1).max(256).optional(),
+  password: z.string().min(1).max(1_024).optional(),
+};
+
+/* Redis (and what speaks its protocol: Valkey, KeyDB, Dragonfly): answers PING after an optional login. */
+export const redisConfigSchema = z.object({
+  type: z.literal("redis"),
+  host,
+  port: port.default(6379),
+  tls: z.boolean().default(false),
+  ...credentials,
+});
+
+/* An MQTT broker accepts a connection (protocol 3.1.1), with a login when given. */
+export const mqttConfigSchema = z.object({
+  type: z.literal("mqtt"),
+  host,
+  port: port.default(1883),
+  tls: z.boolean().default(false),
+  ...credentials,
+  clientId: z
+    .string()
+    .regex(/^[0-9A-Za-z_-]{1,23}$/, "1 to 23 letters, digits, - or _")
+    .optional(),
+});
+
+/* A gRPC server reports SERVING on the standard health service (grpc.health.v1.Health). */
+export const grpcConfigSchema = z.object({
+  type: z.literal("grpc"),
+  host,
+  port,
+  tls: z.boolean().default(true),
+  /* The service to ask about; empty asks about the server as a whole. */
+  service: z.string().max(100).default(""),
+});
+
 export const monitorConfigSchema = z.discriminatedUnion("type", [
   httpConfigSchema,
   keywordConfigSchema,
@@ -204,6 +249,9 @@ export const monitorConfigSchema = z.discriminatedUnion("type", [
   sslConfigSchema,
   domainConfigSchema,
   heartbeatConfigSchema,
+  redisConfigSchema,
+  mqttConfigSchema,
+  grpcConfigSchema,
 ]);
 
 export type MonitorConfig = z.infer<typeof monitorConfigSchema>;
@@ -293,4 +341,7 @@ export const PROBE_MONITOR_TYPES: readonly MonitorType[] = [
   "dns",
   "websocket",
   "ssl",
+  "redis",
+  "mqtt",
+  "grpc",
 ];

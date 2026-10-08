@@ -17,6 +17,8 @@ export function isSecretHeader(name: string): boolean {
 export interface MonitorSecrets {
   authPassword?: string;
   authToken?: string;
+  /* The login of a service check (Redis, MQTT). */
+  password?: string;
   /* Lower-cased header name → value. */
   headers?: Record<string, string>;
 }
@@ -44,6 +46,10 @@ export function extractSecrets(config: MonitorConfig): {
       copy.auth = { ...copy.auth, token: MASKED };
     }
   }
+  if ("password" in copy && copy.password !== undefined) {
+    secrets.password = copy.password;
+    copy.password = MASKED;
+  }
   const headers = headersOf(copy);
   if (headers !== undefined) {
     for (const header of headers) {
@@ -55,6 +61,7 @@ export function extractSecrets(config: MonitorConfig): {
   const hasSecrets =
     secrets.authPassword !== undefined ||
     secrets.authToken !== undefined ||
+    secrets.password !== undefined ||
     (secrets.headers !== undefined && Object.keys(secrets.headers).length > 0);
   return { config: copy, secrets: hasSecrets ? secrets : null };
 }
@@ -78,6 +85,9 @@ export function applySecrets(config: MonitorConfig, secrets: MonitorSecrets | nu
       copy.auth = { ...copy.auth, token: secrets.authToken };
     }
   }
+  if ("password" in copy && copy.password === MASKED && secrets.password !== undefined) {
+    copy.password = secrets.password;
+  }
   const headers = headersOf(copy);
   if (headers !== undefined && secrets.headers !== undefined) {
     for (const header of headers) {
@@ -94,5 +104,6 @@ export function hasUnresolvedMask(config: MonitorConfig): boolean {
     if (config.auth.kind === "basic" && config.auth.password === MASKED) return true;
     if (config.auth.kind === "bearer" && config.auth.token === MASKED) return true;
   }
+  if ("password" in config && config.password === MASKED) return true;
   return (headersOf(config) ?? []).some((h) => h.value === MASKED);
 }

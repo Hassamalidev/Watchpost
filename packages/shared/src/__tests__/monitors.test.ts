@@ -45,6 +45,9 @@ describe("monitor configs", () => {
         type: "heartbeat",
         schedule: { kind: "cron", expression: "*/5 * * * *", timezone: "Asia/Karachi" },
       },
+      { type: "redis", host: "10.0.0.20", password: "s3cret" },
+      { type: "mqtt", host: "broker.internal", username: "sensor", password: "s3cret" },
+      { type: "grpc", host: "api.internal", port: 50_051, tls: false, service: "shop.Checkout" },
     ];
     expect(samples.map((s) => s.type).sort()).toEqual([...MONITOR_TYPES].sort());
     for (const sample of samples) {
@@ -69,7 +72,9 @@ describe("monitor configs", () => {
       [{ type: "websocket", url: "https://example.com" }, "url"],
       [{ type: "heartbeat", schedule: { kind: "cron", expression: "every minute" } }, "schedule"],
       [{ type: "dns", hostname: "example.com", recordType: "PTR" }, "recordType"],
-      [{ type: "grpc", host: "x" }, "type"],
+      [{ type: "smtp", host: "x" }, "type"],
+      [{ type: "grpc", host: "x", port: 0 }, "port"],
+      [{ type: "mqtt", host: "x", clientId: "has space" }, "clientId"],
     ];
     for (const [input, path] of cases) {
       const result = monitorConfigSchema.safeParse(input);

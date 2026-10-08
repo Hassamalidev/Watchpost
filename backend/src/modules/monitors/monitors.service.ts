@@ -12,6 +12,7 @@ import {
   type MonitorSettings,
   type MonitorUsage,
   isPrivateRegion,
+  PRIVATE_PROBE_MONITOR_TYPES,
 } from "@app/shared";
 import type { Clock } from "../../core/clock.js";
 import {
@@ -320,6 +321,11 @@ export function createMonitorsService(deps: MonitorsServiceDeps): MonitorsServic
       );
     }
     const privateRegion = settings.regions.find(isPrivateRegion);
+    if (PRIVATE_PROBE_MONITOR_TYPES.includes(type) && privateRegion === undefined) {
+      throw new ValidationError("This kind of monitor runs on a private probe.", [
+        { path: "settings.regions", message: "choose a private probe" },
+      ]);
+    }
     if (privateRegion !== undefined) {
       const own = (await deps.privateRegions?.(scope)) ?? [];
       if (!own.includes(privateRegion)) {

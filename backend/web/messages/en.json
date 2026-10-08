@@ -196,7 +196,10 @@
       "websocket": "WebSocket",
       "ssl": "SSL certificate",
       "domain": "Domain expiry",
-      "heartbeat": "Heartbeat"
+      "heartbeat": "Heartbeat",
+      "redis": "Redis",
+      "mqtt": "MQTT broker",
+      "grpc": "gRPC health"
     },
     "severities": {
       "critical": "Critical",
@@ -248,7 +251,13 @@
     "runOn": "Check from",
     "runOnHint": "A private probe checks from inside your network; that monitor runs there only.",
     "runOnRegions": "Our regions",
-    "runOnProbe": "Private probe: {name}"
+    "runOnProbe": "Private probe: {name}",
+    "useTls": "Connect with TLS",
+    "grpcService": "Service name (optional)",
+    "grpcServiceHint": "Leave empty to ask about the server as a whole.",
+    "serviceUsername": "Username (optional)",
+    "servicePassword": "Password (optional)",
+    "servicePasswordHint": "Stored encrypted and never shown again."
   },
   "incidents": {
     "title": "Incidents",

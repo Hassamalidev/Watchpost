@@ -186,6 +186,50 @@ describe("private probes", () => {
     expect(checks.body.data[0]).toMatchObject({ region: made.region, ok: true });
   });
 
+  it("service checks (Redis, MQTT, gRPC) run on a private probe only, with their password kept secret", async () => {
+    const service = (regions: string[], config: Record<string, unknown>) =>
+      api(owner, ws, "post", "/monitors").send({ settings: { name: "Cache", regions }, config });
+    const redis = { type: "redis", host: "10.0.0.20", password: "s3cret-pass" };
+    const refused = await service(["eu-central"], redis);
+    expect(refused.status).toBe(400);
+    expect(refused.body.detail).toBe("This kind of monitor runs on a private probe.");
+    expect(
+      (await service(["eu-central"], { type: "grpc", host: "10.0.0.21", port: 443 })).status,
+    ).toBe(400);
+
+    const created = await service([made.region], redis);
+    expect(created.status, created.text).toBe(201);
+    /* Defaults are filled in, and the password never comes back. */
+    expect(created.body.config).toEqual({
+      type: "redis",
+      host: "10.0.0.20",
+      port: 6379,
+      tls: false,
+      password: "********",
+    });
+    const stored = await ctx.container.infra.db.execute<{ config: unknown }>(
+      sql`select config from monitors where id = ${created.body.id as string}`,
+    );
+    expect(JSON.stringify(stored.rows[0]?.config)).not.toContain("s3cret-pass");
+    /* The probe, which has to log in, gets it. */
+    const assigned = await client.call("GET", "/assignments?full=true");
+    const sent = (
+      assigned.body.upserts as Array<{ id: string; config: { password?: string } }>
+    ).find((m) => m.id === created.body.id);
+    expect(sent?.config.password).toBe("s3cret-pass");
+
+    const mqtt = await service([made.region], {
+      type: "mqtt",
+      host: "10.0.0.22",
+      username: "sensor",
+    });
+    expect(mqtt.status, mqtt.text).toBe(201);
+    expect(mqtt.body.config).toMatchObject({ type: "mqtt", port: 1883, username: "sensor" });
+    for (const id of [created.body.id, mqtt.body.id]) {
+      await api(owner, ws, "delete", `/monitors/${id as string}`);
+    }
+  });
+
   it("tells the owner once when the probe goes silent, and again after it came back", async () => {
     expect(await probes().privateProbes.notifyOffline()).toBe(0);
     clock.advance(6 * MINUTE);
