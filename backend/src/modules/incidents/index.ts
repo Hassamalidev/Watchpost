@@ -7,6 +7,7 @@ import type { MonitorsService } from "../monitors/index.js";
 import type { WorkspacesService } from "../workspaces/index.js";
 import { createIncidentsController } from "./incidents.controller.js";
 import { createIncidentsRepository } from "./incidents.repository.js";
+import { incidentsPublicRoutes } from "./incidents.public.js";
 import { createIncidentsRouter } from "./incidents.routes.js";
 import { createIncidentsService, type IncidentsService } from "./incidents.service.js";
 
@@ -61,6 +62,7 @@ export function createIncidentsModule(deps: IncidentsModuleDeps): IncidentsModul
   return {
     name: "incidents",
     service,
+    publicRoutes: incidentsPublicRoutes(service),
     routers: [
       {
         path: "/api/w/:workspaceId",

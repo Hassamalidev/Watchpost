@@ -1130,6 +1130,31 @@
       "empty": "No region is reporting yet.",
       "healthy": "Working",
       "unhealthy": "Not working"
+    },
+    "apiKeys": {
+      "title": "API keys",
+      "intro": "Keys let your scripts, CI and other tools use the API for this workspace.",
+      "docsLink": "API documentation",
+      "none": "There are no API keys.",
+      "name": "Name",
+      "nameHint": "Where the key is used, for example \"GitHub Actions\".",
+      "nameRequired": "Give the key a name.",
+      "scopes": "What the key may do",
+      "scopesHint": "Pick the least it needs. A write scope includes reading.",
+      "scopeRequired": "Pick at least one scope.",
+      "expiry": "Expires",
+      "expiryNever": "Never",
+      "expiryDays": "In {days} days",
+      "create": "Create key",
+      "madeTitle": "Key \"{name}\" created",
+      "madeLabel": "API key",
+      "madeHint": "Copy it now and store it somewhere safe. It is not shown again.",
+      "neverUsed": "never used",
+      "lastUsed": "last used {when}",
+      "expires": "expires {when}",
+      "revoke": "Revoke",
+      "revokeNamed": "Revoke the key {name}",
+      "confirmRevoke": "Revoke the key \"{name}\"? Anything that uses it stops working at once."
     }
   },
   "billing": {

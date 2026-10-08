@@ -11,6 +11,8 @@ export interface AppConfig {
   isProduction: boolean;
   logLevel: Env["LOG_LEVEL"];
   api: { port: number; trustProxy: string };
+  /* Requests one API key may make per minute on /api/v1. */
+  apiKeyRateLimitPerMinute: number;
   webOrigin: string;
   databaseUrl: string;
   redisUrl: string;
@@ -113,6 +115,7 @@ export function toAppConfig(env: Env): AppConfig {
     isProduction: env.NODE_ENV === "production",
     logLevel: env.LOG_LEVEL,
     api: { port: env.API_PORT, trustProxy: env.TRUST_PROXY },
+    apiKeyRateLimitPerMinute: env.API_KEY_RATE_LIMIT_PER_MINUTE,
     webOrigin: env.WEB_ORIGIN,
     databaseUrl: env.DATABASE_URL,
     redisUrl: env.REDIS_URL,

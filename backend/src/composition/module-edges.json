@@ -3,7 +3,7 @@
   "modules": {
     "audit": [],
     "workspaces": ["audit"],
-    "apikeys": ["workspaces", "audit"],
+    "apikeys": ["workspaces", "billing", "audit"],
     "billing": ["workspaces", "audit"],
     "credits": ["billing"],
     "monitors": ["workspaces", "billing", "audit"],

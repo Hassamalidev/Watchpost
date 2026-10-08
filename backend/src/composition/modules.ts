@@ -26,6 +26,7 @@ import { createImportsModule } from "../modules/imports/index.js";
 import { createStatuspagesModule } from "../modules/statuspages/index.js";
 import { createBadgesModule } from "../modules/badges/index.js";
 import { createAiModule } from "../modules/ai/index.js";
+import { createApikeysModule } from "../modules/apikeys/index.js";
 /* new-module:imports */
 
 export function createModules(infra: Infra): AppModule[] {
@@ -38,6 +39,15 @@ export function createModules(infra: Infra): AppModule[] {
     guards: workspaces.guards,
   });
   modules.push(billing);
+  modules.push(
+    createApikeysModule({
+      infra,
+      workspaces: workspaces.service,
+      hasFeature: (scope, feature) => billing.service.hasFeature(scope, feature),
+      guards: workspaces.guards,
+      limitPerMinute: infra.config.apiKeyRateLimitPerMinute,
+    }),
+  );
   const credits = createCreditsModule({
     infra,
     billing: billing.service,

@@ -63,6 +63,7 @@ describe("workspace route permissions", () => {
     expect(routes.map((r) => `${r.route} → ${r.permissions.join(", ")}`)).toMatchInlineSnapshot(`
       [
         "DELETE /alert-policies/:policyId → alertPolicy:write",
+        "DELETE /api-keys/:keyId → settings:update",
         "DELETE /channels/:channelId → channel:manage",
         "DELETE /escalation-policies/:policyId → schedule:write",
         "DELETE /inbound-sources/:sourceId → channel:manage",
@@ -82,6 +83,7 @@ describe("workspace route permissions", () => {
         "GET /alert-policies → alertPolicy:read",
         "GET /alert-tuning → incident:read",
         "GET /alert-tuning/:monitorId → incident:read",
+        "GET /api-keys → settings:update",
         "GET /billing → billing:read",
         "GET /channels → channel:read",
         "GET /channels/:channelId → channel:manage",
@@ -161,6 +163,7 @@ describe("workspace route permissions", () => {
         "PATCH /status-pages/:pageId → statusPage:write",
         "PATCH /status-pages/:pageId/incidents/:incidentId → statusPage:write",
         "POST /alert-policies → alertPolicy:write",
+        "POST /api-keys → settings:update",
         "POST /billing/cancel → billing:manage",
         "POST /billing/checkout → billing:manage",
         "POST /billing/credits → billing:manage",

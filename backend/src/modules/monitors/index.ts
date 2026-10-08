@@ -6,6 +6,7 @@ import { newId } from "../../infra/ids.js";
 import type { WorkspaceGuards } from "../workspaces/index.js";
 import { createMonitorsController } from "./monitors.controller.js";
 import { createMonitorsRepository } from "./monitors.repository.js";
+import { monitorsPublicRoutes } from "./monitors.public.js";
 import { createMonitorsRouter } from "./monitors.routes.js";
 import { createMonitorsService, type MonitorsService } from "./monitors.service.js";
 import { createMonitorsProcessors } from "./jobs/index.js";
@@ -55,6 +56,7 @@ export function createMonitorsModule(deps: MonitorsModuleDeps): MonitorsModule {
     routers: [
       { path: "/api/w/:workspaceId", router: createMonitorsRouter(controller, deps.guards) },
     ],
+    publicRoutes: monitorsPublicRoutes(service),
     processors: createMonitorsProcessors(service, deps.infra.db),
   };
 }

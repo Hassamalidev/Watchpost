@@ -198,6 +198,76 @@ export const DOCS_PAGES: readonly ContentPage[] = [
       },
     ],
   },
+  {
+    slug: "api",
+    title: "API",
+    summary:
+      "Manage monitors, incidents and maintenance windows from your own scripts, CI and tools.",
+    sections: [
+      {
+        heading: "Keys",
+        paragraphs: [
+          "A workspace admin makes a key under Settings, API keys, and picks what it may do. The whole key is shown once; store it in your secret manager. A key belongs to the workspace, not to the person who made it, and works until it is revoked or expires.",
+          "Send it with every request. This call tells you which workspace a key opens and what it may do:",
+        ],
+        code: `curl -s https://YOUR-HOST/api/v1/me \\
+  -H "Authorization: Bearer $UPTIMEWATCH_API_KEY"`,
+      },
+      {
+        heading: "Scopes",
+        list: [
+          "monitors:read and monitors:write: list, create, change, pause and delete monitors.",
+          "incidents:read and incidents:write: list incidents, acknowledge and resolve them.",
+          "maintenance:read and maintenance:write: list, create and delete maintenance windows.",
+          "status_pages:read: list status pages and their components.",
+          "A write scope includes reading. The Free plan can read through the API; changing things needs a paid plan.",
+        ],
+      },
+      {
+        heading: "Create a monitor",
+        paragraphs: [
+          "config.type picks the kind of check; settings holds the name, the interval and the alerting options. The answer is the monitor with its ID.",
+        ],
+        code: `curl -s -X POST https://YOUR-HOST/api/v1/monitors \\
+  -H "Authorization: Bearer $UPTIMEWATCH_API_KEY" \\
+  -H "content-type: application/json" \\
+  -H "Idempotency-Key: create-shop-monitor" \\
+  -d '{"settings":{"name":"Shop"},"config":{"type":"http","url":"https://shop.example.com"}}'`,
+      },
+      {
+        heading: "Silence alerts around a deploy",
+        paragraphs: [
+          "Create a maintenance window before the deploy and delete it after. While it is in effect its monitors don't alert, and the time doesn't count as downtime.",
+        ],
+        code: `curl -s -X POST https://YOUR-HOST/api/v1/maintenance-windows \\
+  -H "Authorization: Bearer $UPTIMEWATCH_API_KEY" \\
+  -H "content-type: application/json" \\
+  -d '{"name":"Deploy","startsAt":"2026-11-01T10:00:00Z","endsAt":"2026-11-01T10:30:00Z","scope":{"all":true}}'`,
+      },
+      {
+        heading: "Safe retries",
+        paragraphs: [
+          "Send an Idempotency-Key header with a write (any unique text up to 200 characters). If the request is sent again with the same key within 24 hours, you get the first answer back and nothing is done twice. The same key with a different request is refused with 409.",
+        ],
+      },
+      {
+        heading: "Limits, pages and errors",
+        list: [
+          "Each key may make 120 requests a minute. Past that the answer is 429, and the Retry-After header says when to try again.",
+          "Lists take limit and cursor. Pass the nextCursor of one answer as the cursor of the next; null means the last page.",
+          "Errors are JSON problem documents with a stable code: unauthorized (401), quota_exceeded (402), forbidden (403), not_found (404), conflict (409), validation_failed (400) with the fields that are wrong, rate_limited (429).",
+          "Times are ISO 8601 in UTC. IDs are UUIDs; an incident can also be addressed by its number.",
+        ],
+      },
+      {
+        heading: "Every endpoint",
+        paragraphs: [
+          "The full reference is an OpenAPI 3.1 document generated from the code, so it is always current. It needs no key. Load it into Postman, Insomnia or a client generator:",
+        ],
+        code: "curl -s https://YOUR-HOST/api/v1/openapi.json",
+      },
+    ],
+  },
 ];
 
 export const findDocsPage = (slug: string) => DOCS_PAGES.find((page) => page.slug === slug);

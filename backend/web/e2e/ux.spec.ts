@@ -132,3 +132,21 @@ test("the reports page shows an SLA report and offers it as files", async ({ pag
   await expect(page.getByText("No reports are scheduled.")).toBeVisible();
   await noAxeViolations(page);
 });
+
+test("an admin makes an API key, sees it once and revokes it", async ({ page }) => {
+  await page.goto(path("settings"));
+  const section = page.getByRole("region", { name: "API keys" });
+  const name = `e2e key ${Date.now()}`;
+  await section.getByLabel("Name").fill(name);
+  await section.getByRole("button", { name: "Create key" }).click();
+  await expect(section.getByText(`Key "${name}" created`)).toBeVisible();
+  await expect(section.getByLabel("API key")).toHaveValue(/^wp_[A-Za-z0-9]{12}_[A-Za-z0-9]{40}$/);
+  await noAxeViolations(page);
+  /* After a reload only the start of the key is left. */
+  await page.reload();
+  await expect(section.getByLabel("API key")).toHaveCount(0);
+  await expect(section.getByText(name)).toBeVisible();
+  page.once("dialog", (dialog) => void dialog.accept());
+  await section.getByRole("button", { name: `Revoke the key ${name}` }).click();
+  await expect(section.getByText(name)).toHaveCount(0);
+});

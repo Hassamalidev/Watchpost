@@ -5,6 +5,7 @@ import { newId } from "../../infra/ids.js";
 import type { MonitorsService } from "../monitors/index.js";
 import { createMaintenanceController } from "./maintenance.controller.js";
 import { createMaintenanceRepository } from "./maintenance.repository.js";
+import { maintenancePublicRoutes } from "./maintenance.public.js";
 import { createMaintenanceRouter } from "./maintenance.routes.js";
 import { createMaintenanceService, type MaintenanceService } from "./maintenance.service.js";
 
@@ -31,6 +32,7 @@ export function createMaintenanceModule(deps: MaintenanceModuleDeps): Maintenanc
   return {
     name: "maintenance",
     service,
+    publicRoutes: maintenancePublicRoutes(service),
     routers: [
       {
         path: "/api/w/:workspaceId",

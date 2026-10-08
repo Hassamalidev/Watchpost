@@ -17,6 +17,7 @@ import {
   createStatuspagesRouter,
   createSubscriptionLinksRouter,
 } from "./statuspages.routes.js";
+import { statuspagesPublicRoutes } from "./statuspages.public.js";
 import { createStatuspagesService, type StatuspagesService } from "./statuspages.service.js";
 
 export { statusPageTag, type PublicRef, type StatuspagesService } from "./statuspages.service.js";
@@ -64,6 +65,7 @@ export function createStatuspagesModule(deps: StatuspagesModuleDeps): Statuspage
   return {
     name: "statuspages",
     service,
+    publicRoutes: statuspagesPublicRoutes(service),
     routers: [
       { path: "/api/w/:workspaceId", router: createStatuspagesRouter(controller, deps.guards) },
       { path: "/api/public/status", router: createPublicStatusRouter(controller) },

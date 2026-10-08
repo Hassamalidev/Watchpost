@@ -27,6 +27,7 @@ import { createQueueConnection, createQueues } from "../infra/queues/index.js";
 import type { ReadinessCheck } from "../infra/health.js";
 import { createRedis, pingRedis } from "../infra/redis.js";
 import { createModules } from "./modules.js";
+import { publicApi } from "./public-api.js";
 import type { AppModule, Infra, MountedRouter } from "./types.js";
 
 export interface Container {
@@ -225,7 +226,10 @@ export function createContainer(
     modules,
     readinessChecks,
     readinessWarnings,
-    routers: modules.flatMap((m) => m.routers ?? []),
+    routers: [
+      ...modules.flatMap((m) => m.routers ?? []),
+      ...publicApi(modules, { title: "Public API", serverUrl: config.webOrigin }),
+    ],
     /* Better Auth and the probe API read the raw request, so they mount before the JSON parser (§7.9 step 3). */
     rawBodyRouters: [
       { path: "/", router: infra.auth.router },

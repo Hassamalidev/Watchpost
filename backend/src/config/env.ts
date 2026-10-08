@@ -188,6 +188,8 @@ const baseEnvSchema = z.object({
     .default("true")
     .transform((value) => value === "true"),
   UNFUNDED_AI_MONTHLY_CAP_USD: z.coerce.number().min(0).max(10_000).default(5),
+  /* Requests one API key may make per minute on /api/v1 (PRODUCT.md §7.9). */
+  API_KEY_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).max(100_000).default(120),
   /* Where warnings about our own provider balances go; logged only when unset. */
   OPS_EMAIL: z.email().optional(),
   /* Cloudflare R2 (private object storage: failure evidence, later reports and uploads). */

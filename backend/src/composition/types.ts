@@ -1,8 +1,10 @@
 /* Shapes shared by the composition root and every module factory (PRODUCT.md §7.3). */
 import type { RequestHandler, Router } from "express";
+import type { ApiScope } from "@app/shared";
 import type { Redis } from "ioredis";
 import type { AppConfig } from "../config/index.js";
 import type { Clock } from "../core/clock.js";
+import type { PublicRoute } from "../core/public-api.js";
 import type { ActionLinks } from "../infra/action-links.js";
 import type { AuthService } from "../infra/auth/index.js";
 import type { TokenCipher } from "../infra/crypto.js";
@@ -58,6 +60,18 @@ export interface Infra {
   ai: AiClient | undefined;
 }
 
+/* What the container needs from the apikeys module to guard `/api/v1`. */
+export interface PublicApiGuards {
+  /* Resolves the key and sets the workspace scope; 401 without a valid key. */
+  authenticate: RequestHandler;
+  /* Counts requests per key. */
+  rateLimit: RequestHandler;
+  /* 403 when the key lacks the scope; 402 when the plan doesn't include writing. */
+  requireScope(scope: ApiScope): RequestHandler;
+  /* Replays the stored answer when an Idempotency-Key is used again. */
+  idempotent: RequestHandler;
+}
+
 export interface MountedRouter {
   path: string;
   router: Router;
@@ -79,6 +93,10 @@ export interface AppModule {
   sweeps?: ModuleSweep[];
   /* Intervals the API process runs (for example the platform tick). Failures are logged. */
   apiTimers?: ApiTimer[];
+  /* Routes of the public API (/api/v1/*); the container mounts them behind the key guards. */
+  publicRoutes?: PublicRoute[];
+  /* The key check, rate limit, scope check and idempotency for /api/v1; the apikeys module only. */
+  publicApiGuards?: PublicApiGuards;
   /* Probe protocol routes (/api/probe/v1/*); the container mounts them behind probe auth. */
   probeRouters?: Router[];
   /* Probe authentication middleware (raw body + HMAC); provided by the probes module only. */
