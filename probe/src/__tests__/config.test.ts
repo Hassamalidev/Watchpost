@@ -29,6 +29,29 @@ describe("probe config", () => {
     expect(config.allowCidrs).toEqual(["172.18.0.0/16"]);
   });
 
+  it("a private probe needs only the address and its token", () => {
+    const id = "0199c1a0-4a11-7d52-8c0e-7b9f3e2a1d05";
+    const config = loadProbeConfig({
+      API_URL: "https://app.example.com/",
+      PROBE_TOKEN: `wpp_${id}.${"s".repeat(43)}`,
+    });
+    expect(config).toMatchObject({
+      apiUrl: "https://app.example.com",
+      probeId: id,
+      secret: "s".repeat(43),
+      mode: "private",
+      /* Its own location, named after it. */
+      region: `private:${id}`,
+      bufferDir: "/var/lib/watchpost-probe",
+    });
+    expect(() =>
+      loadProbeConfig({ API_URL: "https://app.example.com", PROBE_TOKEN: "not-a-token" }),
+    ).toThrow(/PROBE_TOKEN: is not a probe token/);
+    expect(() => loadProbeConfig({ API_URL: "https://app.example.com" })).toThrow(
+      /PROBE_ID: is required \(or set PROBE_TOKEN\)/,
+    );
+  });
+
   it("gives private probes a disk buffer", () => {
     expect(loadProbeConfig({ ...valid, PROBE_MODE: "private" }).bufferDir).toBe(
       "/var/lib/watchpost-probe",

@@ -5,6 +5,12 @@ import { newId } from "../../infra/ids.js";
 import { probeAuth } from "../../middleware/probe-auth.js";
 import type { MonitorsService } from "../monitors/index.js";
 import type { ResultsService } from "../results/index.js";
+import type { WorkspacesService } from "../workspaces/index.js";
+import {
+  createPrivateProbesRouter,
+  createPrivateProbesService,
+  type PrivateProbesService,
+} from "./private.js";
 import { createProbesController } from "./probes.controller.js";
 import { createProbesRepository } from "./probes.repository.js";
 import { createProbeProtocolRouter, createProbeUserRouter } from "./probes.routes.js";
@@ -22,6 +28,7 @@ export { GUARD_MIN_MONITORS, QUARANTINE_MS } from "./guard.js";
 export interface ProbesModuleDeps {
   infra: Pick<Infra, "db" | "pool" | "clock" | "cipher" | "logger" | "outbox" | "config" | "locks">;
   monitors: MonitorsService;
+  workspaces: Pick<WorkspacesService, "listMembers" | "workspaceName">;
   /* The probe health guard reads each probe's failure rate; without it the guard is off. */
   results?: ResultsService | undefined;
   guards: { session: RequestHandler; workspace: RequestHandler };
@@ -31,6 +38,7 @@ const DAY_MS = 24 * 60 * 60_000;
 
 export interface ProbesModule extends AppModule {
   service: ProbesService;
+  privateProbes: PrivateProbesService;
 }
 
 export function createProbesModule(deps: ProbesModuleDeps): ProbesModule {
@@ -53,6 +61,7 @@ export function createProbesModule(deps: ProbesModuleDeps): ProbesModule {
       }),
     );
   };
+  const repository = createProbesRepository(deps.infra.db);
   const service = createProbesService({
     results: deps.results,
     async onQuarantine(info) {
@@ -88,7 +97,7 @@ export function createProbesModule(deps: ProbesModuleDeps): ProbesModule {
       );
     },
     db: deps.infra.db,
-    repository: createProbesRepository(deps.infra.db),
+    repository,
     monitors: deps.monitors,
     cipher: deps.infra.cipher,
     clock: deps.infra.clock,
@@ -96,15 +105,41 @@ export function createProbesModule(deps: ProbesModuleDeps): ProbesModule {
     notifier: createTaskNotifier(deps.infra.pool),
   });
   const controller = createProbesController(service);
+  const privateProbes = createPrivateProbesService({
+    db: deps.infra.db,
+    repository,
+    register: (input) => service.register(input),
+    forget: (probeId) => service.forget(probeId),
+    monitors: deps.monitors,
+    workspaces: deps.workspaces,
+    outbox: deps.infra.outbox,
+    clock: deps.infra.clock,
+    webOrigin: deps.infra.config.webOrigin,
+    image: deps.infra.config.privateProbeImage,
+  });
   return {
     name: "probes",
     service,
+    privateProbes,
     probeAuth: probeAuth({ lookup: (id) => service.authLookup(id) }),
     probeRouters: [createProbeProtocolRouter(controller)],
     routers: [
       { path: "/api/w/:workspaceId", router: createProbeUserRouter(controller, deps.guards) },
+      {
+        path: "/api/w/:workspaceId",
+        router: createPrivateProbesRouter(privateProbes, deps.guards),
+      },
     ],
     sweeps: [
+      {
+        /* A private probe silent for five minutes: its workspace is told, once. */
+        kind: "private-probes-offline",
+        everyMs: 60_000,
+        async run(sweepLogger) {
+          const told = await privateProbes.notifyOffline();
+          if (told > 0) sweepLogger.info({ told }, "private probes went offline");
+        },
+      },
       {
         /* Every minute (§9.2): renew quarantines that still hold and notice silent probes. */
         kind: "probe-health-guard",

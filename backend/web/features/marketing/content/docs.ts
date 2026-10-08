@@ -391,6 +391,39 @@ const ok = crypto.timingSafeEqual(Buffer.from(v1), Buffer.from(expected));`,
       },
     ],
   },
+  {
+    slug: "private-probes",
+    title: "Private probes",
+    summary:
+      "Monitor services inside your network with one Docker command. Nothing is opened to the internet.",
+    sections: [
+      {
+        heading: "What it is",
+        paragraphs: [
+          "A private probe is our probe program running on a machine of yours. It checks internal services, databases and staging environments that our regions can't reach, and sends the results to UptimeWatch over outgoing HTTPS.",
+          "Private probes are part of the Pro plan (one) and the Business plan (five).",
+        ],
+      },
+      {
+        heading: "Add one",
+        list: [
+          "Open Settings, Private probes, and add a probe. Name it after where it runs.",
+          "Copy the install command and run it on a machine with Docker. The command holds the probe's token and is shown once.",
+          "Within a minute the probe shows as online.",
+          "On a monitor, choose Check from, then the probe. That monitor runs on the probe and nowhere else.",
+        ],
+      },
+      {
+        heading: "Good to know",
+        list: [
+          "With one location there is no second region to confirm a failure, so a monitor on a private probe goes down after two failed checks in a row.",
+          "If the probe is offline for five minutes, owners and admins get one email. Its monitors are not checked and do not alert until it is back.",
+          "The list says when a newer probe is out. Pull the image and start the container again; the token stays the same.",
+          "Removing a probe makes its token stop working at once.",
+        ],
+      },
+    ],
+  },
 ];
 
 export const findDocsPage = (slug: string) => DOCS_PAGES.find((page) => page.slug === slug);

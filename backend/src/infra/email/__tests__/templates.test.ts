@@ -110,6 +110,13 @@ const SAMPLES: Record<EmailTemplate, Record<string, unknown>> = {
     insight: "Checkout API caused most of the downtime this week.",
     settingsUrl: "https://app.example.com/w/1/settings",
   },
+  "probe-offline": {
+    workspaceName: "Acme",
+    probeName: "Office rack",
+    lastSeenAt: "2026-10-01T12:00:00.000Z",
+    monitors: 3,
+    url: "https://app.example.com/w/1/settings",
+  },
   "sla-report": {
     heading: "Client report",
     subject: "Acme shop",

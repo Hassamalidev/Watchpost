@@ -30,6 +30,8 @@ export const probes = pgTable("probes", {
   lastHeartbeat: jsonb("last_heartbeat").$type<Record<string, unknown>>(),
   /* Probe health guard (§9.2, P2-T03): failures from a quarantined probe don't count. */
   quarantinedUntil: timestamp("quarantined_until", { withTimezone: true }),
+  /* Private probes: when its workspace was told it went silent; cleared when it reports again. */
+  offlineNotifiedAt: timestamp("offline_notified_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

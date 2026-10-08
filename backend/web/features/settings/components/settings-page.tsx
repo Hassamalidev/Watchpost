@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { ApiKeys } from "./api-keys";
 import { CheckRegions } from "./check-regions";
+import { PrivateProbes } from "./private-probes";
 import { can, useWorkspace } from "@/components/app/workspace-context";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -72,6 +73,7 @@ export function SettingsPage() {
         )}
       </form>
       <CheckRegions ws={ws} />
+      <PrivateProbes ws={ws} canManage={can(workspace.role, "settings:update")} />
       {can(workspace.role, "settings:update") && <ApiKeys ws={ws} />}
       {can(workspace.role, "settings:update") && (
         <section className="grid gap-2 rounded-lg border p-4" aria-labelledby="import-heading">

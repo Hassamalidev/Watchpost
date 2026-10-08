@@ -1,0 +1,1 @@
+ALTER TABLE "probes" ADD COLUMN "offline_notified_at" timestamp with time zone;

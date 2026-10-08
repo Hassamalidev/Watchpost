@@ -4,7 +4,7 @@
  */
 import { Router, type RequestHandler } from "express";
 import { z } from "zod";
-import { REGIONS } from "@app/shared";
+import { checkRegionSchema } from "@app/shared";
 import { requirePermission } from "../../middleware/roles.js";
 import { inputOf, validate } from "../../middleware/validate.js";
 import { scopeOf } from "../../middleware/workspace.js";
@@ -13,11 +13,11 @@ import { CHART_RANGES, type ChartRange, type RollupsService } from "./rollups.se
 const params = z.object({ monitorId: z.uuid() });
 const latencyQuery = z.object({
   range: z.enum(Object.keys(CHART_RANGES) as [ChartRange, ...ChartRange[]]).default("24h"),
-  region: z.enum(REGIONS).optional(),
+  region: checkRegionSchema.optional(),
 });
 const checksQuery = z.object({
   limit: z.coerce.number().int().min(1).max(500).default(100),
-  region: z.enum(REGIONS).optional(),
+  region: checkRegionSchema.optional(),
 });
 
 export function createResultsRouter(

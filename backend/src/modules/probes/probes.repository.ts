@@ -79,8 +79,56 @@ export function createProbesRepository(db: DbOrTx) {
     ): Promise<void> {
       await db
         .update(probes)
-        .set({ ...patch, lastSeenAt: sql`now()` })
+        .set({ ...patch, lastSeenAt: sql`now()`, offlineNotifiedAt: null })
         .where(eq(probes.id, id));
+    },
+
+    /* A workspace's private probes, oldest first. */
+    async privateProbes(scope: WorkspaceScope): Promise<ProbeRow[]> {
+      assertWorkspaceScope(scope);
+      return db
+        .select()
+        .from(probes)
+        .where(and(eq(probes.kind, "private"), eq(probes.workspaceId, scope.workspaceId)))
+        .orderBy(probes.createdAt, probes.id);
+    },
+
+    async setRegion(id: string, region: string): Promise<void> {
+      await db.update(probes).set({ region }).where(eq(probes.id, id));
+    },
+
+    async deletePrivateProbe(scope: WorkspaceScope, id: string): Promise<boolean> {
+      assertWorkspaceScope(scope);
+      const rows = await db
+        .delete(probes)
+        .where(
+          and(
+            eq(probes.id, id),
+            eq(probes.kind, "private"),
+            eq(probes.workspaceId, scope.workspaceId),
+          ),
+        )
+        .returning({ id: probes.id });
+      return rows.length > 0;
+    },
+
+    /*
+     * System: private probes that reported once, have been silent since `before`, and whose
+     * workspace hasn't been told. Marks them as told and returns them, so two workers tell once.
+     */
+    async claimSilentPrivateProbes(before: Date, now: Date): Promise<ProbeRow[]> {
+      return db
+        .update(probes)
+        .set({ offlineNotifiedAt: now })
+        .where(
+          and(
+            eq(probes.kind, "private"),
+            eq(probes.disabled, false),
+            isNull(probes.offlineNotifiedAt),
+            lte(probes.lastSeenAt, before),
+          ),
+        )
+        .returning();
     },
 
     /* Inserts a task unless one with the same dedupe key exists; announces it after commit. */

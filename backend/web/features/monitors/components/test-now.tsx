@@ -1,6 +1,7 @@
 /* "Test now": runs the check from every selected region and shows each result as it arrives. */
 "use client";
 
+import { useRegionLabel } from "@/features/settings/private-probes";
 import * as React from "react";
 import { useTranslations } from "next-intl";
 import { FlaskConical } from "lucide-react";
@@ -13,6 +14,7 @@ const POLL_MS = 1_000;
 const GIVE_UP_MS = 45_000;
 
 export function TestNow({ ws, monitorId }: { ws: string; monitorId: string }) {
+  const regionLabel = useRegionLabel(ws);
   const t = useTranslations("monitors");
   const [tasks, setTasks] = React.useState<ProbeTaskView[] | null>(null);
   const [running, setRunning] = React.useState(false);
@@ -53,13 +55,13 @@ export function TestNow({ ws, monitorId }: { ws: string; monitorId: string }) {
             <li key={task.id}>
               {task.result
                 ? t("testResult", {
-                    region: task.region,
+                    region: regionLabel(task.region),
                     outcome: task.result.ok
                       ? t("testOk")
                       : `${t("testFailed")} (${task.result.errorCode ?? "?"})`,
                     ms: Math.round(task.result.latencyMs ?? 0),
                   })
-                : t("testPending", { region: task.region })}
+                : t("testPending", { region: regionLabel(task.region) })}
             </li>
           ))}
         </ul>

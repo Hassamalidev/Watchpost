@@ -27,6 +27,8 @@ export interface MonitorsModuleDeps {
   guards: WorkspaceGuards;
   /* Plan limits for a workspace; Free until entitlements land (P3-T01). */
   limits?: (scope: WorkspaceScope) => Promise<PlanLimits>;
+  /* The workspace's private probe locations (the probes module answers, wired by the container). */
+  privateRegions?: (scope: WorkspaceScope) => Promise<string[]>;
 }
 
 export interface MonitorsModule extends AppModule {
@@ -43,6 +45,7 @@ export function createMonitorsModule(deps: MonitorsModuleDeps): MonitorsModule {
     cipher: deps.infra.cipher,
     newId,
     limits: deps.limits ?? (async () => freeLimits()),
+    privateRegions: deps.privateRegions,
     onSecretError: (monitorId, err) =>
       deps.infra.logger?.error(
         { monitorId, err: (err as Error).message },

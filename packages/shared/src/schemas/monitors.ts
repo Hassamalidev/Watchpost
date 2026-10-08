@@ -4,7 +4,8 @@
  * The API validates with these; probes receive the same shapes in assignments.
  */
 import { z } from "zod";
-import { REGIONS, SEVERITIES } from "../constants/regions.js";
+import { REGIONS, SEVERITIES, isPrivateRegion } from "../constants/regions.js";
+import { checkRegionSchema } from "./region.js";
 
 export const MONITOR_TYPES = [
   "http",
@@ -214,7 +215,7 @@ export const monitorSettingsObject = z.object({
   name: z.string().trim().min(1).max(200),
   intervalSeconds: z.number().int().min(15).max(86_400).default(300),
   timeoutMs: z.number().int().min(1_000).max(30_000).default(10_000),
-  regions: z.array(z.enum(REGIONS)).min(1).max(REGIONS.length).default(["eu-central", "us-east"]),
+  regions: z.array(checkRegionSchema).min(1).max(REGIONS.length).default(["eu-central", "us-east"]),
   /* Failing regions needed before an incident opens (default 2; 1 in single-region setups). */
   minFailingRegions: z.number().int().min(1).max(REGIONS.length).default(2),
   /*
@@ -248,6 +249,11 @@ export const monitorSettingsSchema = monitorSettingsObject
   })
   .refine((s) => new Set(s.regions).size === s.regions.length, {
     message: "regions must not repeat",
+    path: ["regions"],
+  })
+  /* What a private probe can reach, our regions usually can't: mixing them would report it down. */
+  .refine((s) => s.regions.length === 1 || !s.regions.some(isPrivateRegion), {
+    message: "a monitor on a private probe runs there only",
     path: ["regions"],
   });
 

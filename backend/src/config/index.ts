@@ -13,6 +13,8 @@ export interface AppConfig {
   api: { port: number; trustProxy: string };
   /* Requests one API key may make per minute on /api/v1. */
   apiKeyRateLimitPerMinute: number;
+  /* The container image customers run as a private probe. */
+  privateProbeImage: string;
   webOrigin: string;
   databaseUrl: string;
   redisUrl: string;
@@ -116,6 +118,7 @@ export function toAppConfig(env: Env): AppConfig {
     logLevel: env.LOG_LEVEL,
     api: { port: env.API_PORT, trustProxy: env.TRUST_PROXY },
     apiKeyRateLimitPerMinute: env.API_KEY_RATE_LIMIT_PER_MINUTE,
+    privateProbeImage: env.PRIVATE_PROBE_IMAGE,
     webOrigin: env.WEB_ORIGIN,
     databaseUrl: env.DATABASE_URL,
     redisUrl: env.REDIS_URL,

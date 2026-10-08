@@ -244,7 +244,11 @@
       "markdown": "Markdown",
       "imageUrl": "Image URL",
       "hint": "Anyone with the URL can see what the badge shows, so share it only where that is fine. It updates within a minute. Add ?days=7 or ?days=90 to an uptime badge, or ?label=Your text to change the label."
-    }
+    },
+    "runOn": "Check from",
+    "runOnHint": "A private probe checks from inside your network; that monitor runs there only.",
+    "runOnRegions": "Our regions",
+    "runOnProbe": "Private probe: {name}"
   },
   "incidents": {
     "title": "Incidents",
@@ -1205,6 +1209,26 @@
       "revoke": "Revoke",
       "revokeNamed": "Revoke the key {name}",
       "confirmRevoke": "Revoke the key \"{name}\"? Anything that uses it stops working at once."
+    },
+    "privateProbes": {
+      "title": "Private probes",
+      "intro": "A private probe runs inside your network and checks what our regions can't reach: internal services, databases, staging. It connects out to us over HTTPS; nothing has to be opened to the internet.",
+      "none": "There are no private probes.",
+      "name": "Probe name",
+      "nameHint": "Where it runs, for example \"Office rack\" or \"AWS VPC\".",
+      "add": "Add private probe",
+      "madeTitle": "Probe \"{name}\" added. Run this where it should check from:",
+      "commandLabel": "Install command",
+      "commandHint": "It needs Docker. The command holds the probe's token: copy it now, it is not shown again. The probe shows as online here within a minute.",
+      "online": "Online",
+      "offline": "Offline, last seen {when}",
+      "neverSeen": "Not connected yet",
+      "monitorCount": "{count, plural, =0 {no monitors} one {# monitor} other {# monitors}}",
+      "version": "version {version}",
+      "upgrade": "A newer probe is out. Pull the image and start the container again to upgrade.",
+      "remove": "Remove",
+      "removeNamed": "Remove the probe {name}",
+      "confirmRemove": "Remove the probe \"{name}\"? Its token stops working at once."
     }
   },
   "billing": {

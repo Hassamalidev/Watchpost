@@ -2,6 +2,7 @@
  * The list of modules, in dependency order. `pnpm new:module <name>` appends here.
  * Pass each factory the modules it may call (composition/architecture.ts), never the whole list.
  */
+import type { WorkspaceScope } from "../core/workspace-scope.js";
 import type { AppModule, Infra } from "./types.js";
 import { createWorkspacesModule } from "../modules/workspaces/index.js";
 import { createMonitorsModule } from "../modules/monitors/index.js";
@@ -55,10 +56,15 @@ export function createModules(infra: Infra): AppModule[] {
     guards: workspaces.guards,
   });
   modules.push(credits);
+  /* Set once the probes module exists: it is created after monitors, which it depends on. */
+  const late: { privateRegions: (scope: WorkspaceScope) => Promise<string[]> } = {
+    privateRegions: () => Promise.resolve([]),
+  };
   const monitors = createMonitorsModule({
     infra,
     guards: workspaces.guards,
     limits: billing.service.limits,
+    privateRegions: (scope) => late.privateRegions(scope),
   });
   modules.push(monitors);
   const results = createResultsModule({
@@ -71,8 +77,10 @@ export function createModules(infra: Infra): AppModule[] {
     infra,
     monitors: monitors.service,
     results: results.service,
+    workspaces: workspaces.service,
     guards: workspaces.guards,
   });
+  late.privateRegions = (scope) => probes.privateProbes.regions(scope);
   modules.push(probes);
   const deploys = createDeploysModule({ infra, guards: workspaces.guards });
   modules.push(deploys);

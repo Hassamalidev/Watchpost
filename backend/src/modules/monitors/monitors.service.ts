@@ -11,6 +11,7 @@ import {
   type MonitorConfig,
   type MonitorSettings,
   type MonitorUsage,
+  isPrivateRegion,
 } from "@app/shared";
 import type { Clock } from "../../core/clock.js";
 import {
@@ -118,6 +119,8 @@ export interface MonitorsService {
   setPaused(scope: WorkspaceScope, id: string, paused: boolean): Promise<MonitorView>;
   /* The workspace's plan limits (other modules ask here instead of calling billing themselves). */
   planLimits(scope: WorkspaceScope): Promise<PlanLimits>;
+  /* How many monitors run in each of the given regions (a private probe's monitors). */
+  countByRegion(scope: WorkspaceScope, regions: string[]): Promise<Map<string, number>>;
   /* Active monitors against the plan, for usage meters. */
   usage(scope: WorkspaceScope): Promise<MonitorUsage>;
   /*
@@ -191,6 +194,8 @@ export interface MonitorsServiceDeps {
   limits: (scope: WorkspaceScope) => Promise<PlanLimits>;
   /* Reports monitors skipped for probes because their secrets can't be decrypted. */
   onSecretError?: (monitorId: string, err: unknown) => void;
+  /* The workspace's private probe locations; a monitor can't be put on anyone else's. */
+  privateRegions?: ((scope: WorkspaceScope) => Promise<string[]>) | undefined;
 }
 
 const secretsAad = (monitorId: string) => `monitor:${monitorId}`;
@@ -313,6 +318,15 @@ export function createMonitorsService(deps: MonitorsServiceDeps): MonitorsServic
       throw new QuotaExceededError(
         `Your plan checks at most every ${formatInterval(limits.minIntervalSeconds)}. Upgrade for faster checks.`,
       );
+    }
+    const privateRegion = settings.regions.find(isPrivateRegion);
+    if (privateRegion !== undefined) {
+      const own = (await deps.privateRegions?.(scope)) ?? [];
+      if (!own.includes(privateRegion)) {
+        throw new ValidationError("That private probe doesn't exist in this workspace.", [
+          { path: "settings.regions", message: "unknown private probe" },
+        ]);
+      }
     }
     if (settings.regions.length > limits.regionsPerMonitor) {
       throw new QuotaExceededError(
@@ -544,6 +558,7 @@ export function createMonitorsService(deps: MonitorsServiceDeps): MonitorsServic
     },
 
     planLimits: (scope) => deps.limits(scope),
+    countByRegion: (scope, regions) => repo.countByRegion(db, scope, regions),
 
     async usage(scope) {
       const limits = await deps.limits(scope);

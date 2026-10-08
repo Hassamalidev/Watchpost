@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
+import { useRegionLabel } from "@/features/settings/private-probes";
 import { explainFailure } from "@app/shared";
 import { Pause, Pencil, Play, Trash2 } from "lucide-react";
 import { StatusBadge } from "@/components/app/status-badge";
@@ -34,6 +35,7 @@ import { TestNow } from "./test-now";
 export function MonitorDetail({ monitorId }: { monitorId: string }) {
   const t = useTranslations("monitors");
   const tInsights = useTranslations("insights");
+  const regionLabel = useRegionLabel(useWorkspace().id);
   const workspace = useWorkspace();
   const ws = workspace.id;
   const router = useRouter();
@@ -262,7 +264,7 @@ export function MonitorDetail({ monitorId }: { monitorId: string }) {
                 {(checks.data ?? []).map((check) => (
                   <tr key={check.id} className="border-t">
                     <td className="py-1 pr-3">{formatDateTime(check.checkedAt)}</td>
-                    <td className="py-1 pr-3">{check.region}</td>
+                    <td className="py-1 pr-3">{regionLabel(check.region)}</td>
                     <td className="py-1 pr-3">
                       {check.ok ? t("testOk") : `${t("testFailed")} (${check.errorCode ?? "?"})`}
                     </td>

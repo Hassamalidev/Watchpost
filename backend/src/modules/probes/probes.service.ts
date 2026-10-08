@@ -14,7 +14,6 @@ import {
   type HelloResponse,
   type ProbeHeartbeat,
   type ProbeTask,
-  type Region,
 } from "@app/shared";
 import type { Clock } from "../../core/clock.js";
 import { NotFoundError, ValidationError } from "../../core/errors.js";
@@ -61,10 +60,13 @@ export interface ProbeTaskView {
 export interface ProbesService {
   register(input: {
     name: string;
-    region: Region;
+    /* One of our regions, or a private probe's own location. */
+    region: string;
     kind: "managed" | "private";
     workspaceId?: string;
   }): Promise<{ id: string; secret: string }>;
+  /* Drops a probe from the authentication cache (it was deleted or changed). */
+  forget(probeId: string): void;
   authLookup(probeId: string): Promise<{ probe: AuthenticatedProbe; secret: string } | undefined>;
   hello(probe: AuthenticatedProbe, body: HelloRequest): Promise<HelloResponse>;
   heartbeat(probe: AuthenticatedProbe, body: ProbeHeartbeat): Promise<void>;
@@ -227,6 +229,10 @@ export function createProbesService(deps: {
         secretEnc: deps.cipher.encrypt(secret, `probe:${id}`),
       });
       return { id, secret };
+    },
+
+    forget(probeId) {
+      authCache.delete(probeId);
     },
 
     async authLookup(probeId) {

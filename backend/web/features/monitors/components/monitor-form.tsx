@@ -10,7 +10,14 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { useTranslations } from "next-intl";
-import { DNS_RECORD_TYPES, LAUNCH_REGIONS, SEVERITIES, createMonitorSchema } from "@app/shared";
+import {
+  DNS_RECORD_TYPES,
+  LAUNCH_REGIONS,
+  SEVERITIES,
+  createMonitorSchema,
+  isPrivateRegion,
+} from "@app/shared";
+import { usePrivateProbes } from "@/features/settings/private-probes";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -199,6 +206,9 @@ export function MonitorForm({ ws, monitor }: { ws: string; monitor?: Monitor }) 
   const type = form.watch("type");
   const errors = form.formState.errors;
   const regionCount = form.watch("regions").length;
+  /* A monitor runs from our regions or on one private probe, never both. */
+  const privateProbes = usePrivateProbes(ws);
+  const privateRegion = form.watch("regions").find(isPrivateRegion);
   const usesUrl = type === "http" || type === "keyword";
   const usesPort = type === "tcp" || type === "ssl";
   /* Saved credentials stay with the target they were entered for (the API enforces it too). */
@@ -359,14 +369,38 @@ export function MonitorForm({ ws, monitor }: { ws: string; monitor?: Monitor }) 
       <fieldset className="grid gap-2">
         <legend className="text-sm font-medium">{t("regions")}</legend>
         <p className="text-xs text-muted-foreground">{t("regionsHint")}</p>
-        <div className="flex flex-wrap gap-4">
-          {LAUNCH_REGIONS.map((region) => (
-            <label key={region} className="flex items-center gap-2 text-sm">
-              <input type="checkbox" value={region} {...form.register("regions")} />
-              {region}
-            </label>
-          ))}
-        </div>
+        {(privateProbes.data ?? []).length > 0 && (
+          <Field label={t("runOn")} htmlFor="monitor-location" hint={t("runOnHint")}>
+            <Select
+              id="monitor-location"
+              value={privateRegion ?? ""}
+              onChange={(e) =>
+                form.setValue(
+                  "regions",
+                  e.target.value === "" ? ["eu-central", "us-east"] : [e.target.value],
+                  { shouldDirty: true },
+                )
+              }
+            >
+              <option value="">{t("runOnRegions")}</option>
+              {(privateProbes.data ?? []).map((probe) => (
+                <option key={probe.id} value={probe.region}>
+                  {t("runOnProbe", { name: probe.name })}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
+        {privateRegion === undefined && (
+          <div className="flex flex-wrap gap-4">
+            {LAUNCH_REGIONS.map((region) => (
+              <label key={region} className="flex items-center gap-2 text-sm">
+                <input type="checkbox" value={region} {...form.register("regions")} />
+                {region}
+              </label>
+            ))}
+          </div>
+        )}
         {errors.regions?.message && (
           <p role="alert" className="text-xs text-status-down">
             {errors.regions.message}

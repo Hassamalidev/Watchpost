@@ -33,17 +33,24 @@
           "maxItems": 9,
           "type": "array",
           "items": {
-            "type": "string",
-            "enum": [
-              "eu-central",
-              "us-east",
-              "ap-southeast",
-              "ap-south",
-              "me-central",
-              "eu-west",
-              "us-west",
-              "sa-east",
-              "ap-southeast-2"
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "eu-central",
+                  "us-east",
+                  "ap-southeast",
+                  "ap-south",
+                  "me-central",
+                  "eu-west",
+                  "us-west",
+                  "sa-east",
+                  "ap-southeast-2"
+                ]
+              },
+              {
+                "type": "string"
+              }
             ]
           }
         },

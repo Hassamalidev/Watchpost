@@ -295,6 +295,40 @@ function SlaReportEmail(d: z.infer<typeof slaReportData>) {
   );
 }
 
+/* A private probe stopped reporting: the monitors on it aren't being checked (PRODUCT.md §5). */
+const probeOfflineData = z.object({
+  workspaceName: z.string(),
+  probeName: z.string(),
+  lastSeenAt: z.string(),
+  monitors: z.number().int(),
+  url,
+});
+
+function ProbeOfflineEmail(d: z.infer<typeof probeOfflineData>) {
+  return (
+    <EmailLayout
+      preview={`Private probe ${d.probeName} stopped reporting`}
+      footer={`Sent to the owners and admins of ${d.workspaceName}.`}
+    >
+      <Heading as="h1" className="wp-text" style={styles.heading}>
+        Private probe {d.probeName} is offline
+      </Heading>
+      <Text className="wp-text" style={styles.text}>
+        It last reported at {d.lastSeenAt.slice(0, 16).replace("T", " ")} UTC.{" "}
+        {d.monitors === 0
+          ? "No monitors run on it."
+          : `${d.monitors} monitor${d.monitors === 1 ? " runs" : "s run"} on it and ${d.monitors === 1 ? "isn't" : "aren't"} being checked until it is back. No alert is sent for ${d.monitors === 1 ? "it" : "them"} meanwhile.`}
+      </Text>
+      <Text className="wp-text" style={styles.text}>
+        Check that the machine is on, that the container is running (docker ps) and that it can
+        reach us over HTTPS. Results it couldn't send are kept for 10 minutes and sent when it
+        reconnects.
+      </Text>
+      <Action href={d.url}>Open private probes</Action>
+    </EmailLayout>
+  );
+}
+
 /* Emails to a status page's subscribers: people outside the workspace (PRODUCT.md §6.6). */
 const STATUS_UPDATE_LABEL = {
   investigating: "Investigating",
@@ -829,6 +863,11 @@ export const EMAIL_TEMPLATES = {
     subject: (d: { workspaceName: string; incidents: number }) =>
       `${d.workspaceName} weekly digest: ${d.incidents} incident${d.incidents === 1 ? "" : "s"}`,
     component: DigestEmail,
+  },
+  "probe-offline": {
+    data: probeOfflineData,
+    subject: (d: { probeName: string }) => `Private probe ${d.probeName} is offline`,
+    component: ProbeOfflineEmail,
   },
   "sla-report": {
     data: slaReportData,

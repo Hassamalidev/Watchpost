@@ -61,6 +61,23 @@ export function createMonitorsRepository(db: DbOrTx) {
       return rows[0]?.n ?? 0;
     },
 
+    /* How many of the workspace's monitors run in each of the given regions. */
+    async countByRegion(
+      tx: DbOrTx,
+      scope: WorkspaceScope,
+      regions: string[],
+    ): Promise<Map<string, number>> {
+      const counts = new Map<string, number>();
+      for (const region of regions) {
+        const rows = await tx
+          .select({ n: sql<number>`count(*)::int` })
+          .from(monitors)
+          .where(scoped(scope, sql`${region} = any(${monitors.regions})`));
+        counts.set(region, rows[0]?.n ?? 0);
+      }
+      return counts;
+    },
+
     /* Every monitor of the workspace, oldest first (UUIDv7 IDs sort by creation time). */
     async allForWorkspace(tx: DbOrTx, scope: WorkspaceScope): Promise<MonitorRow[]> {
       return tx.select().from(monitors).where(scoped(scope)).orderBy(asc(monitors.id));

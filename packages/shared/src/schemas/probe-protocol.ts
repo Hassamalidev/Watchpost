@@ -4,7 +4,7 @@
  * Requests more than 60 s off the server clock are rejected.
  */
 import { z } from "zod";
-import { REGIONS } from "../constants/regions.js";
+import { checkRegionSchema } from "./region.js";
 import { monitorConfigSchema } from "./monitors.js";
 import { checkResultSchema } from "./results.js";
 
@@ -32,7 +32,7 @@ export const PROBE_CAPABILITIES = ["http", "tcp", "dns", "ping", "websocket", "t
 export const helloRequestSchema = z.object({
   version: z.string().min(1).max(64),
   mode: z.enum(["managed", "private"]),
-  region: z.enum(REGIONS),
+  region: checkRegionSchema,
   capabilities: z.array(z.enum(PROBE_CAPABILITIES)).max(PROBE_CAPABILITIES.length),
 });
 

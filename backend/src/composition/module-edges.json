@@ -11,7 +11,7 @@
     "contacts": ["workspaces", "channels", "audit"],
     "channels": ["credits", "audit"],
     "results": ["monitors"],
-    "probes": ["monitors", "results"],
+    "probes": ["monitors", "results", "workspaces"],
     "deploys": [],
     "incidents": ["monitors", "workspaces", "audit", "deploys"],
     "detection": ["monitors", "results", "probes", "maintenance", "incidents", "deploys"],

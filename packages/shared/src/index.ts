@@ -524,3 +524,21 @@ export {
   type WebhookEventPattern,
   type WebhookEventType,
 } from "./schemas/webhooks.js";
+export {
+  PRIVATE_REGION_PREFIX,
+  isPrivateRegion,
+  privateProbeIdOf,
+  privateRegionOf,
+} from "./constants/regions.js";
+export {
+  PRIVATE_PROBE_OFFLINE_AFTER_MS,
+  PROBE_CURRENT_VERSION,
+  PROBE_TOKEN_PREFIX,
+  checkRegionSchema,
+  createPrivateProbeSchema,
+  parseProbeToken,
+  type CheckRegion,
+  type CreatePrivateProbeInput,
+  type CreatedPrivateProbe,
+  type PrivateProbeView,
+} from "./schemas/region.js";
