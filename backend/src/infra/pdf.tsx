@@ -56,15 +56,31 @@ const styles = StyleSheet.create({
  * The built-in fonts cover Latin-1. Anything else would print as a wrong glyph, so common
  * typography is mapped to plain characters and the rest is replaced with "?".
  */
+/* Typography the built-in fonts lack, by code point, and what is printed instead. */
+const PLAIN: Record<number, string> = {
+  0x2018: "'",
+  0x2019: "'",
+  0x201c: '"',
+  0x201d: '"',
+  0x2013: "-",
+  0x2014: "-",
+  0x2026: "...",
+  0x2022: "-",
+  0x2192: "->",
+};
+
 export function pdfSafe(text: string): string {
-  return text
-    .replace(/[‘’]/g, "'")
-    .replace(/[“”]/g, '"')
-    .replace(/[–—]/g, "-")
-    .replace(/…/g, "...")
-    .replace(/•/g, "-")
-    .replace(/→/g, "->")
-    .replace(/[^\u0009\u000A -~ -ÿ]/g, "?");
+  let out = "";
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0;
+    const printable =
+      code === 0x09 ||
+      code === 0x0a ||
+      (code >= 0x20 && code <= 0x7e) ||
+      (code >= 0xa0 && code <= 0xff);
+    out += printable ? char : (PLAIN[code] ?? "?");
+  }
+  return out;
 }
 
 function block(b: PdfBlock, index: number): ReactElement {
