@@ -30,4 +30,14 @@ export interface AiSummaryView extends AiExplanation {
   feedback: AiFeedback | null;
 }
 
+/* How a public status update should sound (§6.6). */
+export const STATUS_TONES = ["neutral", "friendly", "formal"] as const;
+export type StatusTone = (typeof STATUS_TONES)[number];
+
+/* A status page update written by the model: text for the public, nothing else. */
+export const aiStatusUpdateSchema = z
+  .object({ message: z.string().trim().min(1).max(800) })
+  .strict();
+export type AiStatusUpdate = z.infer<typeof aiStatusUpdateSchema>;
+
 export const aiFeedbackSchema = z.object({ feedback: z.enum(AI_FEEDBACK).nullable() }).strict();

@@ -10,11 +10,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
+import { Sparkles } from "lucide-react";
 import {
   MANUAL_COMPONENT_STATUSES,
   STATUS_IMPACTS,
   STATUS_INCIDENT_STATUSES,
   STATUS_PAGE_MAX_COMPONENTS,
+  STATUS_TONES,
+  type StatusTone,
   type StatusComponentInput,
   type StatusImpact,
   type StatusIncidentStatus,
@@ -76,6 +79,7 @@ function SettingsForm({ ws, page }: { ws: string; page: StatusPageView }) {
     autoEnabled: page.settings.autoIncidents.enabled,
     autoMinutes: String(page.settings.autoIncidents.afterMinutes),
     autoPublish: page.settings.autoIncidents.publish,
+    tone: page.settings.tone,
   }));
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
@@ -96,6 +100,7 @@ function SettingsForm({ ws, page }: { ws: string; page: StatusPageView }) {
         settings: {
           showUptime: form.showUptime,
           subscribers: form.subscribers,
+          tone: form.tone,
           autoIncidents: {
             enabled: form.autoEnabled,
             afterMinutes: Math.min(120, Math.max(1, Math.round(Number(form.autoMinutes)) || 5)),
@@ -203,6 +208,21 @@ function SettingsForm({ ws, page }: { ws: string; page: StatusPageView }) {
           <span className="block text-xs text-muted-foreground">{t("allowSubscribersHint")}</span>
         </span>
       </label>
+      {page.aiDrafts && (
+        <Field label={t("tone")} htmlFor="spe-tone" hint={t("toneHint")}>
+          <Select
+            id="spe-tone"
+            value={form.tone}
+            onChange={(e) => set("tone", e.target.value as StatusTone)}
+          >
+            {STATUS_TONES.map((tone) => (
+              <option key={tone} value={tone}>
+                {t(`tones.${tone}`)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      )}
       <fieldset className="grid gap-3 rounded-md border p-3">
         <legend className="px-1 text-sm font-medium">{t("auto.title")}</legend>
         <label className="flex items-start gap-2 text-sm">
@@ -462,6 +482,25 @@ function NewIncident({ ws, page }: { ws: string; page: StatusPageView }) {
   const [impact, setImpact] = React.useState<StatusImpact>("partial_outage");
   const [componentIds, setComponentIds] = React.useState<string[]>([]);
   const [problem, setProblem] = React.useState<string | null>(null);
+  /* Set once the message came from an AI draft, so the update is recorded as one. */
+  const [draftId, setDraftId] = React.useState<string | undefined>(undefined);
+
+  const draft = useMutation({
+    mutationFn: () =>
+      statusPagesApi.draft(ws, page.id, {
+        status: "investigating",
+        title: title.trim(),
+        impact,
+        componentIds,
+        /* What is typed so far is the team's notes for the draft. */
+        notes: message.trim(),
+      }),
+    onSuccess: (drafted) => {
+      setMessage(drafted.message);
+      setDraftId(drafted.generationId);
+    },
+    onError: (err) => setProblem(firstProblem(err)),
+  });
 
   const create = useMutation({
     mutationFn: (published: boolean) =>
@@ -471,11 +510,13 @@ function NewIncident({ ws, page }: { ws: string; page: StatusPageView }) {
         impact,
         componentIds,
         published,
+        ...(draftId === undefined ? {} : { aiGenerationId: draftId }),
       }),
     onSuccess: async () => {
       setTitle("");
       setMessage("");
       setComponentIds([]);
+      setDraftId(undefined);
       await refresh();
     },
     onError: (err) => setProblem(firstProblem(err)),
@@ -517,6 +558,24 @@ function NewIncident({ ws, page }: { ws: string; page: StatusPageView }) {
           onChange={(e) => setMessage(e.target.value)}
         />
       </Field>
+      {page.aiDrafts && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={draft.isPending || title.trim() === ""}
+            onClick={() => {
+              setProblem(null);
+              draft.mutate();
+            }}
+          >
+            <Sparkles aria-hidden />
+            {draft.isPending ? t("drafting") : t("draftWithAi")}
+          </Button>
+          <span className="text-xs text-muted-foreground">{t("draftHint")}</span>
+        </div>
+      )}
       <Field label={t("impact")} htmlFor="spi-impact">
         <Select
           id="spi-impact"
@@ -589,6 +648,21 @@ function IncidentItem({
   const [status, setStatus] = React.useState<StatusIncidentStatus>(() => next(incident.status));
   const [message, setMessage] = React.useState("");
   const fieldId = `spu-${incident.id}`;
+  const [draftId, setDraftId] = React.useState<string | undefined>(undefined);
+  const drafting = useMutation({
+    mutationFn: () =>
+      statusPagesApi.draft(ws, page.id, {
+        status,
+        title: incident.title,
+        impact: incident.impact,
+        componentIds: incident.componentIds,
+        notes: message.trim(),
+      }),
+    onSuccess: (drafted) => {
+      setMessage(drafted.message);
+      setDraftId(drafted.generationId);
+    },
+  });
 
   const act = useMutation({
     mutationFn: (run: () => Promise<unknown>) => run(),
@@ -638,10 +712,11 @@ function IncidentItem({
         )}
       </div>
       {act.isError && <Alert tone="error">{firstProblem(act.error)}</Alert>}
+      {drafting.isError && <Alert tone="info">{firstProblem(drafting.error)}</Alert>}
       <p className="whitespace-pre-wrap text-sm">{incident.updates[0]?.message}</p>
       {canEdit && (
         <form
-          className="grid gap-3 sm:grid-cols-[12rem_1fr_auto] sm:items-end"
+          className="grid gap-3 sm:grid-cols-[10rem_1fr_auto] sm:items-end"
           onSubmit={(event) => {
             event.preventDefault();
             if (message.trim() === "") return;
@@ -649,6 +724,7 @@ function IncidentItem({
               statusPagesApi.postUpdate(ws, page.id, incident.id, {
                 status,
                 message: message.trim(),
+                ...(draftId === undefined ? {} : { aiGenerationId: draftId }),
               }),
             );
           }}
@@ -674,9 +750,23 @@ function IncidentItem({
               onChange={(e) => setMessage(e.target.value)}
             />
           </Field>
-          <Button type="submit" variant="outline" disabled={act.isPending}>
-            {t("postUpdate")}
-          </Button>
+          <div className="flex gap-2">
+            {page.aiDrafts && (
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={drafting.isPending}
+                aria-label={t("draftUpdateLabel", { title: incident.title })}
+                onClick={() => drafting.mutate()}
+              >
+                <Sparkles aria-hidden />
+                {drafting.isPending ? t("drafting") : t("draftShort")}
+              </Button>
+            )}
+            <Button type="submit" variant="outline" disabled={act.isPending}>
+              {t("postUpdate")}
+            </Button>
+          </div>
         </form>
       )}
     </li>

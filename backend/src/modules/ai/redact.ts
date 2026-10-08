@@ -71,9 +71,34 @@ export function redact(value: unknown, depth = 0): unknown {
 }
 
 const IPV4 = /\b(?:\d{1,3}\.){3}\d{1,3}\b/;
-const IPV6 = /\b(?:[0-9a-f]{1,4}:){2,7}[0-9a-f]{0,4}\b/i;
+/* Four or more groups, or any form with "::" (fe80::1, ::1, 2001:db8::8a2e:370:7334). */
+const IPV6 =
+  /(?:\b[0-9a-f]{1,4}(?::[0-9a-f]{1,4})*)?::(?:[0-9a-f]{1,4}(?::[0-9a-f]{1,4})*\b)?|\b(?:[0-9a-f]{1,4}:){3,7}[0-9a-f]{1,4}\b/i;
 /* A dotted name that ends in a letters-only label: api.internal, db-1.eu.acme.io. */
 const HOSTNAME = /\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}\b/i;
+
+export const INTERNAL = "[internal system]";
+
+/*
+ * A copy of `value` with every IP address and host name replaced, except the hosts in `allowed`.
+ * For prompts whose answer goes to the public: the model can't repeat what it was never shown.
+ */
+export function scrubInternal(value: unknown, allowed: readonly string[] = []): unknown {
+  const ok = new Set(allowed.map((host) => host.toLowerCase()));
+  const scrub = (text: string) =>
+    text
+      .replace(new RegExp(IPV4.source, "g"), INTERNAL)
+      .replace(new RegExp(IPV6.source, "gi"), INTERNAL)
+      .replace(new RegExp(HOSTNAME.source, "gi"), (host) =>
+        ok.has(host.toLowerCase()) ? host : INTERNAL,
+      );
+  if (typeof value === "string") return scrub(value);
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map((item) => scrubInternal(item, allowed));
+  return Object.fromEntries(
+    Object.entries(value).map(([key, inner]) => [key, scrubInternal(inner, allowed)]),
+  );
+}
 
 /*
  * For text that goes to the public (status page drafts, §6.6): the first internal detail it

@@ -14,6 +14,8 @@ import {
   type ComponentStatus,
   type CreateStatusIncidentInput,
   type CreateStatusPageInput,
+  type DraftStatusUpdateInput,
+  type StatusDraftView,
   type MaintenanceWindowView,
   type PostStatusUpdateInput,
   type PublicMaintenance,
@@ -42,6 +44,7 @@ import type { PlanFeatures, PlanLimits } from "../../config/plans.js";
 import type { Db, DbOrTx, Tx } from "../../infra/db/index.js";
 import type { Logger } from "../../infra/logger.js";
 import type { Outbox } from "../../infra/outbox/index.js";
+import type { AiService } from "../ai/index.js";
 import type { DetectionService } from "../detection/index.js";
 import type { MaintenanceService } from "../maintenance/index.js";
 import type { MonitorsService } from "../monitors/index.js";
@@ -138,6 +141,16 @@ export interface StatuspagesService {
   servesHost(host: string): Promise<boolean>;
   /* System (sweep): looks at the domains that are due. Returns how many were looked at. */
   checkDomains(): Promise<number>;
+  /*
+   * An AI draft of a public update for a person to read, edit and post (§6.6). Throws a conflict
+   * with the reason when no draft can be made (no key, budget used, the model failed or its answer
+   * named something internal).
+   */
+  draftUpdate(
+    scope: WorkspaceScope,
+    pageId: string,
+    input: DraftStatusUpdateInput,
+  ): Promise<StatusDraftView>;
   /* Who asked for the page's updates by email, and how many the plan allows. */
   subscribers(scope: WorkspaceScope, pageId: string): Promise<StatusSubscribersView>;
   removeSubscriber(scope: WorkspaceScope, pageId: string, subscriberId: string): Promise<void>;
@@ -195,6 +208,8 @@ export interface StatuspagesServiceDeps {
   /* What customers point their own domain at; without it custom domains are off. */
   cnameTarget?: string | undefined;
   dns?: DnsLookup | undefined;
+  /* Drafts public updates; without it the fixed texts are used and drafting is unavailable. */
+  ai?: Pick<AiService, "generate" | "configured"> | undefined;
 }
 
 export function createStatuspagesService(deps: StatuspagesServiceDeps): StatuspagesService {
@@ -233,6 +248,7 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
     domainCheckedAt: row.domainCheckedAt?.toISOString() ?? null,
     domainError: row.domainError,
     cnameTarget: deps.cnameTarget ?? null,
+    aiDrafts: deps.ai?.configured() === true,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   });
@@ -363,6 +379,78 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
       },
       { workspaceId: page.workspaceId },
     );
+  }
+
+  const DRAFT_REFUSED: Record<string, string> = {
+    not_configured: "AI drafts aren't set up on this server.",
+    disabled: "AI is switched off at the moment.",
+    budget_used: "This month's AI budget is used up. Write the update yourself, or upgrade.",
+    platform_cap: "AI is not available on your plan right now. Write the update yourself.",
+    circuit_open: "The AI service is having trouble. Try again in a minute.",
+    timeout_or_provider: "The AI service didn't answer. Try again, or write the update yourself.",
+    invalid_output: "The draft came back unusable. Try again, or write the update yourself.",
+    internal_detail:
+      "The draft named an internal system, so it was thrown away. Try again, or write the update yourself.",
+  };
+
+  /* Asks the model for one public update; undefined with the reason when there is none. */
+  async function draft(
+    page: StatusPageRow,
+    refId: string,
+    facts: {
+      status: string;
+      title: string;
+      impact?: string | undefined;
+      components: string[];
+      notes?: string | undefined;
+      tone?: string | undefined;
+    },
+  ): Promise<{ message: string; generationId: string } | { reason: string }> {
+    if (deps.ai === undefined) return { reason: "not_configured" };
+    const settings = statusPageSettingsSchema.parse(page.settings);
+    const result = await deps.ai.generate(system(page.workspaceId), {
+      prompt: "statusUpdate",
+      refId,
+      evidence: {
+        pageName: page.name,
+        incidentTitle: facts.title,
+        status: facts.status,
+        impact: facts.impact ?? null,
+        affectedServices: facts.components,
+        notes: facts.notes ?? "",
+        tone: facts.tone ?? settings.tone,
+      },
+      /* The page's own address may be named; nothing else that looks like a host may. */
+      allowedHosts: page.customDomain === null ? [] : [page.customDomain],
+    });
+    return result.ok
+      ? { message: result.output.message, generationId: result.generationId }
+      : { reason: result.reason };
+  }
+
+  /* The text of an automatic update: the model's when there is one, the fixed text otherwise. */
+  async function autoMessage(
+    page: StatusPageRow,
+    incidentRef: string,
+    name: string,
+    kind: "opened" | "resolved",
+  ): Promise<{ body: string; aiDrafted: boolean }> {
+    const fixed = autoText(name)[kind];
+    if (deps.ai?.configured() !== true) return { body: fixed, aiDrafted: false };
+    try {
+      const drafted = await draft(page, incidentRef, {
+        status: kind === "opened" ? "investigating" : "resolved",
+        title: autoText(name).title,
+        impact: "major_outage",
+        components: [name],
+      });
+      return "message" in drafted
+        ? { body: drafted.message, aiDrafted: true }
+        : { body: fixed, aiDrafted: false };
+    } catch (err) {
+      deps.logger.warn({ err, statusPageId: page.id }, "drafting an automatic update failed");
+      return { body: fixed, aiDrafted: false };
+    }
   }
 
   /* What a page says by itself when a service stays down, and when it is back. */
@@ -746,7 +834,7 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
           statusIncidentId: incident.id,
           status: input.status,
           body: input.message,
-          aiDrafted: false,
+          aiDrafted: input.aiGenerationId !== undefined,
           createdBy: scope.actorUserId ?? null,
           createdAt: now,
         });
@@ -809,7 +897,7 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
           statusIncidentId: incidentId,
           status: input.status,
           body: input.message,
-          aiDrafted: false,
+          aiDrafted: input.aiGenerationId !== undefined,
           createdBy: scope.actorUserId ?? null,
           createdAt: now,
         });
@@ -894,6 +982,26 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
       const due = await repo.domainsDue(clock.now(), DOMAIN_SWEEP_BATCH);
       for (const page of due) await lookAtDomain(page);
       return due.length;
+    },
+
+    async draftUpdate(scope, pageId, input) {
+      const page = await mustFindPage(deps.db, scope, pageId);
+      const ids = await checkComponents(deps.db, pageId, input.componentIds);
+      const names = (await repo.componentsOf(deps.db, [pageId]))
+        .filter((c) => ids.includes(c.id))
+        .map((c) => c.name);
+      const drafted = await draft(page, pageId, {
+        status: input.status,
+        title: input.title,
+        impact: input.impact,
+        components: names,
+        notes: input.notes,
+        tone: input.tone,
+      });
+      if ("reason" in drafted) {
+        throw new ConflictError(DRAFT_REFUSED[drafted.reason] ?? "No draft could be made.");
+      }
+      return drafted;
     },
 
     async subscribers(scope, pageId) {
@@ -1082,6 +1190,10 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
           if (states.get(incident.autoMonitorId ?? "")?.status === "down") continue;
           const name =
             components.find((c) => c.monitorId === incident.autoMonitorId)?.name ?? "The service";
+          /* Drafted before the transaction: the model may take seconds. */
+          const closing = incident.published
+            ? await autoMessage(page, incident.id, name, "resolved")
+            : { body: autoText(name).resolved, aiDrafted: false };
           await deps.db.transaction(async (tx) => {
             const locked = await repo.findIncident(tx, scope, incident.id, true);
             if (locked === undefined || locked.resolvedAt !== null) return;
@@ -1089,8 +1201,8 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
               id: deps.newId(),
               statusIncidentId: incident.id,
               status: "resolved",
-              body: autoText(name).resolved,
-              aiDrafted: false,
+              body: closing.body,
+              aiDrafted: closing.aiDrafted,
               createdBy: null,
               createdAt: now,
             });
@@ -1124,8 +1236,10 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
             if (state === undefined || state.status !== "down") continue;
             if (now.getTime() - Date.parse(state.since) < waitMs) continue;
             if (open.some((i) => i.autoMonitorId === id)) continue;
-            const text = autoText(shown[0]?.name ?? "A service");
+            const serviceName = shown[0]?.name ?? "A service";
+            const text = autoText(serviceName);
             const published = settings.autoIncidents.publish === "auto";
+            const opening = await autoMessage(page, page.id, serviceName, "opened");
             await deps.db.transaction(async (tx) => {
               /* The unique index decides if two sweeps race: the second insert returns nothing. */
               const incident = await repo.insertIncident(tx, scope, {
@@ -1146,8 +1260,8 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
                 id: deps.newId(),
                 statusIncidentId: incident.id,
                 status: "investigating",
-                body: text.opened,
-                aiDrafted: false,
+                body: opening.body,
+                aiDrafted: opening.aiDrafted,
                 createdBy: null,
                 createdAt: now,
               });

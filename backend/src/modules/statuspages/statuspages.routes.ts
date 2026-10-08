@@ -11,6 +11,7 @@ import type { StatuspagesController } from "./statuspages.controller.js";
 import {
   createIncidentBody,
   createPageBody,
+  draftUpdateBody,
   incidentIdParams,
   pageIdParams,
   postUpdateBody,
@@ -60,6 +61,12 @@ export function createStatuspagesRouter(
     controller.setDomain,
   );
   router.post("/status-pages/:pageId/domain/verify", write, page, controller.verifyDomain);
+  router.post(
+    "/status-pages/:pageId/drafts",
+    write,
+    validate({ params: pageIdParams, body: draftUpdateBody }),
+    controller.draftUpdate,
+  );
   router.get("/status-pages/:pageId/subscribers", read, page, controller.subscribers);
   router.delete(
     "/status-pages/:pageId/subscribers/:subscriberId",

@@ -21,7 +21,16 @@ import { BREAKER_FAILURES, BREAKER_OPEN_MS, createAiService } from "../ai.servic
 import { judgeExplanation } from "../evals/checks.js";
 import { EXPLAINER_CASES } from "../evals/fixtures.js";
 import { PROMPTS, promptSchema } from "../prompts.js";
-import { MAX_TEXT, REDACTED, internalDetailIn, redact, redactText, redactUrl } from "../redact.js";
+import {
+  INTERNAL,
+  MAX_TEXT,
+  REDACTED,
+  internalDetailIn,
+  redact,
+  redactText,
+  redactUrl,
+  scrubInternal,
+} from "../redact.js";
 import type { AiGenerationRow } from "../schema/ai.js";
 
 describe("redaction", () => {
@@ -415,6 +424,73 @@ describe("generating", () => {
     expect(first.ok && second.ok && second.reused).toBe(true);
     expect(first.ok && second.ok && second.generationId === first.generationId).toBe(true);
     expect(client.requests).toHaveLength(1);
+  });
+});
+
+describe("answers for the public", () => {
+  const draft = (
+    h: ReturnType<typeof harness>,
+    evidence: Record<string, unknown>,
+    allowed?: string[],
+  ) =>
+    h.service.generate(scope, {
+      prompt: "statusUpdate",
+      refId: REF,
+      evidence,
+      ...(allowed === undefined ? {} : { allowedHosts: allowed }),
+    });
+
+  it("takes internal hosts and addresses out of what the model is shown", () => {
+    expect(
+      scrubInternal(
+        {
+          notes:
+            "db-1.eu.acme.internal at 10.0.4.12 and fe80::1ff:fe23:4567:890a failed; shop.acme.com is slow",
+          list: ["cache.internal", "fine"],
+          n: 3,
+        },
+        ["shop.acme.com"],
+      ),
+    ).toEqual({
+      notes: `${INTERNAL} at ${INTERNAL} and ${INTERNAL} failed; shop.acme.com is slow`,
+      list: [INTERNAL, "fine"],
+      n: 3,
+    });
+  });
+
+  it("scrubs the evidence of a public prompt, and not of an internal one", async () => {
+    const client = createFakeAiClient(() => ({ message: "We are looking into it." }));
+    const h = harness({ client });
+    await draft(h, { notes: "pg-3.acme.internal failed over" });
+    expect(client.requests[0]?.user).not.toContain("pg-3.acme.internal");
+    expect(client.requests[0]?.user).toContain(INTERNAL);
+    /* The explainer is for the engineer on call: the host stays. */
+    const internal = createFakeAiClient(() => GOOD);
+    await harness({ client: internal }).explain({ target: "pg-3.acme.internal" });
+    expect(internal.requests[0]?.user).toContain("pg-3.acme.internal");
+  });
+
+  it("refuses an answer that names a host or an address, and keeps one that names an allowed host", async () => {
+    for (const leak of ["Restarting db-7.internal now.", "Traffic to 10.0.4.12 is dropped."]) {
+      const h = harness({ client: createFakeAiClient(() => ({ message: leak })) });
+      expect(await draft(h, {})).toEqual({
+        ok: false,
+        status: "failed",
+        reason: "internal_detail",
+      });
+      expect(h.rows[0]).toMatchObject({
+        status: "failed",
+        reason: "internal_detail",
+        output: null,
+      });
+      /* The tokens were used: the call is metered all the same. */
+      expect(h.usage).toHaveLength(1);
+    }
+    const own = harness({
+      client: createFakeAiClient(() => ({ message: "status.acme.com is slow to load." })),
+    });
+    expect((await draft(own, {}, ["status.acme.com"])).ok).toBe(true);
+    expect((await draft(own, {})).ok).toBe(false);
   });
 });
 

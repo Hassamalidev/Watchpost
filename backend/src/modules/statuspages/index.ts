@@ -4,6 +4,7 @@ import type { AppModule, Infra } from "../../composition/types.js";
 import type { PlanFeatures, PlanLimits } from "../../config/plans.js";
 import type { WorkspaceScope } from "../../core/workspace-scope.js";
 import { newId } from "../../infra/ids.js";
+import type { AiService } from "../ai/index.js";
 import type { DetectionService } from "../detection/index.js";
 import type { MaintenanceService } from "../maintenance/index.js";
 import type { MonitorsService } from "../monitors/index.js";
@@ -28,6 +29,8 @@ export interface StatuspagesModuleDeps {
   /* What the workspace's plan allows (from billing, handed in by the composition root). */
   plan: (scope: WorkspaceScope) => Promise<{ limits: PlanLimits; features: PlanFeatures }>;
   guards: { session: RequestHandler; workspace: RequestHandler };
+  /* Drafts public updates (§6.6). */
+  ai: Pick<AiService, "generate" | "configured">;
 }
 
 const DOMAIN_SWEEP_MS = 5 * 60_000;
@@ -55,6 +58,7 @@ export function createStatuspagesModule(deps: StatuspagesModuleDeps): Statuspage
     baseDomain: config.statusPages.baseDomain,
     cnameTarget: config.statusPages.cnameTarget,
     dns: deps.infra.dns,
+    ai: deps.ai,
   });
   const controller = createStatuspagesController(service);
   return {

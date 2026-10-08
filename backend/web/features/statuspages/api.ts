@@ -7,6 +7,8 @@ import type {
   PostStatusUpdateInput,
   PublicStatusPage,
   StatusBranding,
+  StatusDraftView,
+  DraftStatusUpdateInput,
   StatusComponentInput,
   StatusIncidentView,
   StatusPageSettings,
@@ -50,6 +52,8 @@ export const statusPagesApi = {
       method: "PUT",
       body: { components },
     }),
+  draft: (ws: string, id: string, body: Partial<DraftStatusUpdateInput>) =>
+    api<StatusDraftView>(wsPath(ws, `/status-pages/${id}/drafts`), { method: "POST", body }),
   subscribers: (ws: string, id: string) =>
     api<StatusSubscribersView>(wsPath(ws, `/status-pages/${id}/subscribers`)),
   removeSubscriber: (ws: string, id: string, subscriberId: string) =>
@@ -80,7 +84,12 @@ export const statusPagesApi = {
       method: "PATCH",
       body: { published: true },
     }),
-  postUpdate: (ws: string, id: string, incidentId: string, body: PostStatusUpdateInput) =>
+  postUpdate: (
+    ws: string,
+    id: string,
+    incidentId: string,
+    body: Pick<PostStatusUpdateInput, "status" | "message"> & { aiGenerationId?: string },
+  ) =>
     api<StatusIncidentView>(wsPath(ws, `/status-pages/${id}/incidents/${incidentId}/updates`), {
       method: "POST",
       body,

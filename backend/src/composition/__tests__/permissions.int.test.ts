@@ -196,6 +196,7 @@ describe("workspace route permissions", () => {
         "POST /schedules/:scheduleId/overrides → schedule:override",
         "POST /status-pages → statusPage:write",
         "POST /status-pages/:pageId/domain/verify → statusPage:write",
+        "POST /status-pages/:pageId/drafts → statusPage:write",
         "POST /status-pages/:pageId/incidents → statusPage:write",
         "POST /status-pages/:pageId/incidents/:incidentId/updates → statusPage:write",
         "PUT /ai/generations/:generationId/feedback → incident:respond",

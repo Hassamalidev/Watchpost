@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   createStatusIncidentSchema,
   createStatusPageSchema,
+  draftStatusUpdateSchema,
   postStatusUpdateSchema,
   replaceStatusComponentsSchema,
   setStatusDomainSchema,
@@ -21,6 +22,7 @@ export const createIncidentBody = createStatusIncidentSchema;
 export const updateIncidentBody = updateStatusIncidentSchema;
 export const postUpdateBody = postStatusUpdateSchema;
 export const setDomainBody = setStatusDomainSchema;
+export const draftUpdateBody = draftStatusUpdateSchema;
 export const subscriberIdParams = z.object({ pageId: z.uuid(), subscriberId: z.uuid() });
 export const subscribeBody = subscribeStatusSchema;
 /* The token in a confirmation or unsubscribe link. */

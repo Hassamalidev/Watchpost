@@ -7,6 +7,7 @@ import type { PublicRef, StatuspagesService } from "./statuspages.service.js";
 import type {
   createIncidentBody,
   createPageBody,
+  draftUpdateBody,
   incidentIdParams,
   pageIdParams,
   postUpdateBody,
@@ -34,6 +35,7 @@ export type StatuspagesController = Record<
   | "updateIncident"
   | "postUpdate"
   | "removeIncident"
+  | "draftUpdate"
   | "subscribers"
   | "removeSubscriber"
   | "subscribe"
@@ -143,6 +145,10 @@ export function createStatuspagesController(service: StatuspagesService): Status
       const { pageId, incidentId } = incidentOf(req, res);
       await service.deleteIncident(scopeOf(req, res), pageId, incidentId);
       res.status(204).end();
+    },
+    draftUpdate: async (req, res) => {
+      const { body } = inputOf<{ body: typeof draftUpdateBody }>(req, res);
+      res.json(await service.draftUpdate(scopeOf(req, res), pageOf(req, res), body));
     },
     subscribers: async (req, res) => {
       res.json(await service.subscribers(scopeOf(req, res), pageOf(req, res)));

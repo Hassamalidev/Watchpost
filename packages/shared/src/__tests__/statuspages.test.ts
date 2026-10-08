@@ -30,6 +30,7 @@ describe("page settings", () => {
       showUptime: true,
       autoIncidents: { enabled: false, afterMinutes: 5, publish: "auto" },
       subscribers: true,
+      tone: "neutral",
     });
     expect(statusBrandingSchema.parse({})).toEqual({
       logoUrl: null,

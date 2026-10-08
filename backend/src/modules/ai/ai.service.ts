@@ -21,8 +21,14 @@ import type { Logger } from "../../infra/logger.js";
 import type { CreditsService } from "../credits/index.js";
 import type { IncidentsService } from "../incidents/index.js";
 import type { AiRepository } from "./ai.repository.js";
-import { PROMPTS, promptSchema, type PromptKey, type PromptOutput } from "./prompts.js";
-import { redact } from "./redact.js";
+import {
+  PROMPTS,
+  promptSchema,
+  type Prompt,
+  type PromptKey,
+  type PromptOutput,
+} from "./prompts.js";
+import { internalDetailIn, redact, scrubInternal } from "./redact.js";
 import type { AiGenerationRow } from "./schema/ai.js";
 
 /* Failures in a row that open the circuit, and how long it stays open (§9.10). */
@@ -31,7 +37,7 @@ export const BREAKER_OPEN_MS = 60_000;
 
 export type SkipReason =
   "not_configured" | "disabled" | "budget_used" | "platform_cap" | "circuit_open";
-export type FailReason = "timeout_or_provider" | "invalid_output";
+export type FailReason = "timeout_or_provider" | "invalid_output" | "internal_detail";
 
 export type Generated<T> =
   | { ok: true; generationId: string; output: T; model: string; createdAt: string; reused: boolean }
@@ -43,6 +49,8 @@ export interface GenerateInput<K extends PromptKey> {
   refId: string;
   /* Evidence for the model. Redacted here before it is sent, whatever the caller did. */
   evidence: Record<string, unknown>;
+  /* For prompts whose answer is public: host names that are fine to show (the customer's own site). */
+  allowedHosts?: readonly string[];
   once?: boolean;
 }
 
@@ -132,6 +140,7 @@ export function createAiService(deps: AiServiceDeps): AiService {
 
     async generate(scope, input) {
       const prompt = PROMPTS[input.prompt];
+      const isPublic = (prompt as Prompt<unknown>).public === true;
       if (input.once === true) {
         const existing = await repo.latestOk(scope, prompt.key, input.refId);
         if (existing !== undefined && existing.output !== null) {
@@ -178,7 +187,11 @@ export function createAiService(deps: AiServiceDeps): AiService {
       try {
         response = await callWithRetry(client, {
           system: prompt.system,
-          user: JSON.stringify(redact(input.evidence)),
+          user: JSON.stringify(
+            isPublic
+              ? scrubInternal(redact(input.evidence), input.allowedHosts)
+              : redact(input.evidence),
+          ),
           schema: promptSchema(input.prompt),
           schemaName: prompt.schemaName,
           maxTokens: prompt.maxTokens,
@@ -229,22 +242,36 @@ export function createAiService(deps: AiServiceDeps): AiService {
       });
 
       const parsed = prompt.output.safeParse(response.output);
+      /* Text for the public must not name an internal host or address, whatever the model did. */
+      const leaked =
+        parsed.success && isPublic
+          ? Object.values(parsed.data as Record<string, unknown>)
+              .filter((value): value is string => typeof value === "string")
+              .map((text) => internalDetailIn(text, input.allowedHosts))
+              .find((found) => found !== undefined)
+          : undefined;
+      const failure: FailReason | null = !parsed.success
+        ? "invalid_output"
+        : leaked !== undefined
+          ? "internal_detail"
+          : null;
       const row = await repo.insert(scope, {
         ...base,
         ...tokens,
         id: generationId,
         model: response.model,
-        status: parsed.success ? "ok" : "failed",
-        reason: parsed.success ? null : "invalid_output",
-        output: parsed.success ? (parsed.data as Record<string, unknown>) : null,
+        status: failure === null ? "ok" : "failed",
+        reason: failure,
+        output:
+          failure === null && parsed.success ? (parsed.data as Record<string, unknown>) : null,
         createdAt: clock.now(),
       });
-      if (!parsed.success) {
+      if (!parsed.success || failure !== null) {
         deps.logger.warn(
-          { kind: prompt.key, refId: input.refId },
-          "AI answer didn't fit its schema",
+          { kind: prompt.key, refId: input.refId, reason: failure },
+          "AI answer refused",
         );
-        return { ok: false, status: "failed", reason: "invalid_output" };
+        return { ok: false, status: "failed", reason: failure ?? "invalid_output" };
       }
       return {
         ok: true,

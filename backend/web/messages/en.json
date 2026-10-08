@@ -2080,6 +2080,18 @@
       "remove": "Remove",
       "removeLabel": "Remove {email}",
       "confirmRemove": "Remove {email} from this page's subscribers?"
-    }
+    },
+    "tone": "Tone of AI drafts",
+    "toneHint": "How updates drafted by AI should sound. You can always edit a draft before posting.",
+    "tones": {
+      "neutral": "Neutral",
+      "friendly": "Friendly",
+      "formal": "Formal"
+    },
+    "draftWithAi": "Draft with AI",
+    "draftShort": "Draft",
+    "drafting": "Drafting…",
+    "draftHint": "Uses the title and what you typed as notes. Internal host names and addresses are left out. Read it before you post.",
+    "draftUpdateLabel": "Draft an update for {title} with AI"
   }
 }

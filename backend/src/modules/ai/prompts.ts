@@ -4,7 +4,7 @@
  * feedback can be compared between versions. Instructions are fixed text: evidence only ever goes
  * in the user message, as JSON, after redaction.
  */
-import { aiExplanationSchema } from "@app/shared";
+import { aiExplanationSchema, aiStatusUpdateSchema } from "@app/shared";
 import { z } from "zod";
 
 export interface Prompt<T> {
@@ -15,6 +15,11 @@ export interface Prompt<T> {
   /* The answer's name in the tool call. */
   schemaName: string;
   maxTokens: number;
+  /*
+   * The answer is shown to the public: internal hosts and addresses are taken out of the evidence
+   * before it is sent, and an answer that contains one anyway is refused.
+   */
+  public?: boolean;
 }
 
 const SHARED_RULES = `Rules that always apply:
@@ -40,6 +45,26 @@ Answer with:
 - confidence: "high" only when the evidence points to one cause; "medium" when it narrows it down; "low" when it doesn't.
 - evidenceRefs: the names of the evidence fields your answer rests on, exactly as they appear in the JSON.
 - nextChecks: up to five things to check first, most useful first, each a short imperative sentence.
+
+${SHARED_RULES}`,
+  },
+  statusUpdate: {
+    key: "status_update",
+    version: 1,
+    schemaName: "status_update",
+    maxTokens: 400,
+    public: true,
+    output: aiStatusUpdateSchema,
+    system: `You write one update for a company's public status page. Its customers read it.
+
+You get JSON: the page's name, the incident's title, the update's status (investigating, identified, monitoring or resolved), how badly the listed services are affected, the names of the affected services, optional notes from the team in their own words, and a tone.
+
+Write "message": two to four short sentences for customers.
+- Say what customers may notice and which services are affected, using the service names given.
+- Say what the status means: investigating (we are looking into it), identified (we know the cause and are fixing it), monitoring (a fix is in place and we are watching), resolved (it is over).
+- Use the team's notes only for what customers need. Leave out how the systems work inside: no server, database, queue, vendor or employee names, no host names, no IP addresses, no ticket numbers. "[internal system]" in the notes marks something that was removed; never repeat it or guess what it was.
+- Promise nothing the input doesn't say: no times, no causes, no compensation.
+- Tone: "neutral" is plain and factual; "friendly" is warm and still brief; "formal" is reserved and precise. Never joke about an outage.
 
 ${SHARED_RULES}`,
   },

@@ -5,6 +5,7 @@
  */
 import { z } from "zod";
 import type { MonitorStatus } from "../constants/product.js";
+import { STATUS_TONES } from "./ai.js";
 
 export const COMPONENT_STATUSES = [
   "operational",
@@ -110,6 +111,8 @@ export const statusPageSettingsSchema = z
       .default({ enabled: false, afterMinutes: 5, publish: "auto" }),
     /* Let visitors subscribe to updates by email (needs a plan with subscribers). */
     subscribers: z.boolean().default(true),
+    /* How AI-drafted updates should sound. */
+    tone: z.enum(STATUS_TONES).default("neutral"),
   })
   .strict();
 export type StatusPageSettings = z.infer<typeof statusPageSettingsSchema>;
@@ -208,6 +211,8 @@ export const createStatusIncidentSchema = z
     componentIds: z.array(z.uuid()).max(STATUS_PAGE_MAX_COMPONENTS).default([]),
     /* Off keeps it as a draft only the team sees. */
     published: z.boolean().default(true),
+    /* Set when the message started as an AI draft, so the update is recorded as one. */
+    aiGenerationId: z.uuid().optional(),
   })
   .strict();
 export type CreateStatusIncidentInput = z.infer<typeof createStatusIncidentSchema>;
@@ -226,9 +231,31 @@ export const postStatusUpdateSchema = z
   .object({
     status: z.enum(STATUS_INCIDENT_STATUSES),
     message: z.string().trim().min(1).max(5_000),
+    aiGenerationId: z.uuid().optional(),
   })
   .strict();
 export type PostStatusUpdateInput = z.infer<typeof postStatusUpdateSchema>;
+
+/*
+ * Asks for an AI draft of a public update. `notes` is what the team knows, in their own words; it
+ * may name internal systems, which never reach the draft.
+ */
+export const draftStatusUpdateSchema = z
+  .object({
+    status: z.enum(STATUS_INCIDENT_STATUSES),
+    title: z.string().trim().min(1).max(200),
+    impact: z.enum(STATUS_IMPACTS).optional(),
+    componentIds: z.array(z.uuid()).max(STATUS_PAGE_MAX_COMPONENTS).default([]),
+    notes: z.string().trim().max(2_000).default(""),
+    tone: z.enum(STATUS_TONES).optional(),
+  })
+  .strict();
+export type DraftStatusUpdateInput = z.infer<typeof draftStatusUpdateSchema>;
+
+export interface StatusDraftView {
+  message: string;
+  generationId: string;
+}
 
 /* The page status a monitor's state stands for. */
 export function componentStatusOf(status: MonitorStatus): ComponentStatus {
@@ -313,6 +340,8 @@ export interface StatusPageView {
   domainError: string | null;
   /* What the customer's CNAME record must point to; null when this server has none configured. */
   cnameTarget: string | null;
+  /* Whether updates can be drafted by AI on this server. */
+  aiDrafts: boolean;
   createdAt: string;
   updatedAt: string;
 }
