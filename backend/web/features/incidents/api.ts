@@ -2,7 +2,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Explanation, IncidentEvidenceItem } from "@app/shared";
+import type { Explanation, IncidentEvidenceItem, PostmortemView } from "@app/shared";
 import { api, wsPath } from "@/lib/api";
 
 export type IncidentStatus = "triggered" | "acknowledged" | "snoozed" | "resolved";
@@ -71,6 +71,18 @@ export interface IncidentQuery {
 }
 
 export const incidentsApi = {
+  postmortem: (ws: string, ref: number) =>
+    api<{ data: PostmortemView | null }>(wsPath(ws, `/incidents/${ref}/postmortem`)),
+  savePostmortem: (ws: string, ref: number, markdown: string) =>
+    api<PostmortemView>(wsPath(ws, `/incidents/${ref}/postmortem`), {
+      method: "PUT",
+      body: { markdown },
+    }),
+  draftPostmortem: (ws: string, ref: number) =>
+    api<PostmortemView>(wsPath(ws, `/incidents/${ref}/postmortem/draft`), {
+      method: "POST",
+      body: {},
+    }),
   aiFeedback: (ws: string, generationId: string) =>
     api<{ feedback: AiFeedback | null }>(wsPath(ws, `/ai/generations/${generationId}`)),
   setAiFeedback: (ws: string, generationId: string, feedback: AiFeedback | null) =>

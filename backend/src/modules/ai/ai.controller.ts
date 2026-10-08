@@ -3,12 +3,16 @@ import type { RequestHandler } from "express";
 import { inputOf } from "../../middleware/validate.js";
 import { scopeOf } from "../../middleware/workspace.js";
 import type { AiService } from "./ai.service.js";
-import type { feedbackBody, generationIdParams } from "./validators/index.js";
+import type { feedbackBody, generationIdParams, incidentRefParams } from "./validators/index.js";
 
-export type AiController = Record<"feedback" | "get", RequestHandler>;
+export type AiController = Record<"feedback" | "get" | "draftPostmortem", RequestHandler>;
 
 export function createAiController(service: AiService): AiController {
   return {
+    draftPostmortem: async (req, res) => {
+      const { params } = inputOf<{ params: typeof incidentRefParams }>(req, res);
+      res.json(await service.draftPostmortem(scopeOf(req, res), params.incidentRef));
+    },
     get: async (req, res) => {
       const { params } = inputOf<{ params: typeof generationIdParams }>(req, res);
       res.json({

@@ -14,6 +14,7 @@ import {
   suggestTuning,
   type Explanation,
   type IncidentEvidenceItem,
+  type PostmortemView,
   type NoiseStats,
   type TuningSettings,
   type TuningSuggestion,
@@ -36,6 +37,7 @@ import type {
   IncidentRow,
   IncidentSeverity,
   IncidentStatus,
+  PostmortemRow,
 } from "./schema/incidents.js";
 
 export interface OpenForMonitorInput {
@@ -76,6 +78,44 @@ export interface IncidentView {
   /* The AI explanation, once there is one; always shown labeled "AI" (§9.10). */
   aiSummary: StoredAiSummary | null;
 }
+
+export interface PostmortemSource {
+  incidentId: string;
+  number: number;
+  title: string;
+  /* Exact facts for the document's header, already worded. */
+  facts: string[];
+  /* The timeline as "time — what happened" lines, oldest first. */
+  timeline: string[];
+  /* The same material as structured evidence for the model. */
+  evidence: Record<string, unknown>;
+}
+
+/* What a timeline entry means, in words; unknown kinds are shown by their name. */
+const TIMELINE_WORDS: Record<string, string> = {
+  triggered: "Incident opened",
+  acknowledged: "Acknowledged",
+  resolved: "Resolved",
+  reopened: "Reopened",
+  snoozed: "Snoozed",
+  comment: "Comment added",
+  escalated: "Escalated to the next step",
+  delivery_failed: "An alert could not be delivered",
+  flapping_started: "Started flapping",
+  flapping_stopped: "Stopped flapping",
+  false_alarm_marked: "Marked as a false alarm",
+  false_alarm_cleared: "False-alarm mark removed",
+  suppressed: "Kept quiet: a monitor it depends on was down",
+  unsuppressed: "Announced: the monitor it depends on recovered",
+  ai_summary: "AI summary added",
+  updated: "Updated",
+};
+/* How many timeline entries a postmortem draws on; the first and last ones are kept. */
+const POSTMORTEM_MAX_EVENTS = 120;
+
+const utcMinute = (date: Date) => `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+const minutesBetween = (from: Date, to: Date) =>
+  Math.max(0, Math.round((to.getTime() - from.getTime()) / 60_000));
 
 /* What is kept of an AI explanation on the incident. */
 export interface StoredAiSummary extends AiExplanation {
@@ -367,6 +407,19 @@ export interface IncidentsService {
     options?: { via?: string },
   ): Promise<IncidentView>;
   comment(scope: WorkspaceScope, ref: string | number, body: string): Promise<CommentView>;
+  /* The incident's written review, or null when nobody has started one. */
+  postmortem(scope: WorkspaceScope, ref: string | number): Promise<PostmortemView | null>;
+  /* Saves the review's text. `aiGenerationId` records that it started as an AI draft. */
+  savePostmortem(
+    scope: WorkspaceScope,
+    ref: string | number,
+    input: { markdown: string; aiGenerationId?: string | undefined },
+  ): Promise<PostmortemView>;
+  /*
+   * What a postmortem is written from (§6.9): the incident's facts and its timeline in order, with
+   * people named by role only. `facts` are the lines our own records can state exactly.
+   */
+  postmortemSource(scope: WorkspaceScope, ref: string | number): Promise<PostmortemSource>;
   setFalseAlarm(
     scope: WorkspaceScope,
     ref: string | number,
@@ -475,6 +528,11 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
     type: e.type,
     actor: e.actor,
     data: e.data,
+  });
+  const toPostmortem = (row: PostmortemRow): PostmortemView => ({
+    markdown: row.markdown,
+    aiDrafted: row.aiGenerationId !== null,
+    updatedAt: row.updatedAt.toISOString(),
   });
   const toComment = (c: IncidentCommentRow): CommentView => ({
     id: c.id,
@@ -1153,6 +1211,100 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
         await addEvent(tx, incident, "comment", authorId, { commentId: comment.id });
         return toComment(comment);
       });
+    },
+
+    async postmortem(scope, ref) {
+      const row = await mustFind(deps.db, scope, ref);
+      const stored = await repo.findPostmortem(deps.db, row.id);
+      return stored === undefined ? null : toPostmortem(stored);
+    },
+
+    async savePostmortem(scope, ref, input) {
+      return deps.db.transaction(async (tx) => {
+        const row = await mustFind(tx, scope, ref, true);
+        const existed = (await repo.findPostmortem(tx, row.id)) !== undefined;
+        const saved = await repo.savePostmortem(
+          tx,
+          {
+            incidentId: row.id,
+            workspaceId: row.workspaceId,
+            markdown: input.markdown,
+            updatedBy: scope.actorUserId ?? null,
+            aiGenerationId: input.aiGenerationId ?? null,
+          },
+          clock.now(),
+        );
+        if (!existed) {
+          await addEvent(tx, row, "postmortem_started", actorOf(scope), {
+            aiDrafted: input.aiGenerationId !== undefined,
+          });
+        }
+        return toPostmortem(saved);
+      });
+    },
+
+    async postmortemSource(scope, ref) {
+      const detail = await service.get(scope, ref);
+      const started = new Date(detail.startedAt);
+      const facts = [
+        `Incident #${detail.number}: ${detail.title}`,
+        `Severity: ${detail.severity}`,
+        ...(detail.monitor === null ? [] : [`Monitor: ${detail.monitor.name}`]),
+        `Started: ${utcMinute(started)}`,
+        ...(detail.acknowledgedAt === null
+          ? []
+          : [
+              `Acknowledged: ${utcMinute(new Date(detail.acknowledgedAt))} (${minutesBetween(started, new Date(detail.acknowledgedAt))} min after it started)`,
+            ]),
+        ...(detail.resolvedAt === null
+          ? ["Not resolved yet"]
+          : [
+              `Resolved: ${utcMinute(new Date(detail.resolvedAt))} (${minutesBetween(started, new Date(detail.resolvedAt))} min after it started)`,
+            ]),
+        ...(detail.failingRegions.length > 0
+          ? [`Failing regions: ${detail.failingRegions.join(", ")}`]
+          : []),
+        ...(detail.causeCode === null ? [] : [`Cause code: ${detail.causeCode}`]),
+        ...(detail.recentDeploy === null
+          ? []
+          : [
+              `Deploy ${detail.recentDeploy.minutesBefore} min before: ${[detail.recentDeploy.service, detail.recentDeploy.version].filter(Boolean).join(" ")}`,
+            ]),
+      ];
+      /* A long incident keeps its beginning and its end; the middle is what gets cut. */
+      const all = detail.timeline;
+      const head = Math.ceil(POSTMORTEM_MAX_EVENTS / 2);
+      const entries =
+        all.length <= POSTMORTEM_MAX_EVENTS
+          ? all
+          : [...all.slice(0, head), ...all.slice(all.length - (POSTMORTEM_MAX_EVENTS - head))];
+      const comments = new Map(detail.comments.map((c) => [c.id, c.body]));
+      const lineOf = (entry: TimelineEntry) => {
+        const what = TIMELINE_WORDS[entry.type] ?? entry.type;
+        const by = entry.actor === "system" ? "" : " by a team member";
+        const comment =
+          entry.type === "comment" && typeof entry.data.commentId === "string"
+            ? `: ${comments.get(entry.data.commentId) ?? ""}`
+            : "";
+        return `${utcMinute(new Date(entry.at))} — ${what}${by}${comment}`;
+      };
+      const timeline = entries.map(lineOf);
+      return {
+        incidentId: detail.id,
+        number: detail.number,
+        title: detail.title,
+        facts,
+        timeline,
+        evidence: {
+          facts,
+          timeline,
+          omittedEvents: all.length - entries.length,
+          explanation: detail.explanation?.headline ?? null,
+          timing: detail.timing,
+          aiSummary: detail.aiSummary?.likelyCause ?? null,
+          falseAlarm: detail.falseAlarm,
+        },
+      };
     },
 
     async setFalseAlarm(scope, ref, falseAlarm) {

@@ -40,4 +40,32 @@ export const aiStatusUpdateSchema = z
   .strict();
 export type AiStatusUpdate = z.infer<typeof aiStatusUpdateSchema>;
 
+/*
+ * What the model contributes to a postmortem: judgement and wording. The facts (times, durations,
+ * who did what) are filled in from our own records, never from the model.
+ */
+export const aiPostmortemSchema = z
+  .object({
+    summary: z.string().trim().min(1).max(800),
+    impact: z.string().trim().min(1).max(600),
+    rootCause: z.string().trim().min(1).max(800),
+    whatWentWell: z.array(z.string().trim().min(1).max(300)).max(6),
+    whatWentWrong: z.array(z.string().trim().min(1).max(300)).max(6),
+    actionItems: z.array(z.string().trim().min(1).max(300)).max(8),
+  })
+  .strict();
+export type AiPostmortem = z.infer<typeof aiPostmortemSchema>;
+
+export const POSTMORTEM_MAX_CHARS = 50_000;
+export const savePostmortemSchema = z
+  .object({ markdown: z.string().max(POSTMORTEM_MAX_CHARS) })
+  .strict();
+
+export interface PostmortemView {
+  markdown: string;
+  /* The text started as an AI draft (it may have been edited since). */
+  aiDrafted: boolean;
+  updatedAt: string;
+}
+
 export const aiFeedbackSchema = z.object({ feedback: z.enum(AI_FEEDBACK).nullable() }).strict();

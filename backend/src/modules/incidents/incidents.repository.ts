@@ -6,6 +6,8 @@ import {
   incidentComments,
   incidentEvents,
   incidents,
+  postmortems,
+  type PostmortemRow,
   type IncidentCommentRow,
   type IncidentEventRow,
   type IncidentRow,
@@ -30,6 +32,42 @@ export type IncidentsRepository = ReturnType<typeof createIncidentsRepository>;
 
 export function createIncidentsRepository() {
   return {
+    /* Postmortems */
+
+    async findPostmortem(tx: DbOrTx, incidentId: string): Promise<PostmortemRow | undefined> {
+      const rows = await tx
+        .select()
+        .from(postmortems)
+        .where(eq(postmortems.incidentId, incidentId))
+        .limit(1);
+      return rows[0];
+    },
+
+    /* Creates or replaces the incident's postmortem. A null generation keeps the stored one. */
+    async savePostmortem(
+      tx: DbOrTx,
+      row: Pick<PostmortemRow, "incidentId" | "workspaceId" | "markdown" | "updatedBy"> & {
+        aiGenerationId: string | null;
+      },
+      at: Date,
+    ): Promise<PostmortemRow> {
+      const [saved] = await tx
+        .insert(postmortems)
+        .values({ ...row, createdAt: at, updatedAt: at })
+        .onConflictDoUpdate({
+          target: postmortems.incidentId,
+          set: {
+            markdown: row.markdown,
+            updatedBy: row.updatedBy,
+            updatedAt: at,
+            ...(row.aiGenerationId === null ? {} : { aiGenerationId: row.aiGenerationId }),
+          },
+        })
+        .returning();
+      if (saved === undefined) throw new Error("postmortem upsert returned nothing");
+      return saved;
+    },
+
     /* System queries (detection, heartbeats): no tenant scope, keyed by monitor. */
 
     async findOpenForMonitor(

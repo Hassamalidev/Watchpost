@@ -518,6 +518,12 @@ describe("the incident explainer", () => {
         },
       },
       incidents: {
+        async postmortemSource() {
+          throw new Error("not used here");
+        },
+        async savePostmortem() {
+          throw new Error("not used here");
+        },
         async aiEvidence(incidentId) {
           return incidentId === INCIDENT
             ? {

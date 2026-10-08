@@ -7,9 +7,9 @@
  * "skipped" or "failed" row and the caller carries on without it. Nothing here ever throws to a
  * caller because the model misbehaved, and nothing here decides whether to alert.
  */
-import type { AiFeedback } from "@app/shared";
+import type { AiFeedback, AiPostmortem, PostmortemView } from "@app/shared";
 import type { Clock } from "../../core/clock.js";
-import { NotFoundError } from "../../core/errors.js";
+import { ConflictError, NotFoundError } from "../../core/errors.js";
 import { createWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
 import {
   AiError,
@@ -81,6 +81,12 @@ export interface AiService {
    * affected. Returns what happened, for the log.
    */
   explainIncident(incidentId: string): Promise<"explained" | "already" | "skipped" | "failed">;
+  /*
+   * Drafts the incident's postmortem and saves it as the incident's review for a person to edit.
+   * The model writes the judgement; times, durations and the timeline are printed from our own
+   * record. Throws a conflict with the reason when no draft can be made.
+   */
+  draftPostmortem(scope: WorkspaceScope, ref: string | number): Promise<PostmortemView>;
 }
 
 export interface AiServiceDeps {
@@ -89,10 +95,51 @@ export interface AiServiceDeps {
   client: AiClient | undefined;
   credits: Pick<CreditsService, "aiBudget" | "recordUsage">;
   /* Optional so the generation path can be tested on its own. */
-  incidents?: Pick<IncidentsService, "aiEvidence" | "setAiSummary"> | undefined;
+  incidents?:
+    | Pick<IncidentsService, "aiEvidence" | "setAiSummary" | "postmortemSource" | "savePostmortem">
+    | undefined;
   clock: Clock;
   logger: Logger;
   newId: () => string;
+}
+
+/* The draft as Markdown: our record's facts and timeline around the model's text. */
+export function postmortemMarkdown(
+  source: { number: number; title: string; facts: string[]; timeline: string[] },
+  draft: AiPostmortem,
+): string {
+  const list = (items: string[]) =>
+    items.length === 0 ? "- Nothing recorded." : items.map((item) => `- ${item}`).join("\n");
+  return [
+    `# Postmortem: ${source.title} (#${source.number})`,
+    "",
+    "_Drafted by AI from the incident record. Read it, correct it and fill the gaps before sharing._",
+    "",
+    "## Summary",
+    draft.summary,
+    "",
+    "## Facts",
+    list(source.facts),
+    "",
+    "## Impact",
+    draft.impact,
+    "",
+    "## Root cause",
+    draft.rootCause,
+    "",
+    "## Timeline",
+    list(source.timeline),
+    "",
+    "## What went well",
+    list(draft.whatWentWell),
+    "",
+    "## What went wrong",
+    list(draft.whatWentWrong),
+    "",
+    "## Action items",
+    list(draft.actionItems),
+    "",
+  ].join("\n");
 }
 
 export function createAiService(deps: AiServiceDeps): AiService {
@@ -103,11 +150,12 @@ export function createAiService(deps: AiServiceDeps): AiService {
   async function callWithRetry(
     client: AiClient,
     request: Parameters<AiClient["complete"]>[0],
+    retry: boolean,
   ): Promise<AiResponse> {
     try {
       return await client.complete(request);
     } catch (err) {
-      if (!(err instanceof AiError) || !err.retryable) throw err;
+      if (!retry || !(err instanceof AiError) || !err.retryable) throw err;
       return client.complete(request);
     }
   }
@@ -140,7 +188,8 @@ export function createAiService(deps: AiServiceDeps): AiService {
 
     async generate(scope, input) {
       const prompt = PROMPTS[input.prompt];
-      const isPublic = (prompt as Prompt<unknown>).public === true;
+      const settings: Prompt<unknown> = prompt;
+      const isPublic = settings.public === true;
       if (input.once === true) {
         const existing = await repo.latestOk(scope, prompt.key, input.refId);
         if (existing !== undefined && existing.output !== null) {
@@ -185,17 +234,22 @@ export function createAiService(deps: AiServiceDeps): AiService {
       const generationId = deps.newId();
       let response: AiResponse;
       try {
-        response = await callWithRetry(client, {
-          system: prompt.system,
-          user: JSON.stringify(
-            isPublic
-              ? scrubInternal(redact(input.evidence), input.allowedHosts)
-              : redact(input.evidence),
-          ),
-          schema: promptSchema(input.prompt),
-          schemaName: prompt.schemaName,
-          maxTokens: prompt.maxTokens,
-        });
+        response = await callWithRetry(
+          client,
+          {
+            system: prompt.system,
+            user: JSON.stringify(
+              isPublic
+                ? scrubInternal(redact(input.evidence), input.allowedHosts)
+                : redact(input.evidence),
+            ),
+            schema: promptSchema(input.prompt),
+            schemaName: prompt.schemaName,
+            maxTokens: prompt.maxTokens,
+            ...(settings.timeoutMs === undefined ? {} : { timeoutMs: settings.timeoutMs }),
+          },
+          settings.retry !== false,
+        );
         breaker.failures = 0;
       } catch (err) {
         breaker.failures += 1;
@@ -281,6 +335,31 @@ export function createAiService(deps: AiServiceDeps): AiService {
         createdAt: row.createdAt.toISOString(),
         reused: false,
       };
+    },
+
+    async draftPostmortem(scope, ref) {
+      if (deps.incidents === undefined || deps.client === undefined) {
+        throw new ConflictError("AI drafts aren't set up on this server.");
+      }
+      const source = await deps.incidents.postmortemSource(scope, ref);
+      const result = await service.generate(scope, {
+        prompt: "postmortem",
+        refId: source.incidentId,
+        evidence: source.evidence,
+      });
+      if (!result.ok) {
+        throw new ConflictError(
+          result.reason === "budget_used" || result.reason === "platform_cap"
+            ? "This month's AI budget is used up. Write the postmortem yourself, or upgrade."
+            : result.reason === "disabled"
+              ? "AI is switched off at the moment."
+              : "The AI service didn't produce a usable draft. Try again, or write it yourself.",
+        );
+      }
+      return deps.incidents.savePostmortem(scope, ref, {
+        markdown: postmortemMarkdown(source, result.output),
+        aiGenerationId: result.generationId,
+      });
     },
 
     async feedbackOf(scope, generationId) {

@@ -1,6 +1,6 @@
 /* Zod request schemas for the incidents API, built from @app/shared. */
 import { z } from "zod";
-import { SEVERITIES } from "@app/shared";
+import { savePostmortemSchema, SEVERITIES } from "@app/shared";
 
 /* An incident is addressed by its ID or by its per-workspace number (#482). */
 export const incidentRefParams = z.object({
@@ -36,6 +36,7 @@ export const summaryQuery = z.object({
 
 export const tuningParams = z.object({ monitorId: z.uuid() });
 
+export const postmortemBody = savePostmortemSchema;
 export const commentBody = z.object({ body: z.string().trim().min(1).max(10_000) }).strict();
 
 export const falseAlarmBody = z.object({ falseAlarm: z.boolean() }).strict();

@@ -16,7 +16,10 @@ export { internalDetailIn, redact, redactText } from "./redact.js";
 export interface AiModuleDeps {
   infra: Pick<Infra, "db" | "clock" | "logger" | "ai">;
   credits: Pick<CreditsService, "aiBudget" | "recordUsage">;
-  incidents: Pick<IncidentsService, "aiEvidence" | "setAiSummary">;
+  incidents: Pick<
+    IncidentsService,
+    "aiEvidence" | "setAiSummary" | "postmortemSource" | "savePostmortem"
+  >;
   guards: { session: RequestHandler; workspace: RequestHandler };
 }
 

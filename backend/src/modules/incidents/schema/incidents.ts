@@ -111,6 +111,21 @@ export const incidentComments = pgTable(
   (t) => [index("incident_comments_incident_idx").on(t.incidentId, t.createdAt)],
 );
 
+/* One written review per incident: Markdown a person edits, perhaps started by AI (§6.9). */
+export const postmortems = pgTable("postmortems", {
+  incidentId: uuid("incident_id")
+    .primaryKey()
+    .references(() => incidents.id, { onDelete: "cascade" }),
+  workspaceId: uuid("workspace_id").notNull(),
+  markdown: text("markdown").notNull(),
+  /* The AI generation the text started from; null when a person wrote it from nothing. */
+  aiGenerationId: uuid("ai_generation_id"),
+  updatedBy: uuid("updated_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type PostmortemRow = typeof postmortems.$inferSelect;
 export type IncidentRow = typeof incidents.$inferSelect;
 export type IncidentCommentRow = typeof incidentComments.$inferSelect;
 export type IncidentEventRow = typeof incidentEvents.$inferSelect;

@@ -1,5 +1,7 @@
 /* HTTP in and out only; no business logic. */
 import type { RequestHandler } from "express";
+import { NotFoundError } from "../../core/errors.js";
+import { markdownToBlocks, renderPdf } from "../../infra/pdf.js";
 import { inputOf } from "../../middleware/validate.js";
 import { scopeOf } from "../../middleware/workspace.js";
 import type { IncidentsService } from "./incidents.service.js";
@@ -9,6 +11,7 @@ import type {
   falseAlarmBody,
   incidentRefParams,
   listIncidentsQuery,
+  postmortemBody,
   summaryQuery,
   tuningParams,
 } from "./validators/index.js";
@@ -21,6 +24,10 @@ type Handlers =
   | "acknowledge"
   | "resolve"
   | "comment"
+  | "postmortem"
+  | "savePostmortem"
+  | "postmortemMarkdown"
+  | "postmortemPdf"
   | "falseAlarm"
   | "summary"
   | "drill"
@@ -53,6 +60,35 @@ export function createIncidentsController(service: IncidentsService): IncidentsC
     },
     resolve: async (req, res) => {
       res.json(await service.resolve(scopeOf(req, res), refOf(req, res)));
+    },
+    postmortem: async (req, res) => {
+      res.json({ data: await service.postmortem(scopeOf(req, res), refOf(req, res)) });
+    },
+    savePostmortem: async (req, res) => {
+      const { body } = inputOf<{ body: typeof postmortemBody }>(req, res);
+      res.json(await service.savePostmortem(scopeOf(req, res), refOf(req, res), body));
+    },
+    /* The review as a file: Markdown as it is stored, or the same text laid out as a PDF. */
+    postmortemMarkdown: async (req, res) => {
+      const stored = await service.postmortem(scopeOf(req, res), refOf(req, res));
+      if (stored === null) throw new NotFoundError("This incident has no postmortem yet.");
+      res
+        .set("content-disposition", `attachment; filename="postmortem-${refOf(req, res)}.md"`)
+        .type("text/markdown; charset=utf-8")
+        .send(stored.markdown);
+    },
+    postmortemPdf: async (req, res) => {
+      const stored = await service.postmortem(scopeOf(req, res), refOf(req, res));
+      if (stored === null) throw new NotFoundError("This incident has no postmortem yet.");
+      const pdf = await renderPdf({
+        title: `Postmortem ${refOf(req, res)}`,
+        footer: "Postmortem",
+        blocks: markdownToBlocks(stored.markdown),
+      });
+      res
+        .set("content-disposition", `attachment; filename="postmortem-${refOf(req, res)}.pdf"`)
+        .type("application/pdf")
+        .send(pdf);
     },
     comment: async (req, res) => {
       const { body } = inputOf<{ body: typeof commentBody }>(req, res);

@@ -4,7 +4,7 @@
  * feedback can be compared between versions. Instructions are fixed text: evidence only ever goes
  * in the user message, as JSON, after redaction.
  */
-import { aiExplanationSchema, aiStatusUpdateSchema } from "@app/shared";
+import { aiExplanationSchema, aiPostmortemSchema, aiStatusUpdateSchema } from "@app/shared";
 import { z } from "zod";
 
 export interface Prompt<T> {
@@ -20,6 +20,9 @@ export interface Prompt<T> {
    * before it is sent, and an answer that contains one anyway is refused.
    */
   public?: boolean;
+  /* Longer answers get more time than the default 8 s, and then no second try. */
+  timeoutMs?: number;
+  retry?: boolean;
 }
 
 const SHARED_RULES = `Rules that always apply:
@@ -65,6 +68,32 @@ Write "message": two to four short sentences for customers.
 - Use the team's notes only for what customers need. Leave out how the systems work inside: no server, database, queue, vendor or employee names, no host names, no IP addresses, no ticket numbers. "[internal system]" in the notes marks something that was removed; never repeat it or guess what it was.
 - Promise nothing the input doesn't say: no times, no causes, no compensation.
 - Tone: "neutral" is plain and factual; "friendly" is warm and still brief; "formal" is reserved and precise. Never joke about an outage.
+
+${SHARED_RULES}`,
+  },
+  postmortem: {
+    key: "postmortem",
+    version: 1,
+    schemaName: "postmortem",
+    maxTokens: 1_200,
+    /* One attempt of up to 18 s keeps a draft under the 20 s the product promises (§17 P5-T04). */
+    timeoutMs: 18_000,
+    retry: false,
+    output: aiPostmortemSchema,
+    system: `You draft a blameless postmortem for an engineering team from their incident record.
+
+You get JSON: "facts" (exact lines from the record: times, durations, the monitor, regions, cause code, a deploy shortly before), "timeline" (what happened, in order, one line each), and sometimes an explanation of the failure, the timing of the failing check, and whether it was marked a false alarm.
+
+Answer with:
+- summary: two to four sentences on what happened and how it ended.
+- impact: what users or systems were affected and for how long, using only durations the facts state.
+- rootCause: the most likely cause as far as the record shows. If the record doesn't establish it, say what is known and that the root cause is still to be confirmed. Never present a guess as a finding.
+- whatWentWell: up to six short points the record supports (for example a fast acknowledgement, with its minutes).
+- whatWentWrong: up to six short points the record supports.
+- actionItems: up to eight concrete follow-ups, each starting with a verb. Do not assign owners or dates.
+
+Blameless means: describe systems and decisions, never judge people. The record names people only as "a team member"; keep it that way.
+Do not repeat the timeline or the facts as lists: they are printed next to your text.
 
 ${SHARED_RULES}`,
   },

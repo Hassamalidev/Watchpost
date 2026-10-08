@@ -12,6 +12,7 @@ import {
   createIncidentBody,
   falseAlarmBody,
   incidentRefParams,
+  postmortemBody,
   listIncidentsQuery,
   summaryQuery,
   tuningParams,
@@ -52,6 +53,15 @@ export function createIncidentsRouter(
     validate({ params: incidentRefParams, body: commentBody }),
     controller.comment,
   );
+  router.get("/incidents/:incidentRef/postmortem", read, ref, controller.postmortem);
+  router.put(
+    "/incidents/:incidentRef/postmortem",
+    write,
+    validate({ params: incidentRefParams, body: postmortemBody }),
+    controller.savePostmortem,
+  );
+  router.get("/incidents/:incidentRef/postmortem.md", read, ref, controller.postmortemMarkdown);
+  router.get("/incidents/:incidentRef/postmortem.pdf", read, ref, controller.postmortemPdf);
   router.post(
     "/incidents/:incidentRef/false-alarm",
     write,

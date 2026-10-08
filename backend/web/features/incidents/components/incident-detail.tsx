@@ -24,6 +24,7 @@ import { DeliveryLog } from "@/features/insights/components/deliveries";
 import { IncidentEscalation } from "@/features/oncall/components/incident-escalation";
 import { ExplanationCard } from "@/features/insights/components/explanation";
 import { AiSummaryCard } from "./ai-summary";
+import { PostmortemCard } from "./postmortem";
 import { incidentsApi, useIncident, useIncidentAction } from "../api";
 import { EvidencePanel } from "./evidence-panel";
 import { IncidentStatusLabel } from "./incident-list";
@@ -285,6 +286,7 @@ export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
                 "suppressed",
                 "unsuppressed",
                 "ai_summary",
+                "postmortem_started",
               ] as const;
               const type = known.find((k) => k === event.type);
               return (
@@ -326,6 +328,8 @@ export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
           )}
         </CardContent>
       </Card>
+
+      <PostmortemCard ws={ws} incidentNumber={data.number} canEdit={canFlag} />
     </div>
   );
 }

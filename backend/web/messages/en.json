@@ -280,7 +280,8 @@
       "escalated": "Escalated to the next step",
       "suppressed": "Kept quiet: a monitor it depends on is down",
       "unsuppressed": "Announced: the monitor it depends on recovered",
-      "ai_summary": "AI summary added"
+      "ai_summary": "AI summary added",
+      "postmortem_started": "Postmortem started"
     },
     "suppressedBy": "No alerts were sent for this incident: a monitor it depends on is already down. See <link>{incident}</link>.",
     "statuses": {
@@ -331,6 +332,21 @@
       "up": "Helpful",
       "down": "Not helpful",
       "thanks": "Thanks. Your rating helps us improve these summaries."
+    },
+    "postmortem": {
+      "title": "Postmortem",
+      "intro": "A written review of the incident: what happened, why, and what you will change. Blameless: about systems and decisions, not people.",
+      "label": "Postmortem text (Markdown)",
+      "placeholder": "# Postmortem\n\n## Summary\n\n## Root cause\n\n## Action items\n- ",
+      "none": "No postmortem has been written for this incident.",
+      "draft": "Draft with AI",
+      "drafting": "Drafting… this can take up to 20 seconds",
+      "confirmRedraft": "Replace the current text with a new AI draft?",
+      "startedByAi": "Started as an AI draft; check it before sharing.",
+      "writtenByHand": "Written by your team.",
+      "savedAt": "Saved {time}.",
+      "downloadMarkdown": "Download Markdown",
+      "downloadPdf": "Download PDF"
     }
   },
   "integrations": {
