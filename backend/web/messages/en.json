@@ -790,7 +790,7 @@
       "intro": "Send a signed HTTPS request to your own systems when an incident opens, a monitor changes or a status update is published.",
       "docsLink": "How webhooks work",
       "none": "There are no webhooks.",
-      "name": "Name",
+      "name": "Webhook name",
       "nameRequired": "Give the webhook a name.",
       "url": "Address",
       "urlHint": "An https address that answers within 10 seconds.",

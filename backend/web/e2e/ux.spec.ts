@@ -154,7 +154,7 @@ test("an admin makes an API key, sees it once and revokes it", async ({ page }) 
 test("an admin adds an outgoing webhook, sees its secret once and deletes it", async ({ page }) => {
   await page.goto(path("integrations"));
   const name = `e2e hook ${Date.now()}`;
-  await page.getByLabel("Name", { exact: true }).last().fill(name);
+  await page.getByLabel("Webhook name").fill(name);
   await page.getByLabel("Address").fill("https://hooks.example.com/e2e");
   await page.getByRole("button", { name: "Add webhook" }).click();
   await expect(page.getByText(`Webhook "${name}" created`)).toBeVisible();
