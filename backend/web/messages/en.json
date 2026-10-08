@@ -1243,21 +1243,6 @@
     },
     "chosenOnSite": "You picked this plan before signing up"
   },
-  "placeholder": {
-    "title": "Coming in Phase {phase}",
-    "sections": {
-      "statusPages": {
-        "what": "Public status pages on your own domain, with components, 90-day uptime bars, incident updates and subscribers.",
-        "meanwhile": "Until then, every monitor page shows 90-day uptime and response times you can share with your team.",
-        "action": "Open monitors"
-      },
-      "reports": {
-        "what": "Monthly SLA reports as PDF and CSV, and uptime history you can send to clients.",
-        "meanwhile": "A weekly digest already arrives by email every Monday, and the overview shows alert accuracy, response times and error budgets.",
-        "action": "Open the overview"
-      }
-    }
-  },
   "marketing": {
     "subhead": "UptimeWatch checks your websites, APIs, servers and cron jobs from several regions, rechecks every failure before it alerts anyone, and tells your team what broke in Slack, Teams, Telegram or email.",
     "navLabel": "Site",
@@ -2109,5 +2094,62 @@
     "drafting": "Drafting…",
     "draftHint": "Uses the title and what you typed as notes. Internal host names and addresses are left out. Read it before you post.",
     "draftUpdateLabel": "Draft an update for {title} with AI"
+  },
+  "reports": {
+    "title": "Reports",
+    "intro": "Uptime, incidents and response times over a period, to read here or send to the people you answer to.",
+    "slaTitle": "SLA report",
+    "slaIntro": "Uptime is worked out from recorded outages, the same way as on monitor pages and status pages.",
+    "about": "Report on",
+    "kind": {
+      "workspace": "All monitors",
+      "monitor": "Monitor",
+      "group": "Group",
+      "page": "Status page"
+    },
+    "choose": "Choose…",
+    "chooseTarget": "Choose what to report on",
+    "chooseTargetBody": "Pick a monitor, a group or a status page above.",
+    "period": "Period",
+    "periods": {
+      "lastMonth": "Last month",
+      "thisMonth": "This month so far",
+      "last7": "Last 7 days",
+      "last30": "Last 30 days",
+      "last90": "Last 90 days"
+    },
+    "excludeMaintenance": "Leave planned maintenance out",
+    "uptime": "Uptime",
+    "downtime": "Downtime",
+    "incidents": "Incidents",
+    "mtta": "Time to acknowledge",
+    "mttr": "Time to resolve",
+    "p95": "Latency p95",
+    "monitor": "Monitor",
+    "tableCaption": "Numbers per monitor for the period",
+    "noMonitors": "There are no monitors in this report.",
+    "truncated": "This report holds 500 monitors; the rest are left out. Report on a group to see them.",
+    "method": "Times to acknowledge and to resolve are means over the period's incidents. Latency is of successful checks. Months and days are in UTC.",
+    "downloadPdf": "Download PDF",
+    "downloadCsv": "Download CSV",
+    "schedulesTitle": "Scheduled reports",
+    "schedulesIntro": "Email a report every week or month to people inside or outside your workspace. Each email has the headline numbers, a link to the PDF and a link to stop it.",
+    "noSchedules": "No reports are scheduled.",
+    "noRecipients": "nobody (everyone unsubscribed)",
+    "deleteSchedule": "Delete the schedule {name}",
+    "scheduleCovers": "A new schedule reports on what is selected above: {target}.",
+    "scheduleName": "Name",
+    "scheduleNameRequired": "Give the schedule a name.",
+    "frequencyLabel": "How often",
+    "frequency": {
+      "weekly": "Every week",
+      "monthly": "Every month"
+    },
+    "recipients": "Send to",
+    "recipientsHint": "Up to {max} email addresses, separated by commas.",
+    "recipientsInvalid": "Enter one to ten valid email addresses.",
+    "brandName": "Name on the PDF (optional)",
+    "brandHint": "On the Business plan the PDF carries this name instead of ours.",
+    "addSchedule": "Add schedule"
   }
 }

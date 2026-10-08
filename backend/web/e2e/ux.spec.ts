@@ -114,9 +114,21 @@ test("incidents filter by severity and keep the filter in the URL", async ({ pag
   await expect(page.getByRole("link", { name: /Alert drill/ }).first()).toBeVisible();
 });
 
-test("sections from later phases say when they arrive and what to use now", async ({ page }) => {
+test("the reports page shows an SLA report and offers it as files", async ({ page }) => {
   await page.goto(path("reports"));
-  await expect(page.getByText("Coming in Phase 5")).toBeVisible();
-  await page.getByRole("link", { name: "Open the overview" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Reports" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Download PDF" })).toHaveAttribute(
+    "href",
+    /\/reports\/sla\.pdf\?kind=workspace&from=/,
+  );
+  await page.getByLabel("Period").selectOption("last7");
+  await expect(page.getByRole("link", { name: "Download CSV" })).toHaveAttribute(
+    "href",
+    /\/reports\/sla\.csv\?kind=workspace&from=/,
+  );
+  /* A monitor, a group or a status page has to be picked before there is a report. */
+  await page.getByLabel("Report on").selectOption("monitor");
+  await expect(page.getByText("Choose what to report on")).toBeVisible();
+  await expect(page.getByText("No reports are scheduled.")).toBeVisible();
+  await noAxeViolations(page);
 });

@@ -30,6 +30,7 @@ export type {
 } from "./detection.service.js";
 export type { DowntimeKind, MonitorStateRow, RegionStatus } from "./schema/detection.js";
 export type { DayStatus, UptimeDay, UptimeSummary } from "./uptime.js";
+export { combineUptime } from "./uptime.js";
 export type { ChangeEvent, ChangeKind } from "./changes.js";
 export type { BudgetStatus, ErrorBudget } from "./slo.js";
 

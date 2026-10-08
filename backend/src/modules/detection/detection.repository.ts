@@ -1,5 +1,5 @@
 /* Queries on monitor_state, monitor_region_state and downtimes, owned by the detection module. */
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { assertWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
 import type { DbOrTx } from "../../infra/db/index.js";
 import {
@@ -175,6 +175,29 @@ export function createDetectionRepository() {
         monitorId: r.monitor_id,
         seconds: Math.max(0, Number(r.seconds)),
       }));
+    },
+
+    /* Downtimes of several monitors of one workspace overlapping [from, to). */
+    async downtimesOfMonitors(
+      tx: DbOrTx,
+      workspaceId: string,
+      monitorIds: string[],
+      from: Date,
+      to: Date,
+    ): Promise<DowntimeRow[]> {
+      if (monitorIds.length === 0) return [];
+      return tx
+        .select()
+        .from(downtimes)
+        .where(
+          and(
+            eq(downtimes.workspaceId, workspaceId),
+            inArray(downtimes.monitorId, monitorIds),
+            sql`${downtimes.startedAt} < ${to.toISOString()}::timestamptz`,
+            sql`(${downtimes.endedAt} is null or ${downtimes.endedAt} > ${from.toISOString()}::timestamptz)`,
+          ),
+        )
+        .orderBy(downtimes.startedAt);
     },
 
     /* Downtimes overlapping [from, to). */

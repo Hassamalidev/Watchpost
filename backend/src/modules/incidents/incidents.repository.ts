@@ -1,5 +1,5 @@
 /* Queries on incidents, incident_events and incident_comments, owned by the incidents module. */
-import { and, asc, desc, eq, gt, lt, ne, notInArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, lt, ne, notInArray, sql, type SQL } from "drizzle-orm";
 import { assertWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
 import { tenantWhere, withWorkspace, type DbOrTx } from "../../infra/db/index.js";
 import {
@@ -253,6 +253,58 @@ export function createIncidentsRepository() {
         )
         .orderBy(asc(incidents.startedAt))
         .limit(limit);
+    },
+
+    /*
+     * Per monitor, incidents started in [from, to): how many, and the sums behind the mean times to
+     * acknowledge and to resolve (sums and counts, so a caller can combine monitors correctly).
+     */
+    async statsByMonitor(
+      tx: DbOrTx,
+      workspaceId: string,
+      monitorIds: string[],
+      from: Date,
+      to: Date,
+    ) {
+      if (monitorIds.length === 0) return [];
+      const rows = await tx
+        .select({
+          monitorId: incidents.monitorId,
+          opened: sql<number>`count(*)::int`,
+          acked: sql<number>`(count(*) filter (where ${incidents.ackedAt} is not null))::int`,
+          resolved: sql<number>`(count(*) filter (where ${incidents.status} = 'resolved'))::int`,
+          ackSeconds: sql<
+            string | null
+          >`sum(extract(epoch from ${incidents.ackedAt} - ${incidents.startedAt})) filter (where ${incidents.ackedAt} is not null)`,
+          resolveSeconds: sql<
+            string | null
+          >`sum(extract(epoch from ${incidents.resolvedAt} - ${incidents.startedAt})) filter (where ${incidents.status} = 'resolved')`,
+        })
+        .from(incidents)
+        .where(
+          and(
+            eq(incidents.workspaceId, workspaceId),
+            inArray(incidents.monitorId, monitorIds),
+            notInArray(incidents.source, ["expiry", "drill"]),
+            sql`${incidents.startedAt} >= ${from.toISOString()}::timestamptz`,
+            sql`${incidents.startedAt} < ${to.toISOString()}::timestamptz`,
+          ),
+        )
+        .groupBy(incidents.monitorId);
+      return rows.flatMap((row) =>
+        row.monitorId === null
+          ? []
+          : [
+              {
+                monitorId: row.monitorId,
+                opened: row.opened,
+                acked: row.acked,
+                resolved: row.resolved,
+                ackSeconds: Number(row.ackSeconds ?? 0),
+                resolveSeconds: Number(row.resolveSeconds ?? 0),
+              },
+            ],
+      );
     },
 
     async stats(tx: DbOrTx, workspaceId: string, from: Date, to: Date) {

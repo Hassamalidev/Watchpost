@@ -376,6 +376,25 @@ export interface IncidentsService {
     from: Date,
     to: Date,
   ): Promise<{ opened: number; resolved: number; mttrMinutes: number | null }>;
+  /*
+   * Per monitor, incidents started in [from, to) with the sums behind MTTA and MTTR (SLA reports).
+   * Expiry warnings and drills don't count, as everywhere else.
+   */
+  statsByMonitor(
+    scope: WorkspaceScope,
+    monitorIds: string[],
+    from: Date,
+    to: Date,
+  ): Promise<
+    Array<{
+      monitorId: string;
+      opened: number;
+      acked: number;
+      resolved: number;
+      ackSeconds: number;
+      resolveSeconds: number;
+    }>
+  >;
   /* System: what happened in a workspace between two moments, for an on-call handoff. */
   shiftReport(workspaceId: string, from: Date, to: Date): Promise<ShiftReport>;
   /* System: IDs of open incidents, paged by ID (reminder recovery). */
@@ -925,6 +944,9 @@ export function createIncidentsService(deps: IncidentsServiceDeps): IncidentsSer
         return toView(created);
       });
     },
+
+    statsByMonitor: (scope, monitorIds, from, to) =>
+      repo.statsByMonitor(deps.db, scope.workspaceId, monitorIds, from, to),
 
     async stats(workspaceId, from, to) {
       const s = await repo.stats(deps.db, workspaceId, from, to);

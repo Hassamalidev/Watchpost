@@ -66,6 +66,31 @@ export function computeUptime(input: {
   };
 }
 
+/*
+ * One figure for a set of monitors (an SLA report's total): their downtime over their time, with
+ * the same rule and rounding as a single monitor.
+ */
+export function combineUptime(
+  summaries: readonly UptimeSummary[],
+  excludeMaintenance: boolean,
+): Omit<UptimeSummary, "from" | "to"> {
+  const sum = (pick: (s: UptimeSummary) => number) => summaries.reduce((a, s) => a + pick(s), 0);
+  const rangeSeconds = sum((s) => s.rangeSeconds);
+  const downtimeSeconds = sum((s) => s.downtimeSeconds);
+  const maintenanceSeconds = sum((s) => s.maintenanceSeconds);
+  const denominator = rangeSeconds - (excludeMaintenance ? maintenanceSeconds : 0);
+  return {
+    rangeSeconds,
+    downtimeSeconds,
+    degradedSeconds: sum((s) => s.degradedSeconds),
+    maintenanceSeconds,
+    uptimePercent:
+      denominator <= 0
+        ? null
+        : Math.round(Math.max(0, 1 - downtimeSeconds / denominator) * 1_000_000) / 10_000,
+  };
+}
+
 export type DayStatus = "up" | "minor" | "major" | "none";
 
 export interface UptimeDay {

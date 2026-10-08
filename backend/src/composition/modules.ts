@@ -158,15 +158,6 @@ export function createModules(infra: Infra): AppModule[] {
     }),
   );
   modules.push(
-    createReportsModule({
-      infra,
-      workspaces: workspaces.service,
-      incidents: incidents.service,
-      detection: detection.service,
-      monitors: monitors.service,
-    }),
-  );
-  modules.push(
     createInboundModule({
       infra,
       incidents: incidents.service,
@@ -190,14 +181,27 @@ export function createModules(infra: Infra): AppModule[] {
     guards: workspaces.guards,
   });
   modules.push(ai);
+  const statuspages = createStatuspagesModule({
+    infra,
+    monitors: monitors.service,
+    detection: detection.service,
+    maintenance: maintenance.service,
+    plan: (scope) => billing.service.entitlements(scope),
+    ai: ai.service,
+    guards: workspaces.guards,
+  });
+  modules.push(statuspages);
   modules.push(
-    createStatuspagesModule({
+    createReportsModule({
       infra,
-      monitors: monitors.service,
+      workspaces: workspaces.service,
+      incidents: incidents.service,
       detection: detection.service,
-      maintenance: maintenance.service,
-      plan: (scope) => billing.service.entitlements(scope),
+      monitors: monitors.service,
+      results: results.rollups,
+      statuspages: statuspages.service,
       ai: ai.service,
+      hasFeature: (scope, feature) => billing.service.hasFeature(scope, feature),
       guards: workspaces.guards,
     }),
   );

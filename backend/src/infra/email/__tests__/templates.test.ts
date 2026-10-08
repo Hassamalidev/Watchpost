@@ -107,7 +107,22 @@ const SAMPLES: Record<EmailTemplate, Record<string, unknown>> = {
     monitors: [{ name: "Checkout API", uptimePercent: 99.8, downtimeMinutes: 20 }],
     totalMonitors: 12,
     url: "https://app.example.com/w/1/overview",
+    insight: "Checkout API caused most of the downtime this week.",
     settingsUrl: "https://app.example.com/w/1/settings",
+  },
+  "sla-report": {
+    heading: "Client report",
+    subject: "Acme shop",
+    period: "2026-09-01 to 2026-09-30 (UTC)",
+    uptimePercent: 99.954,
+    downtimeMinutes: 20,
+    incidents: 2,
+    monitorCount: 4,
+    worst: [{ name: "Checkout API", uptimePercent: 99.8, downtimeMinutes: 20 }],
+    brand: null,
+    url: "https://app.example.com/api/public/reports/token/sla.pdf",
+    linkLabel: "Download the PDF",
+    unsubscribeUrl: "https://app.example.com/api/public/reports/unsubscribe?token=abc",
   },
 };
 

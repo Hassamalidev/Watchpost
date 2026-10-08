@@ -10,7 +10,8 @@ export type PdfBlock =
   | { kind: "heading"; level: 1 | 2 | 3; text: string }
   | { kind: "paragraph"; text: string }
   | { kind: "list"; items: string[] }
-  | { kind: "table"; header: string[]; rows: string[][] }
+  /* `widths` are relative column widths; without them the columns are equal. */
+  | { kind: "table"; header: string[]; rows: string[][]; widths?: number[] }
   | { kind: "space" };
 
 export interface PdfDocument {
@@ -113,7 +114,7 @@ function block(b: PdfBlock, index: number): ReactElement {
         <View key={index} style={styles.paragraph}>
           <View style={styles.headerRow}>
             {b.header.map((cell, i) => (
-              <Text key={i} style={styles.headerCell}>
+              <Text key={i} style={[styles.headerCell, { flex: b.widths?.[i] ?? 1 }]}>
                 {pdfSafe(cell)}
               </Text>
             ))}
@@ -121,7 +122,7 @@ function block(b: PdfBlock, index: number): ReactElement {
           {b.rows.map((row, r) => (
             <View key={r} style={styles.row} wrap={false}>
               {row.map((cell, i) => (
-                <Text key={i} style={styles.cell}>
+                <Text key={i} style={[styles.cell, { flex: b.widths?.[i] ?? 1 }]}>
                   {pdfSafe(cell)}
                 </Text>
               ))}

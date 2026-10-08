@@ -174,6 +174,8 @@ const digestData = z.object({
     }),
   ),
   totalMonitors: z.number().int(),
+  /* A short reading of the week written by the model; absent when AI is off or had nothing. */
+  insight: z.string().nullable().optional(),
   url,
   settingsUrl: url,
 });
@@ -195,6 +197,16 @@ function DigestEmail(d: z.infer<typeof digestData>) {
           ? `No incidents across ${d.totalMonitors} monitors. A quiet week.`
           : `${d.incidents} incident${d.incidents === 1 ? "" : "s"}, ${d.resolved} resolved${d.mttrMinutes === null ? "" : `, ${Math.round(d.mttrMinutes)} min to resolve on average`}.`}
       </Text>
+      {d.insight != null && (
+        <>
+          <Text className="wp-muted" style={{ ...styles.muted, margin: "12px 0 2px" }}>
+            AI summary
+          </Text>
+          <Text className="wp-text" style={styles.text}>
+            {d.insight}
+          </Text>
+        </>
+      )}
       {d.monitors.length > 0 && (
         <>
           <Hr />
@@ -212,6 +224,72 @@ function DigestEmail(d: z.infer<typeof digestData>) {
       <Action href={d.url}>Open Watchpost</Action>
       <Text className="wp-muted" style={styles.muted}>
         <Link href={d.settingsUrl}>Email settings</Link>
+      </Text>
+    </EmailLayout>
+  );
+}
+
+/*
+ * An SLA report's headline numbers with a link to the whole report (PRODUCT.md §6.10). Scheduled
+ * reports go to people outside the workspace too, so the email says who it is about and how to stop
+ * it, and with a `brand` it carries that name instead of ours.
+ */
+const slaReportData = z.object({
+  heading: z.string(),
+  subject: z.string(),
+  period: z.string(),
+  uptimePercent: z.number().nullable(),
+  downtimeMinutes: z.number(),
+  incidents: z.number().int(),
+  monitorCount: z.number().int(),
+  worst: z.array(
+    z.object({
+      name: z.string(),
+      uptimePercent: z.number().nullable(),
+      downtimeMinutes: z.number(),
+    }),
+  ),
+  brand: z.string().nullable(),
+  url,
+  linkLabel: z.string(),
+  unsubscribeUrl: url,
+});
+
+function SlaReportEmail(d: z.infer<typeof slaReportData>) {
+  const uptime = d.uptimePercent === null ? "no data" : `${d.uptimePercent.toFixed(3)}% uptime`;
+  return (
+    <EmailLayout
+      preview={`${d.subject}: ${uptime}, ${d.period}`}
+      footer={`${d.heading} from ${d.brand ?? "Watchpost"}.`}
+    >
+      <Heading as="h1" className="wp-text" style={styles.heading}>
+        {d.heading}
+      </Heading>
+      <Text className="wp-muted" style={styles.muted}>
+        {d.subject} · {d.period}
+      </Text>
+      <Text className="wp-text" style={styles.text}>
+        {d.uptimePercent === null
+          ? "There is no uptime data for this period."
+          : `${d.uptimePercent.toFixed(3)}% uptime across ${d.monitorCount} monitor${d.monitorCount === 1 ? "" : "s"}: ${d.downtimeMinutes} min of downtime and ${d.incidents} incident${d.incidents === 1 ? "" : "s"}.`}
+      </Text>
+      {d.worst.length > 0 && (
+        <>
+          <Hr />
+          <Text className="wp-text" style={{ ...styles.text, fontWeight: 600 }}>
+            Most downtime
+          </Text>
+          {d.worst.map((m) => (
+            <Text key={m.name} className="wp-text" style={{ ...styles.text, margin: "0 0 4px" }}>
+              {m.name}: {m.uptimePercent === null ? "—" : `${m.uptimePercent.toFixed(3)}% up`} ·{" "}
+              {m.downtimeMinutes} min down
+            </Text>
+          ))}
+        </>
+      )}
+      <Action href={d.url}>{d.linkLabel}</Action>
+      <Text className="wp-muted" style={styles.muted}>
+        <Link href={d.unsubscribeUrl}>Stop these emails</Link>
       </Text>
     </EmailLayout>
   );
@@ -751,6 +829,12 @@ export const EMAIL_TEMPLATES = {
     subject: (d: { workspaceName: string; incidents: number }) =>
       `${d.workspaceName} weekly digest: ${d.incidents} incident${d.incidents === 1 ? "" : "s"}`,
     component: DigestEmail,
+  },
+  "sla-report": {
+    data: slaReportData,
+    subject: (d: { heading: string; subject: string; period: string }) =>
+      `${d.heading}: ${d.subject}, ${d.period}`,
+    component: SlaReportEmail,
   },
 } as const;
 

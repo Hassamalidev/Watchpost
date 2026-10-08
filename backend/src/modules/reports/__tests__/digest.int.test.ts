@@ -6,9 +6,12 @@ import request from "supertest";
 import type TestAgent from "supertest/lib/agent.js";
 import { createFakeClock } from "../../../core/clock.js";
 import { newId } from "../../../infra/ids.js";
+import { createTokenSigner } from "../../../infra/signed-token.js";
 import type { DetectionModule } from "../../detection/index.js";
 import type { IncidentsModule } from "../../incidents/index.js";
 import type { MonitorsModule } from "../../monitors/index.js";
+import type { ResultsModule } from "../../results/index.js";
+import type { StatuspagesModule } from "../../statuspages/index.js";
 import type { WorkspacesModule } from "../../workspaces/index.js";
 import { createReportsRepository } from "../reports.repository.js";
 import { createReportsService, weekStartOf, type ReportsService } from "../reports.service.js";
@@ -25,6 +28,8 @@ let ownerEmail: string;
 let ws: string;
 let service: ReportsService;
 const clock = createFakeClock();
+/* What the digest asked the model, which here is a stand-in. */
+const asked: Array<{ prompt: string; evidence: Record<string, unknown> }> = [];
 /* Last week's Monday, so the fixtures fall inside the digest's week. */
 const thisWeek = weekStartOf(new Date());
 const lastWeek = new Date(thisWeek.getTime() - 7 * DAY);
@@ -81,6 +86,29 @@ beforeAll(async () => {
     incidents: find<IncidentsModule>("incidents").service,
     detection: find<DetectionModule>("detection").service,
     monitors: find<MonitorsModule>("monitors").service,
+    results: find<ResultsModule>("results").rollups,
+    statuspages: find<StatuspagesModule>("statuspages").service,
+    hasFeature: () => Promise.resolve(true),
+    ai: {
+      configured: () => true,
+      generate: ((
+        _scope: unknown,
+        input: { prompt: string; evidence: Record<string, unknown> },
+      ) => {
+        asked.push(input);
+        return Promise.resolve({
+          ok: true,
+          generationId: newId(),
+          output: { insight: "Checkout API caused all of this week's downtime." },
+          model: "stand-in",
+          createdAt: new Date().toISOString(),
+          reused: false,
+        });
+      }) as never,
+    },
+    linkSigner: createTokenSigner("test-secret", "report-link"),
+    unsubscribeSigner: createTokenSigner("test-secret", "report-unsubscribe"),
+    newId,
     outbox: ctx.container.infra.outbox,
     clock,
     logger: ctx.container.infra.logger,
@@ -115,6 +143,15 @@ describe("weekly digest", () => {
       mttrMinutes: 30,
       totalMonitors: 1,
       monitors: [{ name: "Checkout API", downtimeMinutes: 30 }],
+      insight: "Checkout API caused all of this week's downtime.",
+    });
+    /* The model was asked once, with the week's numbers and nothing about people. */
+    expect(asked).toHaveLength(1);
+    expect(asked[0]?.prompt).toBe("digestInsight");
+    expect(asked[0]?.evidence).toMatchObject({
+      thisWeek: { incidents: 2, resolved: 1, meanMinutesToResolve: 30 },
+      lastWeek: { incidents: 0 },
+      mostDowntime: [{ name: "Checkout API", minutesDown: 30 }],
     });
     expect(digest?.headers["List-Unsubscribe"]).toBe(`<${WEB_ORIGIN}/w/${ws}/settings>`);
 

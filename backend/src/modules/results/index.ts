@@ -16,6 +16,7 @@ export type {
   CheckView,
   LatencyPoint,
   LatencySeries,
+  LatencyTotals,
   RollupsService,
 } from "./rollups.service.js";
 export {

@@ -38,6 +38,15 @@ export interface LatencyPoint {
   p99: number | null;
 }
 
+/* Successful checks' latency over a period; nulls when there were none. */
+export interface LatencyTotals {
+  checks: number;
+  avgMs: number | null;
+  p50: number | null;
+  p95: number | null;
+  p99: number | null;
+}
+
 export interface LatencySeries {
   range: ChartRange;
   resolution: RollupSize;
@@ -66,6 +75,17 @@ export interface RollupsService {
     monitorId: string,
     options: { range: ChartRange; region?: string | undefined },
   ): Promise<LatencySeries>;
+  /*
+   * Latency of many monitors of the workspace over [from, to), per monitor and for all of them
+   * together (SLA reports). Read from hourly rollups, or daily ones once the hourly are gone, so a
+   * period's hours that haven't been rolled up yet aren't in it. The caller checked the monitors.
+   */
+  latencyBetween(
+    scope: WorkspaceScope,
+    monitorIds: string[],
+    from: Date,
+    to: Date,
+  ): Promise<{ byMonitor: Map<string, LatencyTotals>; all: LatencyTotals }>;
   /* Raw checks from the last 48 hours, newest first (per-check charts and waterfalls). */
   checks(
     scope: WorkspaceScope,
@@ -155,6 +175,28 @@ export function createRollupsService(deps: {
             ...point(bucketRows),
           })),
         summary: point(rows),
+      };
+    },
+
+    async latencyBetween(scope, monitorIds, from, to) {
+      const size: RollupSize =
+        from.getTime() < clock.now().getTime() - RETENTION_MS["1h"] ? "1d" : "1h";
+      const rows = await repo.rollupTotals(size, scope.workspaceId, monitorIds, from, to);
+      const totals = (list: typeof rows): LatencyTotals => {
+        const histogram = mergeHistograms(list.map((r) => r.histogram));
+        const ok = list.reduce((a, r) => a + r.okCount, 0);
+        const sum = list.reduce((a, r) => a + r.latencySum, 0);
+        return {
+          checks: list.reduce((a, r) => a + r.count, 0),
+          avgMs: ok === 0 ? null : Math.round((sum / ok) * 10) / 10,
+          p50: percentile(histogram, 0.5),
+          p95: percentile(histogram, 0.95),
+          p99: percentile(histogram, 0.99),
+        };
+      };
+      return {
+        byMonitor: new Map(rows.map((row) => [row.monitorId, totals([row])])),
+        all: totals(rows),
       };
     },
 

@@ -90,6 +90,15 @@ export interface DetectionService {
     monitorId: string,
     options: { from: Date; to: Date; excludeMaintenance: boolean },
   ): Promise<UptimeSummary>;
+  /*
+   * The same calculation for many monitors of the workspace in one read (SLA reports). The caller
+   * passes monitors it already loaded through the scope.
+   */
+  uptimeMany(
+    scope: WorkspaceScope,
+    monitors: ReadonlyArray<{ id: string; createdAt: string }>,
+    options: { from: Date; to: Date; excludeMaintenance: boolean },
+  ): Promise<Map<string, UptimeSummary>>;
   /* System: outage seconds per monitor inside [from, to), most first (digests). */
   downtimeByMonitor(
     workspaceId: string,
@@ -517,6 +526,34 @@ export function createDetectionService(deps: DetectionServiceDeps): DetectionSer
         since: new Date(monitor.createdAt),
         excludeMaintenance,
       });
+    },
+
+    async uptimeMany(scope, monitors, { from, to, excludeMaintenance }) {
+      const spans = await repo.downtimesOfMonitors(
+        deps.db,
+        scope.workspaceId,
+        monitors.map((m) => m.id),
+        from,
+        to,
+      );
+      const byMonitor = new Map<string, typeof spans>();
+      for (const span of spans) {
+        byMonitor.set(span.monitorId, [...(byMonitor.get(span.monitorId) ?? []), span]);
+      }
+      const now = clock.now();
+      return new Map(
+        monitors.map((m) => [
+          m.id,
+          computeUptime({
+            spans: byMonitor.get(m.id) ?? [],
+            from,
+            to,
+            now,
+            since: new Date(m.createdAt),
+            excludeMaintenance,
+          }),
+        ]),
+      );
     },
 
     async changesBefore(scope, monitorId, { before, hours }) {

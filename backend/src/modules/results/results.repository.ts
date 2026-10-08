@@ -235,6 +235,50 @@ export function createResultsRepository(db: DbOrTx) {
         .orderBy(table.bucket);
     },
 
+    /* Per monitor, the rollup buckets in [from, to) summed over regions and time. */
+    async rollupTotals(
+      size: RollupSize,
+      workspaceId: string,
+      monitorIds: string[],
+      from: Date,
+      to: Date,
+    ): Promise<
+      Array<{
+        monitorId: string;
+        count: number;
+        okCount: number;
+        latencySum: number;
+        histogram: number[];
+      }>
+    > {
+      if (monitorIds.length === 0) return [];
+      const table = ROLLUP_TABLES[size];
+      const result = await db.execute<{
+        monitor_id: string;
+        count: string;
+        ok_count: string;
+        latency_sum: string;
+        histogram: number[];
+      }>(sql`
+        select monitor_id, sum(count) as count, sum(ok_count) as ok_count,
+          sum(latency_sum) as latency_sum, ${SUMMED_HISTOGRAM} as histogram
+        from ${table}
+        where workspace_id = ${workspaceId}
+          and monitor_id in (${sql.join(
+            monitorIds.map((id) => sql`${id}::uuid`),
+            sql`, `,
+          )})
+          and bucket >= ${from.toISOString()}::timestamptz and bucket < ${to.toISOString()}::timestamptz
+        group by monitor_id`);
+      return result.rows.map((row) => ({
+        monitorId: row.monitor_id,
+        count: Number(row.count),
+        okCount: Number(row.ok_count),
+        latencySum: Number(row.latency_sum),
+        histogram: row.histogram.map(Number),
+      }));
+    },
+
     /* Addresses each region connected to in [from, to), with first and last time seen. */
     async ipHistory(monitorId: string, from: Date, to: Date) {
       const result = await db.execute<{

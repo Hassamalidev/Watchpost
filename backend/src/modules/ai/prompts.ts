@@ -4,7 +4,12 @@
  * feedback can be compared between versions. Instructions are fixed text: evidence only ever goes
  * in the user message, as JSON, after redaction.
  */
-import { aiExplanationSchema, aiPostmortemSchema, aiStatusUpdateSchema } from "@app/shared";
+import {
+  aiDigestInsightSchema,
+  aiExplanationSchema,
+  aiPostmortemSchema,
+  aiStatusUpdateSchema,
+} from "@app/shared";
 import { z } from "zod";
 
 export interface Prompt<T> {
@@ -94,6 +99,24 @@ Answer with:
 
 Blameless means: describe systems and decisions, never judge people. The record names people only as "a team member"; keep it that way.
 Do not repeat the timeline or the facts as lists: they are printed next to your text.
+
+${SHARED_RULES}`,
+  },
+  digestInsight: {
+    key: "digest_insight",
+    version: 1,
+    schemaName: "digest_insight",
+    maxTokens: 300,
+    output: aiDigestInsightSchema,
+    system: `You write one short paragraph for a team's weekly monitoring digest email.
+
+You get JSON for one week: how many incidents opened and were resolved, the mean minutes to resolve, last week's same numbers when there are any, the monitors with the most downtime (name, minutes down, uptime percent) and the monitors that alerted most often in the last 30 days (name, incidents, how many were false alarms).
+
+Write "insight": two to four sentences.
+- Say what stands out: a trend against last week, one monitor that causes most of the downtime, a monitor that alerts often without real outages.
+- Use the numbers you are given, exactly. Never work out a new number other than a plain difference between two given ones.
+- If one monitor alerts often and most of its alerts were false alarms, say its alert settings are worth a look. Suggest nothing else.
+- If nothing stands out, say the week was ordinary in one sentence.
 
 ${SHARED_RULES}`,
   },

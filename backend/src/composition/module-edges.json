@@ -39,7 +39,16 @@
       "billing",
       "ai"
     ],
-    "reports": ["monitors", "detection", "incidents", "results", "statuspages", "workspaces"],
+    "reports": [
+      "monitors",
+      "detection",
+      "incidents",
+      "results",
+      "statuspages",
+      "workspaces",
+      "billing",
+      "ai"
+    ],
     "imports": ["monitors", "channels", "contacts", "oncall", "statuspages", "workspaces"],
     "badges": ["monitors", "detection", "results"],
     "admin": ["*"]
