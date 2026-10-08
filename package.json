@@ -23,7 +23,7 @@
   "devDependencies": {
     "@app/eslint-plugin": "workspace:*",
     "@eslint/js": "10.0.1",
-    "@types/node": "24.19.0",
+    "@types/node": "26.6.4",
     "dependency-cruiser": "18.4.0",
     "eslint": "10.11.0",
     "eslint-config-prettier": "10.1.8",
