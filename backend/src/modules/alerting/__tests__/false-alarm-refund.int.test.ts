@@ -56,6 +56,7 @@ describe("false-alarm credit refunds", () => {
       eventId: newId(),
       workspaceId: owner.workspaceId,
       correlationId: null,
+      occurredAt: new Date(),
       logger: ctx.container.infra.logger,
     };
     await handle({ incidentId }, meta);
@@ -75,6 +76,7 @@ describe("false-alarm credit refunds", () => {
           eventId: newId(),
           workspaceId: newId(),
           correlationId: null,
+          occurredAt: new Date(),
           logger: ctx.container.infra.logger,
         },
       ),

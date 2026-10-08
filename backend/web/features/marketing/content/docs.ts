@@ -268,6 +268,75 @@ export const DOCS_PAGES: readonly ContentPage[] = [
       },
     ],
   },
+  {
+    slug: "webhooks",
+    title: "Webhooks",
+    summary:
+      "Get a signed HTTPS request when an incident opens, a monitor changes or a status update is published.",
+    sections: [
+      {
+        heading: "Set one up",
+        list: [
+          "Open Integrations, then Outgoing webhooks. Give the endpoint a name, its https address, and the events it should get.",
+          "The signing secret is shown once, when the endpoint is created. Store it where your receiver can read it.",
+          "Choose Send test to post an example event, and open the deliveries to see what your endpoint answered.",
+        ],
+      },
+      {
+        heading: "What arrives",
+        paragraphs: [
+          "A POST with a JSON body. id is the same for every attempt at one event, so use it to drop duplicates. data depends on the type: incident events carry the incident and its monitor, monitor events the monitor.",
+        ],
+        code: `{
+  "id": "0199c1a0-7d00-7e40-8a55-0f1e2d3c4b5a",
+  "type": "incident.triggered",
+  "createdAt": "2026-11-02T09:14:08.000Z",
+  "workspaceId": "0199c19f-0000-7000-8000-000000000001",
+  "data": {
+    "incident": { "number": 42, "title": "Checkout API is down", "status": "triggered", "severity": "high" },
+    "monitor": { "name": "Checkout API", "type": "http" }
+  }
+}`,
+      },
+      {
+        heading: "Events",
+        list: [
+          "incident.triggered, incident.acknowledged, incident.resolved, incident.reopened",
+          "monitor.created, monitor.updated, monitor.deleted, monitor.state_changed (with from and to, for example up and down)",
+          "status_page.update_published",
+          "incident.*, monitor.* and status_page.* subscribe to a whole group, including events added later.",
+        ],
+      },
+      {
+        heading: "Check the signature",
+        paragraphs: [
+          "Every request has a Watchpost-Signature header: t is a Unix time in seconds and v1 is the HMAC-SHA256, in hex, of that time, a dot and the exact request body, keyed with your signing secret. Compute the same value and compare; refuse requests whose time is more than five minutes off.",
+        ],
+        code: `const [t, v1] = header.split(",").map((part) => part.split("=")[1]);
+const expected = crypto.createHmac("sha256", secret).update(t + "." + rawBody).digest("hex");
+const ok = crypto.timingSafeEqual(Buffer.from(v1), Buffer.from(expected));`,
+      },
+      {
+        heading: "Retries",
+        list: [
+          "Answer with any 2xx status within 10 seconds. Do slow work after answering.",
+          "Anything else is tried again after 1, 5, 15, 60, 180, 360 and 720 minutes: eight attempts over about a day.",
+          "410 Gone stops at once and switches the endpoint off. So do 20 failed deliveries in a row. Switch it back on from the Integrations page.",
+          "Deliveries are kept for 30 days. Replay sends a past event again with the same id.",
+        ],
+      },
+      {
+        heading: "Your own body",
+        paragraphs: [
+          "If the receiver wants a different shape, give the endpoint a body template. Text between double braces is replaced from the event: write text values inside quotes, and use json for objects, numbers and lists. The result has to be valid JSON; it is checked when you save.",
+        ],
+        code: `{
+  "text": "#{{data.incident.number}} {{data.incident.title}} is {{data.incident.status}}",
+  "monitor": {{json data.monitor}}
+}`,
+      },
+    ],
+  },
 ];
 
 export const findDocsPage = (slug: string) => DOCS_PAGES.find((page) => page.slug === slug);

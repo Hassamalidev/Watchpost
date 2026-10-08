@@ -92,6 +92,7 @@ describe("trial lifecycle", { timeout: 30_000 }, () => {
       eventId: "00000000-0000-7000-8000-000000000000",
       workspaceId: ws,
       correlationId: null,
+      occurredAt: new Date(),
       logger: ctx.container.infra.logger,
     };
     await handle({ workspaceId: ws }, meta);

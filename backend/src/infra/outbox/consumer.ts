@@ -15,6 +15,8 @@ export interface EventMeta {
   eventId: string;
   workspaceId: string | null;
   correlationId: string | null;
+  /* When the event was written, which is when it happened. */
+  occurredAt: Date;
   logger: Logger;
 }
 
@@ -60,6 +62,7 @@ export function defineEventProcessor(options: {
         eventId: row.id,
         workspaceId: row.workspaceId,
         correlationId: row.correlationId,
+        occurredAt: row.createdAt,
         logger: logger.child({ eventId: row.id, eventType: row.type }),
       });
     },

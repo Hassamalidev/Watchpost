@@ -54,6 +54,7 @@ const meta = (workspaceId: string) => ({
   eventId: newId(),
   workspaceId,
   correlationId: null,
+  occurredAt: new Date(),
   logger: ctx.container.infra.logger,
 });
 

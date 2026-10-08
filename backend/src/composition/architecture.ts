@@ -43,28 +43,34 @@ export const EVENT_SUBSCRIPTIONS: Readonly<
   "monitor.created": [
     { handler: "statuspages", queue: "statuspages-events" },
     { handler: "admin", queue: "admin-events" },
+    { handler: "webhooks", queue: "webhooks-events" },
   ],
   "monitor.updated": [
     { handler: "statuspages", queue: "statuspages-events" },
     { handler: "admin", queue: "admin-events" },
+    { handler: "webhooks", queue: "webhooks-events" },
   ],
   "monitor.deleted": [
     { handler: "statuspages", queue: "statuspages-events" },
     { handler: "admin", queue: "admin-events" },
+    { handler: "webhooks", queue: "webhooks-events" },
   ],
   "monitor.state_changed": [
     { handler: "statuspages", queue: "statuspages-events" },
     { handler: "admin", queue: "admin-events" },
+    { handler: "webhooks", queue: "webhooks-events" },
   ],
   "incident.triggered": [
     { handler: "alerting", queue: "alerting-events" },
     { handler: "ai", queue: "ai-events" },
     { handler: "statuspages", queue: "statuspages-events" },
     { handler: "admin", queue: "admin-events" },
+    { handler: "webhooks", queue: "webhooks-events" },
   ],
   "incident.acknowledged": [
     { handler: "alerting", queue: "alerting-events" },
     { handler: "statuspages", queue: "statuspages-events" },
+    { handler: "webhooks", queue: "webhooks-events" },
   ],
   "incident.snoozed": [
     { handler: "alerting", queue: "alerting-events" },
@@ -73,10 +79,12 @@ export const EVENT_SUBSCRIPTIONS: Readonly<
   "incident.resolved": [
     { handler: "alerting", queue: "alerting-events" },
     { handler: "statuspages", queue: "statuspages-events" },
+    { handler: "webhooks", queue: "webhooks-events" },
   ],
   "incident.reopened": [
     { handler: "alerting", queue: "alerting-events" },
     { handler: "statuspages", queue: "statuspages-events" },
+    { handler: "webhooks", queue: "webhooks-events" },
   ],
   "incident.escalation_requested": [{ handler: "alerting", queue: "alerting-events" }],
   "incident.flapping_started": [{ handler: "alerting", queue: "alerting-events" }],
@@ -87,7 +95,10 @@ export const EVENT_SUBSCRIPTIONS: Readonly<
     { handler: "admin", queue: "admin-events" },
   ],
   "channel.health_changed": [{ handler: "alerting", queue: "alerting-events" }],
-  "status_page.update_published": [{ handler: "statuspages", queue: "statuspages-events" }],
+  "status_page.update_published": [
+    { handler: "statuspages", queue: "statuspages-events" },
+    { handler: "webhooks", queue: "webhooks-events" },
+  ],
   "billing.plan_changed": [
     { handler: "monitors", queue: "monitors-events" },
     { handler: "credits", queue: "credits-events" },

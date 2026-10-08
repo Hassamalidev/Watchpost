@@ -150,3 +150,20 @@ test("an admin makes an API key, sees it once and revokes it", async ({ page }) 
   await section.getByRole("button", { name: `Revoke the key ${name}` }).click();
   await expect(section.getByText(name)).toHaveCount(0);
 });
+
+test("an admin adds an outgoing webhook, sees its secret once and deletes it", async ({ page }) => {
+  await page.goto(path("integrations"));
+  const name = `e2e hook ${Date.now()}`;
+  await page.getByLabel("Name", { exact: true }).last().fill(name);
+  await page.getByLabel("Address").fill("https://hooks.example.com/e2e");
+  await page.getByRole("button", { name: "Add webhook" }).click();
+  await expect(page.getByText(`Webhook "${name}" created`)).toBeVisible();
+  await expect(page.getByLabel("Signing secret")).toHaveValue(/^whsec_[\w-]{32}$/);
+  await noAxeViolations(page);
+  await page.reload();
+  await expect(page.getByLabel("Signing secret")).toHaveCount(0);
+  await expect(page.getByText(name)).toBeVisible();
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: `Delete the webhook ${name}` }).click();
+  await expect(page.getByText(name)).toHaveCount(0);
+});

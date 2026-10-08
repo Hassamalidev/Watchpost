@@ -1,7 +1,5 @@
 /* HTTP entry point: load config, build the container, mount the app, shut down gracefully. */
 import { ConfigError, loadConfig, type AppConfig } from "./config/index.js";
-import { createApp } from "./app.js";
-import { createContainer } from "./composition/container.js";
 
 const SHUTDOWN_GRACE_MS = 10_000;
 
@@ -17,7 +15,13 @@ function bootConfig(): AppConfig {
   }
 }
 
+/*
+ * The environment is checked before the rest of the app is loaded, so a bad one is reported at
+ * once instead of after every module has been read (which takes many seconds in development).
+ */
 const config = bootConfig();
+const { createApp } = await import("./app.js");
+const { createContainer } = await import("./composition/container.js");
 const container = createContainer(config, { service: "api" });
 const { logger } = container.infra;
 

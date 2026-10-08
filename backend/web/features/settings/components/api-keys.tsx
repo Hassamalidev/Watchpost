@@ -162,9 +162,9 @@ export function ApiKeys({ ws }: { ws: string }) {
         <fieldset className="grid gap-2">
           <legend className="text-sm font-medium">{t("scopes")}</legend>
           <p className="text-xs text-muted-foreground">{t("scopesHint")}</p>
-          <div className="grid gap-1 sm:grid-cols-2">
+          <div className="grid gap-1.5 sm:grid-cols-2">
             {API_SCOPES.map((scope) => (
-              <label key={scope} className="flex items-center gap-2 text-sm">
+              <label key={scope} className="flex min-h-6 items-center gap-2 text-sm">
                 <input
                   type="checkbox"
                   checked={scopes.includes(scope)}

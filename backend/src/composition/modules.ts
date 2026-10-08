@@ -27,6 +27,7 @@ import { createStatuspagesModule } from "../modules/statuspages/index.js";
 import { createBadgesModule } from "../modules/badges/index.js";
 import { createAiModule } from "../modules/ai/index.js";
 import { createApikeysModule } from "../modules/apikeys/index.js";
+import { createWebhooksModule } from "../modules/webhooks/index.js";
 /* new-module:imports */
 
 export function createModules(infra: Infra): AppModule[] {
@@ -221,6 +222,15 @@ export function createModules(infra: Infra): AppModule[] {
       monitors: monitors.service,
       detection: detection.service,
       results: results.service,
+      guards: workspaces.guards,
+    }),
+  );
+  modules.push(
+    createWebhooksModule({
+      infra,
+      incidents: incidents.service,
+      monitors: monitors.service,
+      hasFeature: (scope, feature) => billing.service.hasFeature(scope, feature),
       guards: workspaces.guards,
     }),
   );

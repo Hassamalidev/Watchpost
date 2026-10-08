@@ -12,6 +12,7 @@ export const QUEUE_NAMES = [
   "billing-events",
   "monitors-events",
   "admin-events",
+  "webhooks-events",
   "notify",
   "escalate",
   "timers",
@@ -60,6 +61,7 @@ export const QUEUES: Record<QueueName, QueueDefinition> = {
   "billing-events": fromOutbox,
   "monitors-events": fromOutbox,
   "admin-events": fromOutbox,
+  "webhooks-events": fromOutbox,
   notify: {
     kind: "follow-up",
     recovery: { mode: "sweep", source: "pending notification_deliveries" },
