@@ -1,11 +1,17 @@
 /*
  * Importers (PRODUCT.md §6.12): bring monitors from UptimeRobot, Uptime Kuma and Better Stack, and
- * on-call schedules and escalation policies from Opsgenie. A dry run says what each object would
+ * on-call schedules and escalation policies from Opsgenie and PagerDuty. A dry run says what each object would
  * become and lists what can't be brought over, with the reason; applying creates the rest.
  */
 import { z } from "zod";
 
-export const IMPORT_SOURCES = ["uptimerobot", "uptime_kuma", "better_stack", "opsgenie"] as const;
+export const IMPORT_SOURCES = [
+  "uptimerobot",
+  "uptime_kuma",
+  "better_stack",
+  "opsgenie",
+  "pagerduty",
+] as const;
 export type ImportSource = (typeof IMPORT_SOURCES)[number];
 
 export const IMPORT_SOURCE_LABELS: Record<ImportSource, string> = {
@@ -13,6 +19,7 @@ export const IMPORT_SOURCE_LABELS: Record<ImportSource, string> = {
   uptime_kuma: "Uptime Kuma",
   better_stack: "Better Stack",
   opsgenie: "Opsgenie",
+  pagerduty: "PagerDuty",
 };
 
 /* The most objects one import may carry. */

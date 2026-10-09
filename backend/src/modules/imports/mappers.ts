@@ -7,7 +7,9 @@
  * - Uptime Kuma: its backup file (`monitorList`).
  * - Better Stack: the Uptime API's monitors list, and optionally its heartbeats list.
  * - Opsgenie: schedules (rotations) and escalations, as its REST API returns them.
+ * - PagerDuty: schedules (layers), escalation policies and users, as its REST API returns them.
  */
+import { MAX_STEP_TARGETS } from "@app/shared";
 import type {
   CreateEscalationPolicyInput,
   CreateMonitorInput,
@@ -458,6 +460,234 @@ export function mapOpsgenie(
   return items;
 }
 
+const DAY_SECONDS = 86_400;
+const clock = (seconds: number) => {
+  const minutes = Math.floor((((seconds % DAY_SECONDS) + DAY_SECONDS) % DAY_SECONDS) / 60);
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+};
+/* "09:00:00" as seconds into the day. */
+const secondsOfDay = (value: unknown): number | undefined => {
+  const m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(text(value) ?? "");
+  if (m === null) return undefined;
+  const seconds = Number(m[1]) * 3_600 + Number(m[2]) * 60 + Number(m[3] ?? 0);
+  return seconds < DAY_SECONDS ? seconds : undefined;
+};
+
+/*
+ * A PagerDuty layer's restrictions as ours. Ours are windows of at most a day that start on given
+ * weekdays; a weekly restriction that runs for longer (Monday 09:00 for five days) has no
+ * counterpart, and then `exact` is false so the import can say so.
+ */
+function pagerDutyRestrictions(layer: Row): {
+  restrictions: CreateScheduleInput["layers"][number]["restrictions"];
+  exact: boolean;
+} {
+  const restrictions: CreateScheduleInput["layers"][number]["restrictions"] = [];
+  let exact = true;
+  for (const r of rows(layer.restrictions)) {
+    const start = secondsOfDay(r.start_time_of_day);
+    const duration = number(r.duration_seconds);
+    const weekly = text(r.type) === "weekly_restriction";
+    const day = number(r.start_day_of_week);
+    if (
+      start === undefined ||
+      duration === undefined ||
+      duration <= 0 ||
+      duration > DAY_SECONDS ||
+      (weekly && (day === undefined || day < 1 || day > 7))
+    ) {
+      exact = false;
+      continue;
+    }
+    /* A window of a whole day, every day, restricts nothing. */
+    if (!weekly && duration === DAY_SECONDS) continue;
+    restrictions.push({
+      days: weekly ? [day as number] : [1, 2, 3, 4, 5, 6, 7],
+      start: clock(start),
+      end: clock(start + duration),
+    });
+  }
+  return { restrictions: restrictions.slice(0, 14), exact: exact && restrictions.length <= 14 };
+}
+
+/*
+ * PagerDuty names people by its own IDs; the `users` list gives their email addresses, and
+ * `memberByEmail` finds the member here, if there is one.
+ */
+export function mapPagerDuty(
+  data: unknown,
+  memberByEmail: (email: string) => string | undefined,
+): PlannedItem[] {
+  const schedules = isRow(data) ? rows(data.schedules) : [];
+  const policies = isRow(data) ? rows(data.escalation_policies) : [];
+  if (schedules.length === 0 && policies.length === 0) {
+    throw fail(
+      'This isn\'t a PagerDuty export: there are no "schedules" or "escalation_policies".',
+    );
+  }
+  const emailById = new Map<string, string>();
+  for (const u of isRow(data) ? rows(data.users) : []) {
+    const id = text(u.id);
+    const email = text(u.email);
+    if (id !== undefined && email !== undefined) emailById.set(id, email.toLowerCase());
+  }
+  /* A reference to a user: its email when we can tell, and what to call it when we can't. */
+  const person = (ref: Row): { userId: string | undefined; label: string } => {
+    const email = text(ref.email)?.toLowerCase() ?? emailById.get(text(ref.id) ?? "");
+    return {
+      userId: email === undefined ? undefined : memberByEmail(email),
+      label: email ?? text(ref.summary) ?? text(ref.name) ?? "a user",
+    };
+  };
+
+  const items: PlannedItem[] = [];
+  const scheduleNameById = new Map<string, string>();
+  for (const s of schedules) {
+    const name = text(s.name) ?? text(s.summary) ?? `Schedule ${String(s.id ?? "")}`;
+    const id = text(s.id);
+    if (id !== undefined) scheduleNameById.set(id, name);
+    const missing = new Set<string>();
+    const layers: CreateScheduleInput["layers"] = [];
+    let inexact = false;
+    for (const l of rows(s.schedule_layers)) {
+      const participants: string[] = [];
+      for (const entry of rows(l.users)) {
+        const { userId, label } = person(isRow(entry.user) ? entry.user : entry);
+        if (userId === undefined) missing.add(label);
+        else participants.push(userId);
+      }
+      const startsAt = text(l.rotation_virtual_start) ?? text(l.start);
+      if (participants.length === 0 || startsAt === undefined || Number.isNaN(Date.parse(startsAt)))
+        continue;
+      const endsAt = text(l.end);
+      const turn = Math.round(number(l.rotation_turn_length_seconds) ?? 7 * DAY_SECONDS);
+      const exactTurn = turn === DAY_SECONDS || turn === 7 * DAY_SECONDS;
+      const { restrictions, exact } = pagerDutyRestrictions(l);
+      if (!exact) inexact = true;
+      layers.push({
+        name: (text(l.name) ?? `Layer ${layers.length + 1}`).slice(0, 60),
+        rotation: exactTurn ? (turn === DAY_SECONDS ? "daily" : "weekly") : "custom",
+        ...(exactTurn ? {} : { shiftHours: clamp(Math.round(turn / 3_600), 1, 672) }),
+        startsAt: new Date(startsAt).toISOString(),
+        ...(endsAt !== undefined && Date.parse(endsAt) > Date.parse(startsAt)
+          ? { endsAt: new Date(endsAt).toISOString() }
+          : {}),
+        participants: participants.slice(0, 50),
+        restrictions,
+      });
+    }
+    if (layers.length === 0) {
+      items.push(
+        skip(
+          "schedule",
+          name,
+          missing.size > 0
+            ? `Nobody on it is a member here yet: invite ${[...missing].join(", ")} first.`
+            : "It has no layer with people and a start date.",
+        ),
+      );
+      continue;
+    }
+    const kept = layers.slice(0, 5);
+    items.push({
+      kind: "schedule",
+      name,
+      becomes:
+        `${kept.length} rotation${kept.length === 1 ? "" : "s"}` +
+        (layers.length > kept.length
+          ? ` (the first ${kept.length} of ${layers.length} layers)`
+          : "") +
+        (missing.size > 0 ? `, without ${[...missing].join(", ")} (not a member here)` : "") +
+        (inexact ? "; some time restrictions have no counterpart here, set them by hand" : ""),
+      action: "create",
+      schedule: {
+        name: name.slice(0, 80),
+        timezone: text(s.time_zone) ?? "UTC",
+        layers: kept,
+      },
+    });
+  }
+
+  const importedSchedules = new Set(
+    items.filter((i) => i.kind === "schedule" && i.action === "create").map((i) => i.name),
+  );
+  for (const p of policies) {
+    const name = text(p.name) ?? text(p.summary) ?? `Escalation policy ${String(p.id ?? "")}`;
+    const steps: CreateEscalationPolicyInput["steps"] = [];
+    const scheduleNames: string[] = [];
+    const dropped: string[] = [];
+    /* PagerDuty's delay is the wait after a rule; ours is the wait before a step. */
+    let wait = 0;
+    for (const rule of rows(p.escalation_rules)) {
+      const targets: CreateEscalationPolicyInput["steps"][number]["targets"] = [];
+      let scheduleName = "";
+      for (const target of rows(rule.targets)) {
+        const type = text(target.type) ?? "";
+        if (type.startsWith("user")) {
+          const { userId, label } = person(target);
+          if (userId === undefined) dropped.push(label);
+          else if (!targets.some((t) => t.type === "user" && t.id === userId)) {
+            targets.push({ type: "user", id: userId });
+          }
+        } else if (type.startsWith("schedule")) {
+          const schedule =
+            scheduleNameById.get(text(target.id) ?? "") ?? text(target.summary) ?? "";
+          if (!importedSchedules.has(schedule)) {
+            dropped.push(`schedule ${schedule || "(unnamed)"}`);
+          } else if (scheduleName !== "") {
+            /* A step here pages one schedule; the service fills in its ID by the step's name. */
+            dropped.push(`schedule ${schedule} (a second schedule in one rule)`);
+          } else {
+            scheduleName = schedule;
+            /* The placeholder ID is replaced with the new schedule's when it exists. */
+            targets.push({ type: "schedule", id: "00000000-0000-7000-8000-000000000000" });
+          }
+        } else dropped.push(`a ${type || "target"}`);
+      }
+      const after = clamp(Math.round(number(rule.escalation_delay_in_minutes) ?? 0), 0, 1_440);
+      if (targets.length === 0) {
+        /* The rule is gone, its wait is not: the next step still comes that much later. */
+        wait = clamp(wait + after, 0, 1_440);
+        continue;
+      }
+      steps.push({
+        delayMinutes: steps.length === 0 ? 0 : wait,
+        targets: targets.slice(0, MAX_STEP_TARGETS),
+      });
+      scheduleNames.push(scheduleName);
+      wait = after;
+    }
+    if (steps.length === 0) {
+      items.push(
+        skip(
+          "escalation",
+          name,
+          dropped.length > 0
+            ? `None of its targets exists here: ${[...new Set(dropped)].join(", ")}.`
+            : "It has no rules.",
+        ),
+      );
+      continue;
+    }
+    const kept = steps.slice(0, 10);
+    items.push({
+      kind: "escalation",
+      name,
+      becomes:
+        `${kept.length} step${kept.length === 1 ? "" : "s"}` +
+        (dropped.length > 0 ? `, without ${[...new Set(dropped)].join(", ")}` : ""),
+      action: "create",
+      escalation: {
+        name: name.slice(0, 80),
+        repeat: clamp(Math.round(number(p.num_loops) ?? 0), 0, 9),
+        steps: kept,
+      },
+      scheduleNames: scheduleNames.slice(0, 10),
+    });
+  }
+  return items;
+}
+
 export function mapImport(
   source: ImportSource,
   data: unknown,
@@ -472,5 +702,7 @@ export function mapImport(
       return mapBetterStack(data);
     case "opsgenie":
       return mapOpsgenie(data, memberByEmail);
+    case "pagerduty":
+      return mapPagerDuty(data, memberByEmail);
   }
 }

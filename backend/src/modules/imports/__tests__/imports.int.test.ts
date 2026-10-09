@@ -17,6 +17,7 @@ import { mapImport } from "../mappers.js";
 import {
   betterStackFixture,
   opsgenieFixture,
+  pagerDutyFixture,
   uptimeKumaFixture,
   uptimeRobotFixture,
 } from "./fixtures.js";
@@ -31,6 +32,7 @@ const fixtures: Record<ImportSource, () => unknown> = {
   uptime_kuma: uptimeKumaFixture,
   better_stack: betterStackFixture,
   opsgenie: () => opsgenieFixture({ a: "a@example.com", b: "b@example.com" }),
+  pagerduty: () => pagerDutyFixture({ a: "a@example.com", b: "b@example.com" }),
 };
 
 describe("mappers", () => {
@@ -108,7 +110,90 @@ describe("mappers", () => {
     expect(find("Vendor escalation")).toMatchObject({ action: "skip" });
   });
 
+  it("turns PagerDuty layers, restrictions and rule delays into ours", () => {
+    const items = mapImport("pagerduty", fixtures.pagerduty(), byEmail);
+    const find = (name: string) => items.find((i) => i.name === name);
+    const layerOf = (name: string) => {
+      const item = find(name);
+      return item?.action === "create" && "schedule" in item ? item.schedule.layers[0] : undefined;
+    };
+    /* People are referenced by ID; the users list says who they are (in any letter case). */
+    expect(layerOf("Squad 0 on-call")).toMatchObject({
+      rotation: "daily",
+      startsAt: "2026-09-07T08:00:00.000Z",
+      participants: [members.get("a@example.com"), members.get("b@example.com")],
+      restrictions: [],
+    });
+    expect(layerOf("Squad 1 on-call")?.rotation).toBe("weekly");
+    /* A two-week turn is a custom rotation of 336 hours. */
+    expect(layerOf("Squad 4 on-call")).toMatchObject({ rotation: "custom", shiftHours: 336 });
+    expect(find("Squad 2 on-call")?.becomes).toContain("without left@example.com");
+    /* Someone PagerDuty no longer lists is named the way the reference names them. */
+    expect(find("Squad 3 on-call")?.becomes).toContain("without Someone Deleted");
+    /* 09:00 for eight hours every day; Saturday 22:00 for ten hours runs past midnight. */
+    expect(layerOf("Squad 5 on-call")?.restrictions).toEqual([
+      { days: [1, 2, 3, 4, 5, 6, 7], start: "09:00", end: "17:00" },
+    ]);
+    expect(layerOf("Squad 6 on-call")?.restrictions).toEqual([
+      { days: [6], start: "22:00", end: "08:00" },
+    ]);
+    /* Monday 09:00 for five days has no counterpart: the layer comes over and the import says so. */
+    expect(layerOf("Squad 7 on-call")?.restrictions).toEqual([]);
+    expect(find("Squad 7 on-call")?.becomes).toContain("set them by hand");
+    expect(find("Contractors")).toMatchObject({
+      action: "skip",
+      reason: expect.stringContaining("left@example.com"),
+    });
+
+    /* PagerDuty waits 10 minutes after the first rule and 15 after the second. */
+    const escalation = find("Squad 0 escalation");
+    expect(
+      escalation?.action === "create" && "escalation" in escalation
+        ? {
+            delays: escalation.escalation.steps.map((s) => s.delayMinutes),
+            targets: escalation.escalation.steps.map((s) => s.targets.map((t) => t.type)),
+            schedules: escalation.scheduleNames,
+            repeat: escalation.escalation.repeat,
+          }
+        : undefined,
+    ).toEqual({
+      delays: [0, 10, 15],
+      targets: [["schedule"], ["user"], ["user"]],
+      schedules: ["Squad 0 on-call", "", ""],
+      repeat: 0,
+    });
+    expect(find("Squad 1 escalation")?.becomes).toBe("3 steps, without left@example.com");
+    expect(find("Vendor escalation")).toMatchObject({
+      action: "skip",
+      reason: expect.stringContaining("schedule Contractors"),
+    });
+  });
+
+  it("keeps the wait of a PagerDuty rule whose targets don't exist here", () => {
+    const items = mapImport(
+      "pagerduty",
+      {
+        users: [{ id: "PA", email: "a@example.com" }],
+        escalation_policies: [
+          {
+            name: "Gap",
+            escalation_rules: [
+              { escalation_delay_in_minutes: 5, targets: [{ id: "PA", type: "user_reference" }] },
+              { escalation_delay_in_minutes: 20, targets: [{ id: "PX", type: "user_reference" }] },
+              { escalation_delay_in_minutes: 30, targets: [{ id: "PA", type: "user" }] },
+            ],
+          },
+        ],
+      },
+      byEmail,
+    );
+    expect(items).toMatchObject([
+      { escalation: { steps: [{ delayMinutes: 0 }, { delayMinutes: 25 }] } },
+    ]);
+  });
+
   it("refuses something that isn't the tool's export", () => {
+    expect(() => mapImport("pagerduty", { services: [] }, byEmail)).toThrow(/PagerDuty/);
     expect(() => mapImport("uptimerobot", { hello: "world" }, byEmail)).toThrow(/getMonitors/);
     expect(() => mapImport("uptime_kuma", [], byEmail)).toThrow(/monitorList/);
     expect(() => mapImport("better_stack", {}, byEmail)).toThrow(/Better Stack/);
@@ -214,6 +299,29 @@ describe("imports over HTTP", () => {
     expect(await count("/imports")).toBe(1);
   });
 
+  it("creates schedules and escalation policies from PagerDuty", async () => {
+    const before = await count("/schedules");
+    const applied = await api(owner, "post", "/imports").send({
+      source: "pagerduty",
+      data: pagerDutyFixture({ a: ownerEmail, b: memberEmail }),
+    });
+    expect(applied.status, applied.text).toBe(201);
+    const run = applied.body as ImportRunView;
+    expect(run.total).toBe(42);
+    expect(run.created).toBe(40);
+    expect(run.failed).toBe(0);
+    expect(await count("/schedules")).toBe(before + 20);
+    const policies = (await api(owner, "get", "/escalation-policies")).body.data as {
+      name: string;
+      steps: { delayMinutes: number; targets: { type: string; name: string | null }[] }[];
+    }[];
+    const squad3 = policies.find((p) => p.name === "Squad 3 escalation");
+    expect(squad3?.steps.map((s) => s.delayMinutes)).toEqual([0, 10, 15]);
+    expect(squad3?.steps[0]?.targets[0]).toEqual(
+      expect.objectContaining({ type: "schedule", name: "Squad 3 on-call" }),
+    );
+  });
+
   it("reads UptimeRobot with an API key it never stores, and reports what the plan refused", async () => {
     const wrong = await api(owner, "post", "/imports/dry-run").send({
       source: "uptimerobot",
@@ -246,6 +354,7 @@ describe("imports over HTTP", () => {
     expect(JSON.stringify(history.body)).not.toContain("ur-readonly-key-123");
     expect((history.body.data as ImportRunView[]).map((r) => r.source)).toEqual([
       "uptimerobot",
+      "pagerduty",
       "opsgenie",
     ]);
   });

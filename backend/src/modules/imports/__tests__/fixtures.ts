@@ -275,3 +275,116 @@ export function opsgenieFixture(emails: { a: string; b: string }) {
   });
   return { schedules, escalations };
 }
+
+/*
+ * PagerDuty as its REST API answers: GET /users, GET /schedules/{id} (with schedule_layers) and
+ * GET /escalation_policies. People are referenced by ID; `users` carries their email addresses.
+ */
+export function pagerDutyFixture(emails: { a: string; b: string }) {
+  const users = [
+    { id: "PUSERA", name: "Ada", email: emails.a },
+    { id: "PUSERB", name: "Bob", email: emails.b.toUpperCase() },
+    { id: "PLEFT1", name: "Lena", email: "left@example.com" },
+  ];
+  const ref = (id: string, summary: string) => ({ id, type: "user_reference", summary });
+  const schedules: Record<string, unknown>[] = [];
+  for (let i = 0; i < 20; i += 1) {
+    schedules.push({
+      id: `PSCH${i}`,
+      name: `Squad ${i} on-call`,
+      time_zone: i % 2 === 0 ? "Europe/Berlin" : "America/New_York",
+      schedule_layers: [
+        {
+          id: `PLAY${i}`,
+          name: "Primary",
+          start: "2026-09-01T00:00:00Z",
+          rotation_virtual_start: "2026-09-07T08:00:00Z",
+          rotation_turn_length_seconds: i === 4 ? 1_209_600 : i % 3 === 0 ? 86_400 : 604_800,
+          users: [
+            { user: ref("PUSERA", "Ada") },
+            { user: ref("PUSERB", "Bob") },
+            ...(i === 2 ? [{ user: ref("PLEFT1", "Lena") }] : []),
+            ...(i === 3 ? [{ user: ref("PGONE9", "Someone Deleted") }] : []),
+          ],
+          restrictions:
+            i === 5
+              ? [
+                  {
+                    type: "daily_restriction",
+                    start_time_of_day: "09:00:00",
+                    duration_seconds: 28_800,
+                  },
+                ]
+              : i === 6
+                ? [
+                    {
+                      type: "weekly_restriction",
+                      start_day_of_week: 6,
+                      start_time_of_day: "22:00:00",
+                      duration_seconds: 36_000,
+                    },
+                  ]
+                : i === 7
+                  ? [
+                      {
+                        type: "weekly_restriction",
+                        start_day_of_week: 1,
+                        start_time_of_day: "09:00:00",
+                        duration_seconds: 432_000,
+                      },
+                    ]
+                  : [],
+        },
+      ],
+    });
+  }
+  /* A schedule of people who aren't members here. */
+  schedules.push({
+    id: "PGHOST",
+    name: "Contractors",
+    time_zone: "UTC",
+    schedule_layers: [
+      {
+        rotation_virtual_start: "2026-09-07T08:00:00Z",
+        rotation_turn_length_seconds: 604_800,
+        users: [{ user: ref("PLEFT1", "Lena") }],
+      },
+    ],
+  });
+  const escalation_policies: Record<string, unknown>[] = [];
+  for (let i = 0; i < 20; i += 1) {
+    escalation_policies.push({
+      id: `PESC${i}`,
+      name: `Squad ${i} escalation`,
+      num_loops: i % 3,
+      escalation_rules: [
+        {
+          escalation_delay_in_minutes: 10,
+          targets: [{ id: `PSCH${i}`, type: "schedule_reference", summary: `Squad ${i} on-call` }],
+        },
+        {
+          escalation_delay_in_minutes: 15,
+          targets: [
+            { id: "PUSERA", type: "user_reference", summary: "Ada" },
+            ...(i === 1 ? [{ id: "PLEFT1", type: "user_reference", summary: "Lena" }] : []),
+          ],
+        },
+        {
+          escalation_delay_in_minutes: 30,
+          targets: [{ id: "PUSERB", type: "user_reference", summary: "Bob" }],
+        },
+      ],
+    });
+  }
+  escalation_policies.push({
+    id: "PESCGHOST",
+    name: "Vendor escalation",
+    escalation_rules: [
+      {
+        escalation_delay_in_minutes: 5,
+        targets: [{ id: "PGHOST", type: "schedule_reference", summary: "Contractors" }],
+      },
+    ],
+  });
+  return { users, schedules, escalation_policies };
+}
