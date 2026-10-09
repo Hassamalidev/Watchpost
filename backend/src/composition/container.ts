@@ -28,7 +28,7 @@ import type { ReadinessCheck } from "../infra/health.js";
 import { createRedis, pingRedis } from "../infra/redis.js";
 import { createModules } from "./modules.js";
 import { publicApi } from "./public-api.js";
-import type { AppModule, Infra, MountedRouter } from "./types.js";
+import type { AppModule, Infra, MountedRouter, SecurityEvent } from "./types.js";
 
 export interface Container {
   infra: Infra;
@@ -48,6 +48,7 @@ export interface LateHooks {
   onWorkspaceCreated: Array<(workspaceId: string) => Promise<void>>;
   /* Set by the billing module; until then Better Auth's own default applies. */
   memberLimit?: (workspaceId: string) => Promise<number>;
+  onSecurityEvent: Array<(event: SecurityEvent) => Promise<void>>;
 }
 
 /*
@@ -104,12 +105,15 @@ export function createInfra(
   const db = createDb(pool);
   const outbox = createOutbox();
   const requestEmail = createEmailRequester({ db, outbox });
-  const hooks = options.hooks ?? { onWorkspaceCreated: [] };
+  const hooks = options.hooks ?? { onWorkspaceCreated: [], onSecurityEvent: [] };
   const auth = createAuthService({
     onWorkspaceCreated: async (workspaceId) => {
       for (const hook of hooks.onWorkspaceCreated) await hook(workspaceId);
     },
     memberLimit: (workspaceId) => hooks.memberLimit?.(workspaceId),
+    onSecurityEvent: async (event) => {
+      for (const hook of hooks.onSecurityEvent) await hook(event);
+    },
     db,
     baseURL: config.auth.baseURL,
     secret: config.auth.secret,
@@ -198,13 +202,14 @@ export function createContainer(
     ai?: AiClient;
   },
 ): Container {
-  const hooks: LateHooks = { onWorkspaceCreated: [] };
+  const hooks: LateHooks = { onWorkspaceCreated: [], onSecurityEvent: [] };
   const infra = createInfra(config, { ...options, hooks });
   const modules = createModules(infra);
   for (const module of modules) {
     if (module.hooks?.onWorkspaceCreated)
       hooks.onWorkspaceCreated.push(module.hooks.onWorkspaceCreated);
     if (module.hooks?.memberLimit) hooks.memberLimit = module.hooks.memberLimit;
+    if (module.hooks?.onSecurityEvent) hooks.onSecurityEvent.push(module.hooks.onSecurityEvent);
   }
 
   const readinessChecks: Record<string, ReadinessCheck> = {

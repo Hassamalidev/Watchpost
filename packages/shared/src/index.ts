@@ -546,3 +546,14 @@ export {
   type CreatedPrivateProbe,
   type PrivateProbeView,
 } from "./schemas/region.js";
+export {
+  AUDIT_ACTOR_TYPES,
+  AUDIT_CATEGORIES,
+  AUDIT_RETENTION_DAYS,
+  auditActionOf,
+  auditCategoryOf,
+  type AuditActorType,
+  type AuditCategory,
+  type AuditEntryView,
+  type AuditLogPage,
+} from "./schemas/audit.js";

@@ -44,6 +44,19 @@ export interface AuthOptions {
    * `undefined` (no billing module, or it isn't wired yet) falls back to DEFAULT_MEMBER_LIMIT.
    */
   memberLimit?: (workspaceId: string) => Promise<number | undefined> | undefined;
+  /* Told when a workspace's people change (the audit log). Late-bound; failures are swallowed there. */
+  onSecurityEvent?: (event: SecurityEvent) => Promise<void>;
+}
+
+/* A change to who belongs to a workspace, or as what. */
+export interface SecurityEvent {
+  workspaceId: string;
+  /* "member.joined", "member.removed", "member.role_changed", "invitation.sent", "invitation.cancelled". */
+  action: string;
+  /* Who did it; absent when the person acted on themselves through a link. */
+  actor?: { id: string; email: string } | undefined;
+  targetId?: string | undefined;
+  detail?: string | undefined;
 }
 
 export const DEFAULT_MEMBER_LIMIT = 100;
@@ -109,6 +122,49 @@ export function createAuth(options: AuthOptions) {
         organizationHooks: {
           afterCreateOrganization: async ({ organization }) => {
             await options.onWorkspaceCreated?.(organization.id);
+          },
+          afterCreateInvitation: async ({ invitation, inviter, organization }) => {
+            await options.onSecurityEvent?.({
+              workspaceId: organization.id,
+              action: "invitation.sent",
+              actor: { id: inviter.id, email: inviter.email },
+              targetId: invitation.id,
+              detail: `${invitation.email} as ${invitation.role}`,
+            });
+          },
+          afterCancelInvitation: async ({ invitation, cancelledBy, organization }) => {
+            await options.onSecurityEvent?.({
+              workspaceId: organization.id,
+              action: "invitation.cancelled",
+              actor: { id: cancelledBy.id, email: cancelledBy.email },
+              targetId: invitation.id,
+              detail: invitation.email,
+            });
+          },
+          afterAcceptInvitation: async ({ member, user, organization }) => {
+            await options.onSecurityEvent?.({
+              workspaceId: organization.id,
+              action: "member.joined",
+              actor: { id: user.id, email: user.email },
+              targetId: user.id,
+              detail: `${user.email} as ${member.role}`,
+            });
+          },
+          afterRemoveMember: async ({ user, organization }) => {
+            await options.onSecurityEvent?.({
+              workspaceId: organization.id,
+              action: "member.removed",
+              targetId: user.id,
+              detail: user.email,
+            });
+          },
+          afterUpdateMemberRole: async ({ member, previousRole, user, organization }) => {
+            await options.onSecurityEvent?.({
+              workspaceId: organization.id,
+              action: "member.role_changed",
+              targetId: user.id,
+              detail: `${user.email}: ${previousRole} to ${member.role}`,
+            });
           },
         },
         sendInvitationEmail: async (data) => {

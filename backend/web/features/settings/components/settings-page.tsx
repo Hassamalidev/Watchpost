@@ -76,6 +76,22 @@ export function SettingsPage() {
       <PrivateProbes ws={ws} canManage={can(workspace.role, "settings:update")} />
       {can(workspace.role, "settings:update") && <ApiKeys ws={ws} />}
       {can(workspace.role, "settings:update") && (
+        <section className="grid gap-2 rounded-lg border p-4" aria-labelledby="audit-heading">
+          <h2 id="audit-heading" className="text-base font-semibold">
+            {t("audit.title")}
+          </h2>
+          <p className="text-sm text-muted-foreground">{t("audit.intro")}</p>
+          <div>
+            <Link
+              href={`${workspaceHref(ws, "settings")}/audit`}
+              className="text-sm font-medium text-brand underline"
+            >
+              {t("audit.open")}
+            </Link>
+          </div>
+        </section>
+      )}
+      {can(workspace.role, "settings:update") && (
         <section className="grid gap-2 rounded-lg border p-4" aria-labelledby="import-heading">
           <h2 id="import-heading" className="text-base font-semibold">
             {t("importTitle")}

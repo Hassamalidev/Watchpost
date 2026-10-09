@@ -1238,6 +1238,29 @@
       "remove": "Remove",
       "removeNamed": "Remove the probe {name}",
       "confirmRemove": "Remove the probe \"{name}\"? Its token stops working at once."
+    },
+    "audit": {
+      "title": "Audit log",
+      "intro": "Who changed what in this workspace, and when. Entries are kept for 400 days.",
+      "open": "Open the audit log",
+      "back": "Back to settings",
+      "adminsOnly": "The audit log is for owners and admins.",
+      "securityOnly": "Your plan shows security events: people, roles, API keys, probes, webhooks and settings. The Business plan adds every change to monitors, incidents and the rest; they are being recorded already.",
+      "show": "Show",
+      "everything": "Everything",
+      "categories": {
+        "security": "Security",
+        "config": "Configuration",
+        "incident": "Incidents"
+      },
+      "export": "Export the last 90 days as CSV",
+      "emptyTitle": "Nothing has been recorded yet",
+      "emptyBody": "Changes made from now on appear here.",
+      "when": "When",
+      "who": "Who",
+      "what": "What",
+      "detail": "Detail",
+      "more": "Show older entries"
     }
   },
   "billing": {

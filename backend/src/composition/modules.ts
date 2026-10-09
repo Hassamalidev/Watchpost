@@ -2,6 +2,7 @@
  * The list of modules, in dependency order. `pnpm new:module <name>` appends here.
  * Pass each factory the modules it may call (composition/architecture.ts), never the whole list.
  */
+import type { PlanFeature } from "@app/shared";
 import type { WorkspaceScope } from "../core/workspace-scope.js";
 import type { AppModule, Infra } from "./types.js";
 import { createWorkspacesModule } from "../modules/workspaces/index.js";
@@ -29,11 +30,26 @@ import { createBadgesModule } from "../modules/badges/index.js";
 import { createAiModule } from "../modules/ai/index.js";
 import { createApikeysModule } from "../modules/apikeys/index.js";
 import { createWebhooksModule } from "../modules/webhooks/index.js";
+import { createAuditModule } from "../modules/audit/index.js";
 /* new-module:imports */
 
 export function createModules(infra: Infra): AppModule[] {
   const modules: AppModule[] = [];
   const workspaces = createWorkspacesModule({ infra });
+  /*
+   * The audit module goes first: its trail has to be mounted before every other router to see their
+   * requests. The plan check it needs comes from billing, which is created just below.
+   */
+  const plan: { hasFeature: (scope: WorkspaceScope, feature: PlanFeature) => Promise<boolean> } = {
+    hasFeature: () => Promise.resolve(false),
+  };
+  modules.push(
+    createAuditModule({
+      infra,
+      hasFeature: (scope, feature) => plan.hasFeature(scope, feature),
+      guards: workspaces.guards,
+    }),
+  );
   modules.push(workspaces);
   const billing = createBillingModule({
     infra,
@@ -41,6 +57,7 @@ export function createModules(infra: Infra): AppModule[] {
     guards: workspaces.guards,
   });
   modules.push(billing);
+  plan.hasFeature = (scope, feature) => billing.service.hasFeature(scope, feature);
   modules.push(
     createApikeysModule({
       infra,

@@ -7,7 +7,10 @@ import type { Clock } from "../core/clock.js";
 import type { ApiKeyContext, PublicRoute } from "../core/public-api.js";
 import type { WorkspaceScope } from "../core/workspace-scope.js";
 import type { ActionLinks } from "../infra/action-links.js";
+import type { SecurityEvent } from "../infra/auth/auth.js";
 import type { AuthService } from "../infra/auth/index.js";
+
+export type { SecurityEvent };
 import type { TokenCipher } from "../infra/crypto.js";
 import type { RequestEmail } from "../infra/email/index.js";
 import type { Db, DbPool } from "../infra/db/index.js";
@@ -140,4 +143,6 @@ export interface AppHooks {
   onWorkspaceCreated?: (workspaceId: string) => Promise<void>;
   /* How many members the workspace's plan allows (Better Auth asks before adding one). */
   memberLimit?: (workspaceId: string) => Promise<number>;
+  /* A change to a workspace's people made through the auth library (the audit log listens). */
+  onSecurityEvent?: (event: SecurityEvent) => Promise<void>;
 }

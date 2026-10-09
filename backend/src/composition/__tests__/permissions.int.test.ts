@@ -86,6 +86,8 @@ describe("workspace route permissions", () => {
         "GET /alert-tuning → incident:read",
         "GET /alert-tuning/:monitorId → incident:read",
         "GET /api-keys → settings:update",
+        "GET /audit-log → settings:update",
+        "GET /audit-log.csv → settings:update",
         "GET /billing → billing:read",
         "GET /channels → channel:read",
         "GET /channels/:channelId → channel:manage",
