@@ -11,7 +11,15 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { api, ApiError, wsPath } from "@/lib/api";
 import { getSession, listWorkspaces } from "@/lib/auth";
-import { activeSegment, homeSegment, navItemsFor, workspaceHref } from "@/lib/navigation";
+import {
+  PERSONAL_SEGMENTS,
+  activeSegment,
+  homeSegment,
+  navItemsFor,
+  workspaceHref,
+} from "@/lib/navigation";
+import { Alert } from "@/components/ui/alert";
+import { TwoFactorCard } from "@/features/security/components/two-factor-card";
 import { WorkspaceContext, type CurrentWorkspace, type WorkspaceRole } from "./workspace-context";
 
 export function WorkspaceGate({
@@ -27,11 +35,14 @@ export function WorkspaceGate({
   const query = useQuery({
     queryKey: ["workspace-gate", workspaceId],
     staleTime: 60_000,
-    queryFn: async (): Promise<CurrentWorkspace | "signed-out" | "no-access"> => {
+    queryFn: async (): Promise<CurrentWorkspace | "signed-out" | "no-access" | "two-factor"> => {
       const session = await getSession();
       if (session === null) return "signed-out";
       try {
-        const me = await api<{ role: WorkspaceRole }>(wsPath(workspaceId, "/me"));
+        const me = await api<{ role: WorkspaceRole; twoFactorRequired?: boolean }>(
+          wsPath(workspaceId, "/me"),
+        );
+        if (me.twoFactorRequired === true) return "two-factor";
         const workspaces = await listWorkspaces();
         return {
           id: workspaceId,
@@ -63,6 +74,7 @@ export function WorkspaceGate({
   const offLimits =
     role !== undefined &&
     segment !== undefined &&
+    !PERSONAL_SEGMENTS.includes(segment) &&
     !navItemsFor(role).some((item) => item.segment === segment);
   React.useEffect(() => {
     if (offLimits && role !== undefined) {
@@ -72,6 +84,15 @@ export function WorkspaceGate({
 
   if (query.isPending || query.data === "signed-out" || offLimits) {
     return <p className="text-muted-foreground">{t("loading")}</p>;
+  }
+  /* The workspace requires two-factor sign-in and this person hasn't set it up: that comes first. */
+  if (query.data === "two-factor") {
+    return (
+      <div className="mx-auto grid max-w-2xl gap-4 p-4">
+        <Alert tone="info">{t("twoFactorRequired")}</Alert>
+        <TwoFactorCard enabled={false} onChanged={() => void query.refetch()} />
+      </div>
+    );
   }
   if (query.isError || query.data === "no-access") {
     return (

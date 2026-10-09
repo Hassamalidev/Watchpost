@@ -10,7 +10,12 @@ import { Radar } from "lucide-react";
 import { SidebarNav } from "@/components/app/sidebar-nav";
 import { CommandPalette } from "@/components/app/command-palette";
 import { ThemeToggle } from "@/components/app/theme-toggle";
-import { MobileNav, SignOutButton, WorkspaceName } from "@/components/app/shell-controls";
+import {
+  MobileNav,
+  SecurityLink,
+  SignOutButton,
+  WorkspaceName,
+} from "@/components/app/shell-controls";
 import { WorkspaceGate } from "@/components/app/workspace-gate";
 import { workspaceHref } from "@/lib/navigation";
 
@@ -53,6 +58,7 @@ export async function AppShell({
             <CommandPalette workspace={workspace} />
             <div className="ml-auto flex items-center gap-1">
               <ThemeToggle />
+              <SecurityLink />
               <SignOutButton />
             </div>
           </header>

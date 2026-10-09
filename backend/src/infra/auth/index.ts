@@ -32,6 +32,8 @@ export function createAuthService(options: AuthOptions): AuthService {
       userId: result.user.id,
       email: result.user.email,
       emailVerified: result.user.emailVerified,
+      twoFactorEnabled:
+        (result.user as { twoFactorEnabled?: boolean | null }).twoFactorEnabled === true,
       sessionId: result.session.id,
     };
     return context;

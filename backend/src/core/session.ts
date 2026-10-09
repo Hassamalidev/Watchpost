@@ -5,6 +5,8 @@ export interface SessionContext {
   userId: string;
   email: string;
   emailVerified: boolean;
+  /* The account has a second sign-in step (TOTP) set up and confirmed. */
+  twoFactorEnabled: boolean;
   sessionId: string;
 }
 

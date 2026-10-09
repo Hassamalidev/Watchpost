@@ -16,6 +16,7 @@ export const updateSettingsBody = z
       .string()
       .refine(isIanaTimeZone, "must be an IANA time zone such as Europe/Berlin or Asia/Karachi")
       .optional(),
+    requireTwoFactor: z.boolean().optional(),
   })
   .strict()
   .refine((body) => Object.keys(body).length > 0, "nothing to update");

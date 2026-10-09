@@ -5,14 +5,30 @@ import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { LogOut, Menu, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { LogOut, Menu, ShieldCheck, X } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { signOut } from "@/lib/auth";
 import { SidebarNav } from "./sidebar-nav";
 import { useWorkspace } from "./workspace-context";
 
 export function WorkspaceName() {
   return <>{useWorkspace().name}</>;
+}
+
+/* The person's own sign-in security: two-factor sign-in and signed-in devices. */
+export function SecurityLink() {
+  const t = useTranslations("app");
+  const { id } = useWorkspace();
+  return (
+    <Link
+      href={`/w/${encodeURIComponent(id)}/security`}
+      className={buttonVariants({ variant: "ghost", size: "sm" })}
+    >
+      <ShieldCheck aria-hidden />
+      <span className="hidden sm:inline">{t("security")}</span>
+    </Link>
+  );
 }
 
 export function SignOutButton() {

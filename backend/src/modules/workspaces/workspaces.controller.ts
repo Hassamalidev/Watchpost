@@ -15,8 +15,8 @@ export interface WorkspacesController {
 
 export function createWorkspacesController(service: WorkspacesService): WorkspacesController {
   return {
-    me: (req, res) => {
-      res.json(service.me(scopeOf(req, res), sessionOf(req, res)));
+    me: async (req, res) => {
+      res.json(await service.me(scopeOf(req, res), sessionOf(req, res)));
     },
     members: async (req, res) => {
       res.json({ data: await service.listMembers(scopeOf(req, res)) });
@@ -26,7 +26,7 @@ export function createWorkspacesController(service: WorkspacesService): Workspac
     },
     updateSettings: async (req, res) => {
       const { body } = inputOf<{ body: typeof updateSettingsBody }>(req, res);
-      res.json(await service.updateSettings(scopeOf(req, res), body));
+      res.json(await service.updateSettings(scopeOf(req, res), body, sessionOf(req, res)));
     },
   };
 }

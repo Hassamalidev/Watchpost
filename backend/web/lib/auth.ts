@@ -25,8 +25,40 @@ export const signUp = (
     body: { ...input, callbackURL: `${window.location.origin}${next}` },
   });
 
+/* `twoFactorRedirect` means the password was right and a code from the authenticator app is next. */
 export const signIn = (input: { email: string; password: string }) =>
-  api<unknown>("/api/auth/sign-in/email", { method: "POST", body: input });
+  api<{ twoFactorRedirect?: boolean }>("/api/auth/sign-in/email", { method: "POST", body: input });
+
+/* Two-factor sign-in (TOTP). Setting it up takes the password, then one code to prove the app works. */
+export const twoFactor = {
+  enable: (password: string) =>
+    api<{ totpURI: string; backupCodes: string[] }>("/api/auth/two-factor/enable", {
+      method: "POST",
+      body: { password },
+    }),
+  verify: (code: string) =>
+    api<unknown>("/api/auth/two-factor/verify-totp", { method: "POST", body: { code } }),
+  verifyBackupCode: (code: string) =>
+    api<unknown>("/api/auth/two-factor/verify-backup-code", { method: "POST", body: { code } }),
+  disable: (password: string) =>
+    api<unknown>("/api/auth/two-factor/disable", { method: "POST", body: { password } }),
+};
+
+export interface DeviceSession {
+  id: string;
+  token: string;
+  createdAt: string;
+  updatedAt: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+}
+
+export const sessions = {
+  list: () => api<DeviceSession[]>("/api/auth/list-sessions"),
+  revoke: (token: string) =>
+    api<unknown>("/api/auth/revoke-session", { method: "POST", body: { token } }),
+  revokeOthers: () => api<unknown>("/api/auth/revoke-other-sessions", { method: "POST", body: {} }),
+};
 
 export const signOut = () => api<unknown>("/api/auth/sign-out", { method: "POST", body: {} });
 

@@ -1,0 +1,1 @@
+ALTER TABLE "workspace_settings" ADD COLUMN "require_two_factor" boolean DEFAULT false NOT NULL;

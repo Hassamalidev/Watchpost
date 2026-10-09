@@ -35,7 +35,6 @@ import { createAuditModule } from "../modules/audit/index.js";
 
 export function createModules(infra: Infra): AppModule[] {
   const modules: AppModule[] = [];
-  const workspaces = createWorkspacesModule({ infra });
   /*
    * The audit module goes first: its trail has to be mounted before every other router to see their
    * requests. The plan check it needs comes from billing, which is created just below.
@@ -43,6 +42,10 @@ export function createModules(infra: Infra): AppModule[] {
   const plan: { hasFeature: (scope: WorkspaceScope, feature: PlanFeature) => Promise<boolean> } = {
     hasFeature: () => Promise.resolve(false),
   };
+  const workspaces = createWorkspacesModule({
+    infra,
+    hasFeature: (scope, feature) => plan.hasFeature(scope, feature),
+  });
   modules.push(
     createAuditModule({
       infra,

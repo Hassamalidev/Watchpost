@@ -1,7 +1,9 @@
 /* Public API of the workspaces module. Other modules import only from this file (PRODUCT.md §7.1). */
 import type { RequestHandler } from "express";
+import type { PlanFeature } from "@app/shared";
 import type { AppModule, Infra } from "../../composition/types.js";
 import { requireSession } from "../../middleware/session.js";
+import type { WorkspaceScope } from "../../core/workspace-scope.js";
 import { requireWorkspace } from "../../middleware/workspace.js";
 import { createWorkspacesController } from "./workspaces.controller.js";
 import { createWorkspacesRepository } from "./workspaces.repository.js";
@@ -18,6 +20,8 @@ export { TRIAL_DAYS, systemScope } from "./workspaces.service.js";
 
 export interface WorkspacesModuleDeps {
   infra: Pick<Infra, "db" | "clock" | "auth" | "outbox">;
+  /* The billing module's plan check, wired by the container once billing exists. */
+  hasFeature?: (scope: WorkspaceScope, feature: PlanFeature) => Promise<boolean>;
 }
 
 /* Guards other modules put in front of their /api/w/:workspaceId routes. */
@@ -40,10 +44,13 @@ export function createWorkspacesModule(deps: WorkspacesModuleDeps): WorkspacesMo
     repository,
     outbox: deps.infra.outbox,
     clock: deps.infra.clock,
+    hasFeature: deps.hasFeature,
   });
   const guards: WorkspaceGuards = {
     session: requireSession(deps.infra.auth.getSession),
-    workspace: requireWorkspace(service.resolveRole),
+    workspace: requireWorkspace(service.resolveRole, {
+      requiresTwoFactor: (workspaceId) => service.requiresTwoFactor(workspaceId),
+    }),
   };
   const controller = createWorkspacesController(service);
   return {

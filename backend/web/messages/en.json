@@ -9,7 +9,9 @@
     "signOut": "Sign out",
     "loading": "Loading…",
     "notMember": "You don't have access to this workspace.",
-    "pickWorkspace": "Choose a workspace"
+    "pickWorkspace": "Choose a workspace",
+    "security": "Security",
+    "twoFactorRequired": "This workspace requires two-factor sign-in. Set it up below to continue."
   },
   "nav": {
     "overview": "Overview",
@@ -89,7 +91,17 @@
     "verifyDev": "Running locally? The link is printed in the worker's log.",
     "invalidEmail": "Enter a valid email address.",
     "shortPassword": "Use at least 8 characters.",
-    "nameRequired": "Enter your name."
+    "nameRequired": "Enter your name.",
+    "twoFactor": {
+      "codeLabel": "Code from your authenticator app",
+      "codeHint": "The six digits the app shows for this account.",
+      "backupLabel": "Backup code",
+      "backupHint": "One of the codes you saved when you set up two-factor sign-in. Each works once.",
+      "submit": "Continue",
+      "wrong": "That code isn't right. Check the app and try again.",
+      "useBackup": "Use a backup code instead",
+      "useApp": "Use the authenticator app instead"
+    }
   },
   "onboarding": {
     "title": "Set up monitoring",
@@ -1261,6 +1273,14 @@
       "what": "What",
       "detail": "Detail",
       "more": "Show older entries"
+    },
+    "requireTwoFactor": {
+      "title": "Require two-factor sign-in",
+      "intro": "When this is on, a member without two-factor sign-in can't open this workspace until they have set it up. Part of the Business plan.",
+      "isOn": "Required for everyone in this workspace.",
+      "isOff": "Not required.",
+      "switchOn": "Require it",
+      "switchOff": "Stop requiring it"
     }
   },
   "billing": {
@@ -2290,5 +2310,37 @@
     "brandName": "Name on the PDF (optional)",
     "brandHint": "On the Business plan the PDF carries this name instead of ours.",
     "addSchedule": "Add schedule"
+  },
+  "security": {
+    "title": "Security",
+    "intro": "How you sign in, and where you are signed in. These settings are yours and apply in every workspace.",
+    "twoFactor": {
+      "title": "Two-factor sign-in",
+      "intro": "After your password, sign-in asks for a code from an authenticator app on your phone, so a stolen password isn't enough.",
+      "isOn": "Two-factor sign-in is on.",
+      "isOff": "Two-factor sign-in is off.",
+      "password": "Your password",
+      "passwordOnHint": "To confirm it is you before switching it on.",
+      "passwordOffHint": "To confirm it is you before switching it off.",
+      "switchOn": "Set up two-factor sign-in",
+      "switchOff": "Switch off two-factor sign-in",
+      "addToApp": "Add this account to an authenticator app (Google Authenticator, 1Password, Authy and others): choose to enter a setup key and paste the key below.",
+      "secret": "Setup key",
+      "openApp": "On a phone, open it in your authenticator app",
+      "code": "Code from the app",
+      "codeHint": "Enter the six digits the app shows, to prove it works.",
+      "confirm": "Confirm and switch on",
+      "onNow": "Two-factor sign-in is on.",
+      "backupCodes": "Backup codes",
+      "backupHint": "Save these somewhere safe. Each lets you sign in once if you lose your phone. They are not shown again."
+    },
+    "sessions": {
+      "title": "Signed-in devices",
+      "intro": "Every browser and device signed in to your account. Sign out any you don't recognise, then change your password.",
+      "lastActive": "Last active {when}",
+      "signOut": "Sign out",
+      "signOutNamed": "Sign out {device}, last active {when}",
+      "signOutOthers": "Sign out everywhere else"
+    }
   }
 }

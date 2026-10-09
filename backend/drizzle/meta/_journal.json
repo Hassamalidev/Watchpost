@@ -323,6 +323,13 @@
       "when": 1791544747520,
       "tag": "0045_audit_logs",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1791545585902,
+      "tag": "0046_require_two_factor",
+      "breakpoints": true
     }
   ]
 }

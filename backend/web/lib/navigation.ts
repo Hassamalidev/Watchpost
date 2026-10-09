@@ -60,6 +60,9 @@ export function workspaceHref(workspace: string, segment: string): string {
   return `/w/${encodeURIComponent(workspace)}/${segment}`;
 }
 
+/* Pages about the signed-in person, not the workspace: every role may open them. */
+export const PERSONAL_SEGMENTS: readonly string[] = ["security"];
+
 /* Returns the active segment for a pathname like /w/acme/monitors/123. */
 export function activeSegment(pathname: string): string | undefined {
   const parts = pathname.split("/").filter(Boolean);

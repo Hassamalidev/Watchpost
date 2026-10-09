@@ -117,7 +117,7 @@ export function createWorkspacesRepository(db: DbOrTx) {
 
     async updateSettings(
       scope: WorkspaceScope,
-      patch: Partial<Pick<WorkspaceSettingsRow, "timezone">>,
+      patch: Partial<Pick<WorkspaceSettingsRow, "timezone" | "requireTwoFactor">>,
     ): Promise<WorkspaceSettingsRow | undefined> {
       assertWorkspaceScope(scope);
       const rows = await db

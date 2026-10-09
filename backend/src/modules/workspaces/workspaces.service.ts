@@ -5,7 +5,8 @@
  * sweep can all call it.
  */
 import type { Clock } from "../../core/clock.js";
-import { NotFoundError } from "../../core/errors.js";
+import type { PlanFeature } from "@app/shared";
+import { ConflictError, NotFoundError, QuotaExceededError } from "../../core/errors.js";
 import type { SessionContext } from "../../core/session.js";
 import {
   createWorkspaceScope,
@@ -31,6 +32,8 @@ export interface WorkspaceMember {
 export interface WorkspaceSettings {
   workspaceId: string;
   timezone: string;
+  /* Members need two-factor sign-in to open the workspace. */
+  requireTwoFactor: boolean;
   trialEndsAt: string | null;
   flags: Record<string, boolean>;
 }
@@ -40,7 +43,14 @@ export interface WorkspacesService {
   me(
     scope: WorkspaceScope,
     session: SessionContext,
-  ): { workspaceId: string; userId: string; email: string; role: WorkspaceScope["role"] };
+  ): Promise<{
+    workspaceId: string;
+    userId: string;
+    email: string;
+    role: WorkspaceScope["role"];
+    twoFactorEnabled: boolean;
+    twoFactorRequired: boolean;
+  }>;
   listMembers(scope: WorkspaceScope): Promise<WorkspaceMember[]>;
   countMembers(scope: WorkspaceScope): Promise<number>;
   /* Who hears about billing: owners, admins and members with the billing role. */
@@ -59,7 +69,14 @@ export interface WorkspacesService {
   /* Creates default settings and emits workspace.created, once. Returns true if it created them. */
   ensureSettings(workspaceId: string): Promise<boolean>;
   getSettings(scope: WorkspaceScope): Promise<WorkspaceSettings>;
-  updateSettings(scope: WorkspaceScope, patch: { timezone?: string }): Promise<WorkspaceSettings>;
+  /* `session` is who is asking: requiring two-factor sign-in needs them to have it themselves. */
+  updateSettings(
+    scope: WorkspaceScope,
+    patch: { timezone?: string | undefined; requireTwoFactor?: boolean | undefined },
+    session?: Pick<SessionContext, "twoFactorEnabled">,
+  ): Promise<WorkspaceSettings>;
+  /* System (the workspace guard): does this workspace require two-factor sign-in? Cached briefly. */
+  requiresTwoFactor(workspaceId: string): Promise<boolean>;
   /* Next per-workspace incident number (#1, #2, …); pass the caller's transaction. */
   nextIncidentNumber(tx: DbOrTx, scope: WorkspaceScope): Promise<number>;
   /* System: every workspace ID, paged (digests and other per-workspace jobs). */
@@ -68,10 +85,13 @@ export interface WorkspacesService {
   repairMissingSettings(limit?: number): Promise<number>;
 }
 
+const POLICY_CACHE_MS = 10_000;
+
 function toSettings(row: WorkspaceSettingsRow): WorkspaceSettings {
   return {
     workspaceId: row.workspaceId,
     timezone: row.timezone,
+    requireTwoFactor: row.requireTwoFactor,
     trialEndsAt: row.trialEndsAt?.toISOString() ?? null,
     flags: row.flags,
   };
@@ -82,21 +102,43 @@ export function createWorkspacesService(deps: {
   repository: WorkspacesRepository;
   outbox: Outbox;
   clock: Clock;
+  /* The billing module's answer to "does the plan include it?"; absent in tests without billing. */
+  hasFeature?: ((scope: WorkspaceScope, feature: PlanFeature) => Promise<boolean>) | undefined;
 }): WorkspacesService {
   const { repository, clock } = deps;
+  /*
+   * The guard asks on every request, so the answer is kept for a few seconds. Another API process
+   * learns of a change within that time.
+   */
+  const policyCache = new Map<string, { required: boolean; until: number }>();
 
   const service: WorkspacesService = {
     async resolveRole(userId, workspaceId) {
       return parseMemberRole(await repository.findMemberRole(userId, workspaceId));
     },
 
-    me(scope, session) {
+    async me(scope, session) {
       return {
         workspaceId: scope.workspaceId,
         userId: session.userId,
         email: session.email,
         role: scope.role,
+        twoFactorEnabled: session.twoFactorEnabled,
+        /* True while this person is locked out of the workspace until they set it up. */
+        twoFactorRequired:
+          !session.twoFactorEnabled && (await service.requiresTwoFactor(scope.workspaceId)),
       };
+    },
+
+    async requiresTwoFactor(workspaceId) {
+      const now = clock.now().getTime();
+      const cached = policyCache.get(workspaceId);
+      if (cached !== undefined && cached.until > now) return cached.required;
+      const row = await repository.findSettings(systemScope(workspaceId));
+      const required = row?.requireTwoFactor === true;
+      if (policyCache.size >= 10_000) policyCache.clear();
+      policyCache.set(workspaceId, { required, until: now + POLICY_CACHE_MS });
+      return required;
     },
 
     async exists(workspaceId) {
@@ -157,10 +199,29 @@ export function createWorkspacesService(deps: {
       return toSettings(row);
     },
 
-    async updateSettings(scope, patch) {
-      await service.getSettings(scope);
-      const row = await repository.updateSettings(scope, patch);
+    async updateSettings(scope, patch, session) {
+      const current = await service.getSettings(scope);
+      if (patch.requireTwoFactor === true && !current.requireTwoFactor) {
+        if (!(await deps.hasFeature?.(scope, "sso"))) {
+          throw new QuotaExceededError(
+            "Requiring two-factor sign-in is part of the Business plan.",
+          );
+        }
+        /* Whoever switches it on would be the first one locked out. */
+        if (session !== undefined && !session.twoFactorEnabled) {
+          throw new ConflictError(
+            "Set up two-factor sign-in for your own account first, then require it for everyone.",
+          );
+        }
+      }
+      const row = await repository.updateSettings(scope, {
+        ...(patch.timezone === undefined ? {} : { timezone: patch.timezone }),
+        ...(patch.requireTwoFactor === undefined
+          ? {}
+          : { requireTwoFactor: patch.requireTwoFactor }),
+      });
       if (row === undefined) throw new NotFoundError("Workspace not found.");
+      policyCache.delete(scope.workspaceId);
       return toSettings(row);
     },
 

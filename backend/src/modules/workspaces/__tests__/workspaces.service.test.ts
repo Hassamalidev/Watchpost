@@ -32,6 +32,7 @@ function setup(
       settings.set(values.workspaceId, {
         workspaceId: values.workspaceId,
         timezone: "UTC",
+        requireTwoFactor: false,
         incidentSeq: 0,
         trialEndsAt: values.trialEndsAt,
         flags: {},
