@@ -230,6 +230,8 @@ export function createModules(infra: Infra): AppModule[] {
       monitors: monitors.service,
       detection: detection.service,
       results: results.service,
+      latency: results.rollups,
+      statuspages: statuspages.service,
       guards: workspaces.guards,
     }),
   );

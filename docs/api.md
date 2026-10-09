@@ -46,6 +46,7 @@ A write scope includes reading the same thing. Writing needs a plan with API wri
 | `POST /maintenance-windows`                | `maintenance:write` | Create a maintenance window                                                         |
 | `DELETE /maintenance-windows/:windowId`    | `maintenance:write` | Delete a window; one in effect ends now                                             |
 | `GET /status-pages`                        | `status_pages:read` | List status pages                                                                   |
+| `GET /metrics`                             | `monitors:read`     | Every monitor in the Prometheus text format (`docs/prometheus.md`)                  |
 
 Actions taken through the API are recorded on the incident timeline as coming from the API, without a person's name.
 

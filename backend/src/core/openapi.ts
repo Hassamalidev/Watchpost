@@ -87,14 +87,19 @@ function operation(route: PublicRoute): Json {
         }),
     responses: {
       [String(route.status)]:
-        route.response === undefined
-          ? { description: "Done. The answer has no body." }
-          : {
-              description: "OK",
-              content: {
-                "application/json": { schema: jsonSchema(route.response, "output") },
+        route.text !== undefined
+          ? {
+              description: route.text.description,
+              content: { "text/plain": { schema: { type: "string" } } },
+            }
+          : route.response === undefined
+            ? { description: "Done. The answer has no body." }
+            : {
+                description: "OK",
+                content: {
+                  "application/json": { schema: jsonSchema(route.response, "output") },
+                },
               },
-            },
       ...(route.params || route.query || route.body
         ? { "400": problem("The request is invalid (`validation_failed`).") }
         : {}),

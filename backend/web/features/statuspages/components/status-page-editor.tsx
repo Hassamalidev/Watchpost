@@ -43,6 +43,7 @@ import {
 } from "../api";
 import { DomainCard } from "./domain-card";
 import { SubscribersCard } from "./subscribers-card";
+import { WidgetCard } from "./widget-card";
 import { StatusPageView as PublicView, formatUtc } from "./status-page-view";
 
 const firstProblem = (err: unknown) => {
@@ -924,6 +925,16 @@ export function StatusPageEditor({ id }: { id: string }) {
             </CardHeader>
             <CardContent>
               <SubscribersCard ws={ws} page={data} canEdit={canEdit} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("widget.title")}</CardTitle>
+              <CardDescription>{t("widget.intro")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <WidgetCard page={data} />
             </CardContent>
           </Card>
 

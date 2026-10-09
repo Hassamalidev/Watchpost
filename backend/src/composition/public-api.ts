@@ -39,6 +39,10 @@ function handlerOf(route: PublicRoute): RequestHandler {
       query: input.query,
       body: input.body,
     });
+    if (route.text !== undefined) {
+      res.status(route.status).type(route.text.contentType).send(String(result));
+      return;
+    }
     if (route.response === undefined) {
       res.status(route.status).end();
       return;

@@ -2201,7 +2201,15 @@
     "draftShort": "Draft",
     "drafting": "Drafting…",
     "draftHint": "Uses the title and what you typed as notes. Internal host names and addresses are left out. Read it before you post.",
-    "draftUpdateLabel": "Draft an update for {title} with AI"
+    "draftUpdateLabel": "Draft an update for {title} with AI",
+    "widget": {
+      "title": "Status widget",
+      "intro": "A small image of this page's overall state for your website's footer or a README. It updates within a minute.",
+      "unpublished": "Publish the page to get its widget.",
+      "alt": "Current status of {name}",
+      "html": "HTML",
+      "markdown": "Markdown"
+    }
   },
   "reports": {
     "title": "Reports",
