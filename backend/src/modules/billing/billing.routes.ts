@@ -5,6 +5,7 @@
  * - /api/webhooks/paddle: raw body, signature checked before anything is parsed (§7.9 step 3).
  */
 import express, { Router, type RequestHandler } from "express";
+import { ConflictError } from "../../core/errors.js";
 import type { RedisClient } from "../../infra/redis.js";
 import { PADDLE_SIGNATURE_HEADER } from "../../infra/paddle/index.js";
 import { createRateLimiter } from "../../middleware/rate-limit.js";
@@ -17,6 +18,7 @@ import { buyCreditsBody, cancelBody, planBody } from "./validators/index.js";
 export function createBillingRouter(
   controller: BillingController,
   guards: { session: RequestHandler; workspace: RequestHandler },
+  parentOf: (workspaceId: string) => Promise<string | undefined>,
 ): Router {
   const router = Router({ mergeParams: true });
   router.use(["/entitlements", "/billing"], guards.session, guards.workspace);
@@ -26,7 +28,16 @@ export function createBillingRouter(
   router.get("/billing", read, controller.state);
 
   /* Owners, admins and the billing role manage the subscription. */
-  const manage = [requirePermission("billing:manage")];
+  /* A client workspace has no subscription of its own: its agency's plan pays for it. */
+  const billedHere: RequestHandler = async (req, _res, next) => {
+    if ((await parentOf(String(req.params.workspaceId))) !== undefined) {
+      throw new ConflictError(
+        "This workspace is billed through the agency that manages it. Change the plan there.",
+      );
+    }
+    next();
+  };
+  const manage = [requirePermission("billing:manage"), billedHere];
   router.post("/billing/checkout", ...manage, validate({ body: planBody }), controller.checkout);
   router.post("/billing/plan", ...manage, validate({ body: planBody }), controller.changePlan);
   router.post(

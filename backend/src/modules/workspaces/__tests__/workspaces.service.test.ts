@@ -9,12 +9,26 @@ import type { WorkspacesRepository } from "../workspaces.repository.js";
 import { TRIAL_DAYS, createWorkspacesService } from "../workspaces.service.js";
 
 function setup(
-  options: { roles?: Record<string, string>; members?: Array<{ role: string }> } = {},
+  options: {
+    roles?: Record<string, string>;
+    members?: Array<{ role: string }>;
+    parents?: Record<string, string>;
+    clientLimit?: number;
+  } = {},
 ) {
   const settings = new Map<string, WorkspaceSettingsRow>();
   const emitted: Array<{ type: string; payload: unknown }> = [];
+  const parents = new Map<string, string>(Object.entries(options.parents ?? {}));
   const repository: WorkspacesRepository = {
     findMemberRole: async (userId, workspaceId) => options.roles?.[`${userId}:${workspaceId}`],
+    findParent: async (workspaceId) => parents.get(workspaceId),
+    linkClient: async (workspaceId, parentId) => {
+      parents.set(workspaceId, parentId);
+    },
+    listClients: async (scope) =>
+      [...parents]
+        .filter(([, parentId]) => parentId === scope.workspaceId)
+        .map(([id]) => ({ id, name: `Client ${id}`, createdAt: new Date("2026-01-01T00:00:00Z") })),
     listMembers: async () =>
       (options.members ?? []).map((m, i) => ({
         userId: `u${i}`,
@@ -66,7 +80,14 @@ function setup(
     },
   } as unknown as Outbox;
   const clock = createFakeClock("2026-01-01T00:00:00Z");
-  const service = createWorkspacesService({ db, repository, outbox, clock });
+  const service = createWorkspacesService({
+    db,
+    repository,
+    outbox,
+    clock,
+    clientLimit: async () => options.clientLimit ?? 0,
+    createWorkspace: async () => newId(),
+  });
   return { service, emitted, settings, db };
 }
 
@@ -112,5 +133,62 @@ describe("workspaces service", () => {
     const scope = createWorkspaceScope({ workspaceId: newId() });
     expect(await service.nextIncidentNumber(db, scope)).toBe(1);
     expect(await service.nextIncidentNumber(db, scope)).toBe(2);
+  });
+});
+
+describe("client workspaces", () => {
+  const agency = "00000000-0000-7000-8000-00000000a001";
+  const client = "00000000-0000-7000-8000-00000000c001";
+
+  it("lets the agency's owners and admins run a client workspace as admins, and nobody else", async () => {
+    const { service } = setup({
+      parents: { [client]: agency },
+      roles: {
+        [`owner:${agency}`]: "owner",
+        [`admin:${agency}`]: "admin",
+        [`member:${agency}`]: "member",
+        [`viewer:${client}`]: "viewer",
+        [`both:${agency}`]: "owner",
+        [`both:${client}`]: "viewer",
+      },
+    });
+    expect(await service.resolveRole("owner", client)).toBe("admin");
+    expect(await service.resolveRole("admin", client)).toBe("admin");
+    expect(await service.resolveRole("member", client)).toBeUndefined();
+    expect(await service.resolveRole("stranger", client)).toBeUndefined();
+    /* The client's own people keep the role they were invited with. */
+    expect(await service.resolveRole("viewer", client)).toBe("viewer");
+    expect(await service.resolveRole("viewer", agency)).toBeUndefined();
+    /* A role given in the client workspace itself wins over the inherited one. */
+    expect(await service.resolveRole("both", client)).toBe("viewer");
+  });
+
+  it("creates clients up to the plan's number, without a trial of their own", async () => {
+    const { service, settings } = setup({ clientLimit: 2 });
+    const scope = createWorkspaceScope({ workspaceId: agency });
+    const first = await service.createClient(scope, "Bakery", { userId: "owner" });
+    expect(first.name).toBe("Bakery");
+    expect(await service.parentOf(first.id)).toBe(agency);
+    expect(settings.get(first.id)?.trialEndsAt).toBeNull();
+    await service.createClient(scope, "Florist", { userId: "owner" });
+    expect(await service.listClients(scope)).toHaveLength(2);
+    await expect(service.createClient(scope, "Third", { userId: "owner" })).rejects.toThrow(
+      "includes 2 client workspaces",
+    );
+  });
+
+  it("refuses on a plan without client workspaces, and inside a client workspace", async () => {
+    const none = setup();
+    await expect(
+      none.service.createClient(createWorkspaceScope({ workspaceId: agency }), "Bakery", {
+        userId: "owner",
+      }),
+    ).rejects.toThrow("Business plan");
+    const nested = setup({ parents: { [client]: agency }, clientLimit: 5 });
+    await expect(
+      nested.service.createClient(createWorkspaceScope({ workspaceId: client }), "Deeper", {
+        userId: "owner",
+      }),
+    ).rejects.toThrow("can't have client workspaces");
   });
 });

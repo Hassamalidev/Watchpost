@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { ApiKeys } from "./api-keys";
 import { CheckRegions } from "./check-regions";
+import { ClientWorkspaces } from "./client-workspaces";
 import { RequireTwoFactor } from "./require-two-factor";
 import { PrivateProbes } from "./private-probes";
 import { can, useWorkspace } from "@/components/app/workspace-context";
@@ -74,6 +75,9 @@ export function SettingsPage() {
         )}
       </form>
       {can(workspace.role, "settings:update") && <RequireTwoFactor ws={ws} />}
+      {can(workspace.role, "settings:update") && workspace.parent == null && (
+        <ClientWorkspaces ws={ws} />
+      )}
       <CheckRegions ws={ws} />
       <PrivateProbes ws={ws} canManage={can(workspace.role, "settings:update")} />
       {can(workspace.role, "settings:update") && <ApiKeys ws={ws} />}

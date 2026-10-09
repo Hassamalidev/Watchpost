@@ -11,7 +11,8 @@
     "notMember": "You don't have access to this workspace.",
     "pickWorkspace": "Choose a workspace",
     "security": "Security",
-    "twoFactorRequired": "This workspace requires two-factor sign-in. Set it up below to continue."
+    "twoFactorRequired": "This workspace requires two-factor sign-in. Set it up below to continue.",
+    "managedBy": "Managed by {agency}"
   },
   "nav": {
     "overview": "Overview",
@@ -1281,6 +1282,15 @@
       "isOff": "Not required.",
       "switchOn": "Require it",
       "switchOff": "Stop requiring it"
+    },
+    "clients": {
+      "title": "Client workspaces",
+      "intro": "Give each client a workspace of its own, with its own monitors, status pages and people. Your owners and admins manage every client workspace; people you invite into one see only that one. Client workspaces use your plan. Part of the Business plan.",
+      "empty": "No client workspaces yet.",
+      "open": "Open {name}",
+      "name": "Client name",
+      "nameHint": "Shown to the client's people. You can invite them once the workspace exists.",
+      "create": "Create client workspace"
     }
   },
   "billing": {
@@ -1392,7 +1402,8 @@
       "too_noisy": "Too many false or noisy alerts",
       "other": "Something else"
     },
-    "chosenOnSite": "You picked this plan before signing up"
+    "chosenOnSite": "You picked this plan before signing up",
+    "billedByAgency": "This workspace is on {agency}'s plan. The plan is changed in {agency}'s own workspace."
   },
   "marketing": {
     "subhead": "UptimeWatch checks your websites, APIs, servers and cron jobs from several regions, rechecks every failure before it alerts anyone, and tells your team what broke in Slack, Teams, Telegram or email.",

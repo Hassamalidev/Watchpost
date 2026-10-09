@@ -123,7 +123,9 @@ export function createBillingModule(deps: BillingModuleDeps): BillingModule {
     routers: [
       {
         path: "/api/w/:workspaceId",
-        router: createBillingRouter(createBillingController(service), deps.guards),
+        router: createBillingRouter(createBillingController(service), deps.guards, (id) =>
+          deps.workspaces.parentOf(id),
+        ),
       },
     ],
     rawBodyRouters: [

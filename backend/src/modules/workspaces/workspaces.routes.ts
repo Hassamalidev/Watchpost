@@ -5,7 +5,7 @@
 import { Router, type RequestHandler } from "express";
 import { requirePermission } from "../../middleware/roles.js";
 import { validate } from "../../middleware/validate.js";
-import { updateSettingsBody } from "./validators/index.js";
+import { createClientBody, updateSettingsBody } from "./validators/index.js";
 import type { WorkspacesController } from "./workspaces.controller.js";
 
 export function createWorkspacesRouter(
@@ -17,6 +17,14 @@ export function createWorkspacesRouter(
   /* Every role, billing included: the web app asks who you are here before showing anything. */
   router.get("/me", requirePermission("settings:read"), controller.me);
   router.get("/members", requirePermission("roster:read"), controller.members);
+  /* An agency's client workspaces: admins see and create them. */
+  router.get("/client-workspaces", requirePermission("settings:update"), controller.listClients);
+  router.post(
+    "/client-workspaces",
+    requirePermission("settings:update"),
+    validate({ body: createClientBody }),
+    controller.createClient,
+  );
   router.get("/settings", requirePermission("settings:read"), controller.getSettings);
   router.patch(
     "/settings",

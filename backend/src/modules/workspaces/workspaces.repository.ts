@@ -6,6 +6,7 @@ import { and, asc, eq, gt, gte, isNull, lt, sql } from "drizzle-orm";
 import { assertWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
 import { member, organization, user } from "../../infra/auth/schema.js";
 import type { DbOrTx } from "../../infra/db/index.js";
+import { workspaceParents } from "./schema/workspace-parents.js";
 import { workspaceSettings, type WorkspaceSettingsRow } from "./schema/workspace-settings.js";
 
 export interface MemberRow {
@@ -28,6 +29,37 @@ export function createWorkspacesRepository(db: DbOrTx) {
         .where(and(eq(member.userId, userId), eq(member.organizationId, workspaceId)))
         .limit(1);
       return rows[0]?.role;
+    },
+
+    /* The agency workspace a client workspace belongs to, if it is one. */
+    async findParent(workspaceId: string): Promise<string | undefined> {
+      const rows = await db
+        .select({ parentId: workspaceParents.parentId })
+        .from(workspaceParents)
+        .where(eq(workspaceParents.workspaceId, workspaceId))
+        .limit(1);
+      return rows[0]?.parentId;
+    },
+
+    async linkClient(workspaceId: string, parentId: string): Promise<void> {
+      await db.insert(workspaceParents).values({ workspaceId, parentId });
+    },
+
+    /* An agency's client workspaces, oldest first. */
+    async listClients(
+      scope: WorkspaceScope,
+    ): Promise<Array<{ id: string; name: string; createdAt: Date }>> {
+      assertWorkspaceScope(scope);
+      return db
+        .select({
+          id: organization.id,
+          name: organization.name,
+          createdAt: workspaceParents.createdAt,
+        })
+        .from(workspaceParents)
+        .innerJoin(organization, eq(organization.id, workspaceParents.workspaceId))
+        .where(eq(workspaceParents.parentId, scope.workspaceId))
+        .orderBy(asc(workspaceParents.createdAt), asc(organization.id));
     },
 
     async listMembers(scope: WorkspaceScope): Promise<MemberRow[]> {
@@ -117,7 +149,7 @@ export function createWorkspacesRepository(db: DbOrTx) {
 
     async updateSettings(
       scope: WorkspaceScope,
-      patch: Partial<Pick<WorkspaceSettingsRow, "timezone" | "requireTwoFactor">>,
+      patch: Partial<Pick<WorkspaceSettingsRow, "timezone" | "requireTwoFactor" | "trialEndsAt">>,
     ): Promise<WorkspaceSettingsRow | undefined> {
       assertWorkspaceScope(scope);
       const rows = await db

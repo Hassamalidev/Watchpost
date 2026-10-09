@@ -2,6 +2,7 @@
 import type { RequestHandler } from "express";
 import type { PlanFeature } from "@app/shared";
 import type { AppModule, Infra } from "../../composition/types.js";
+import { newId } from "../../infra/ids.js";
 import { requireSession } from "../../middleware/session.js";
 import type { WorkspaceScope } from "../../core/workspace-scope.js";
 import { requireWorkspace } from "../../middleware/workspace.js";
@@ -22,6 +23,8 @@ export interface WorkspacesModuleDeps {
   infra: Pick<Infra, "db" | "clock" | "auth" | "outbox">;
   /* The billing module's plan check, wired by the container once billing exists. */
   hasFeature?: (scope: WorkspaceScope, feature: PlanFeature) => Promise<boolean>;
+  /* How many client workspaces the plan includes. */
+  clientLimit?: (scope: WorkspaceScope) => Promise<number>;
 }
 
 /* Guards other modules put in front of their /api/w/:workspaceId routes. */
@@ -45,6 +48,15 @@ export function createWorkspacesModule(deps: WorkspacesModuleDeps): WorkspacesMo
     outbox: deps.infra.outbox,
     clock: deps.infra.clock,
     hasFeature: deps.hasFeature,
+    clientLimit: deps.clientLimit,
+    /* Through the auth library, so the workspace gets its owner and every hook runs. */
+    createWorkspace: async ({ name, ownerUserId }) => {
+      const created = await deps.infra.auth.auth.api.createOrganization({
+        body: { name, slug: `client-${newId()}`, userId: ownerUserId },
+      });
+      if (created === null) throw new Error("the auth library didn't create the workspace");
+      return created.id;
+    },
   });
   const guards: WorkspaceGuards = {
     session: requireSession(deps.infra.auth.getSession),

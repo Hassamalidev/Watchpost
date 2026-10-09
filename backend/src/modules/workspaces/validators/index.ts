@@ -10,6 +10,8 @@ function isIanaTimeZone(value: string): boolean {
   }
 }
 
+export const createClientBody = z.object({ name: z.string().trim().min(2).max(80) }).strict();
+
 export const updateSettingsBody = z
   .object({
     timezone: z

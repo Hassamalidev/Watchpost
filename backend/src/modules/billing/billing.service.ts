@@ -126,7 +126,7 @@ export function createBillingService(deps: {
   repository: BillingRepository;
   planSync: PlanSync;
   paddleSync: PaddleSync;
-  workspaces: Pick<WorkspacesService, "countMembers" | "workspaceIds">;
+  workspaces: Pick<WorkspacesService, "countMembers" | "workspaceIds" | "parentOf">;
   clock: Clock;
   logger: Logger;
   locks: Pick<Locks, "acquire">;
@@ -192,6 +192,14 @@ export function createBillingService(deps: {
 
   const service: BillingService = {
     async entitlements(scope) {
+      /* A client workspace is paid for by its agency: it has the agency's plan, and no clients. */
+      const parentId = await deps.workspaces.parentOf(scope.workspaceId);
+      if (parentId !== undefined) {
+        const agency = toEntitlements(
+          (await planSync.resolve(deps.db, system(parentId))).resolution,
+        );
+        return { ...agency, limits: { ...agency.limits, clientWorkspaces: 0 } };
+      }
       return toEntitlements((await planSync.resolve(deps.db, scope)).resolution);
     },
 
@@ -215,7 +223,11 @@ export function createBillingService(deps: {
         repo.account(deps.db, scope.workspaceId),
         repo.foundingCount(deps.db),
       ]);
-      const entitlements = toEntitlements(resolution);
+      /* A client workspace shows what its agency's plan gives it. */
+      const entitlements =
+        (await deps.workspaces.parentOf(scope.workspaceId)) === undefined
+          ? toEntitlements(resolution)
+          : await service.entitlements(scope);
       const isFoundingCustomer = account?.foundingNumber != null;
       return {
         entitlements,

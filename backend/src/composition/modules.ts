@@ -39,12 +39,17 @@ export function createModules(infra: Infra): AppModule[] {
    * The audit module goes first: its trail has to be mounted before every other router to see their
    * requests. The plan check it needs comes from billing, which is created just below.
    */
-  const plan: { hasFeature: (scope: WorkspaceScope, feature: PlanFeature) => Promise<boolean> } = {
+  const plan: {
+    hasFeature: (scope: WorkspaceScope, feature: PlanFeature) => Promise<boolean>;
+    clientLimit: (scope: WorkspaceScope) => Promise<number>;
+  } = {
     hasFeature: () => Promise.resolve(false),
+    clientLimit: () => Promise.resolve(0),
   };
   const workspaces = createWorkspacesModule({
     infra,
     hasFeature: (scope, feature) => plan.hasFeature(scope, feature),
+    clientLimit: (scope) => plan.clientLimit(scope),
   });
   modules.push(
     createAuditModule({
@@ -61,6 +66,7 @@ export function createModules(infra: Infra): AppModule[] {
   });
   modules.push(billing);
   plan.hasFeature = (scope, feature) => billing.service.hasFeature(scope, feature);
+  plan.clientLimit = async (scope) => (await billing.service.limits(scope)).clientWorkspaces;
   modules.push(
     createApikeysModule({
       infra,

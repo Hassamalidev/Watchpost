@@ -13,7 +13,18 @@ import { SidebarNav } from "./sidebar-nav";
 import { useWorkspace } from "./workspace-context";
 
 export function WorkspaceName() {
-  return <>{useWorkspace().name}</>;
+  const t = useTranslations("app");
+  const { name, parent } = useWorkspace();
+  return (
+    <>
+      {name}
+      {parent != null && (
+        <span className="block font-normal text-muted-foreground">
+          {t("managedBy", { agency: parent.name })}
+        </span>
+      )}
+    </>
+  );
 }
 
 /* The person's own sign-in security: two-factor sign-in and signed-in devices. */

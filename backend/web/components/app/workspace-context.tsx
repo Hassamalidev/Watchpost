@@ -14,6 +14,8 @@ export interface CurrentWorkspace {
   id: string;
   name: string;
   role: WorkspaceRole;
+  /* The agency that manages this workspace, when it is a client workspace. */
+  parent?: { id: string; name: string } | null;
   user: { id: string; email: string; name: string };
 }
 

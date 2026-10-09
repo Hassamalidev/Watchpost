@@ -39,15 +39,26 @@ export function WorkspaceGate({
       const session = await getSession();
       if (session === null) return "signed-out";
       try {
-        const me = await api<{ role: WorkspaceRole; twoFactorRequired?: boolean }>(
-          wsPath(workspaceId, "/me"),
-        );
+        const me = await api<{
+          role: WorkspaceRole;
+          twoFactorRequired?: boolean;
+          name?: string;
+          parent?: { id: string; name: string } | null;
+        }>(wsPath(workspaceId, "/me"));
         if (me.twoFactorRequired === true) return "two-factor";
-        const workspaces = await listWorkspaces();
+        /*
+         * The name comes with the answer: an agency's admins open client workspaces they aren't
+         * listed as members of.
+         */
+        const name =
+          me.name ??
+          (await listWorkspaces()).find((w) => w.id === workspaceId)?.name ??
+          workspaceId;
         return {
           id: workspaceId,
-          name: workspaces.find((w) => w.id === workspaceId)?.name ?? workspaceId,
+          name,
           role: me.role,
+          parent: me.parent ?? null,
           user: { id: session.user.id, email: session.user.email, name: session.user.name },
         };
       } catch (err) {

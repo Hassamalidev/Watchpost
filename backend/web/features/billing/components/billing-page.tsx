@@ -50,6 +50,9 @@ export function BillingPage() {
     <div className="grid max-w-6xl gap-6">
       <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
       {!canManage && <Alert tone="info">{t("readOnly")}</Alert>}
+      {workspace.parent != null && (
+        <Alert tone="info">{t("billedByAgency", { agency: workspace.parent.name })}</Alert>
+      )}
       {activating !== "no" && (
         <Alert tone="info">{activating === "slow" ? t("activatingSlow") : t("activating")}</Alert>
       )}
