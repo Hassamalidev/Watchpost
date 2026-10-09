@@ -344,6 +344,13 @@
       "when": 1791549288127,
       "tag": "0048_private_status_pages",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1791551261111,
+      "tag": "0049_workspace_deletions",
+      "breakpoints": true
     }
   ]
 }

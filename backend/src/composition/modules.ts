@@ -31,6 +31,7 @@ import { createAiModule } from "../modules/ai/index.js";
 import { createApikeysModule } from "../modules/apikeys/index.js";
 import { createWebhooksModule } from "../modules/webhooks/index.js";
 import { createAuditModule } from "../modules/audit/index.js";
+import { createPrivacyModule } from "../modules/privacy/index.js";
 /* new-module:imports */
 
 export function createModules(infra: Infra): AppModule[] {
@@ -268,6 +269,22 @@ export function createModules(infra: Infra): AppModule[] {
       monitors: monitors.service,
       hasFeature: (scope, feature) => billing.service.hasFeature(scope, feature),
       guards: workspaces.guards,
+    }),
+  );
+  modules.push(
+    createPrivacyModule({
+      infra,
+      guards: workspaces.guards,
+      workspaces: workspaces.service,
+      billing: billing.service,
+      monitors: monitors.service,
+      incidents: incidents.service,
+      maintenance: maintenance.service,
+      channels: channels.service,
+      contacts: contacts.service,
+      oncall: oncall.service,
+      statuspages: statuspages.service,
+      results: results.service,
     }),
   );
   /* new-module:create */

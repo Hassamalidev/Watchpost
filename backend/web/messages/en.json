@@ -1291,6 +1291,21 @@
       "name": "Client name",
       "nameHint": "Shown to the client's people. You can invite them once the workspace exists.",
       "create": "Create client workspace"
+    },
+    "data": {
+      "title": "Your data",
+      "exportIntro": "Download everything your team put into this workspace as one JSON file: monitors, incidents, status pages, people, schedules and settings. Passwords and tokens are masked.",
+      "export": "Download workspace data",
+      "exporting": "Preparing the file…",
+      "deleteTitle": "Delete this workspace",
+      "deleteIntro": "Monitoring stops at once and the workspace is erased after {days} days: monitors, incidents, status pages, people and settings. Until then an owner can cancel. After that nothing can be brought back.",
+      "ownerOnly": "Only an owner can delete the workspace.",
+      "confirm": "Workspace name, to confirm",
+      "confirmHint": "Type {name} exactly.",
+      "delete": "Delete this workspace",
+      "scheduled": "This workspace will be erased after {when}. {by} asked for it. Its monitors are paused.",
+      "cancel": "Cancel the deletion",
+      "ownerCancels": "An owner can cancel the deletion."
     }
   },
   "billing": {

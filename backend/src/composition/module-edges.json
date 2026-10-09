@@ -52,6 +52,18 @@
     "imports": ["monitors", "channels", "contacts", "oncall", "statuspages", "workspaces"],
     "badges": ["monitors", "detection", "results", "statuspages"],
     "admin": ["*"],
-    "webhooks": ["incidents", "monitors", "billing"]
+    "webhooks": ["incidents", "monitors", "billing"],
+    "privacy": [
+      "monitors",
+      "incidents",
+      "channels",
+      "contacts",
+      "oncall",
+      "statuspages",
+      "maintenance",
+      "workspaces",
+      "results",
+      "billing"
+    ]
   }
 }

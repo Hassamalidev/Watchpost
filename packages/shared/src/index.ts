@@ -570,3 +570,11 @@ export {
   type AuditEntryView,
   type AuditLogPage,
 } from "./schemas/audit.js";
+export {
+  WORKSPACE_DELETION_DAYS,
+  WORKSPACE_EXPORT_MAX_INCIDENTS,
+  WORKSPACE_EXPORT_VERSION,
+  requestWorkspaceDeletionSchema,
+  type WorkspaceDeletionView,
+  type WorkspaceExport,
+} from "./schemas/privacy.js";

@@ -117,6 +117,14 @@ const SAMPLES: Record<EmailTemplate, Record<string, unknown>> = {
     monitors: 3,
     url: "https://app.example.com/w/1/settings",
   },
+  "workspace-deletion": {
+    workspaceName: "Acme",
+    requestedBy: "sara@example.com",
+    deleteAfter: "2026-11-08T12:00:00.000Z",
+    days: 30,
+    monitors: 3,
+    url: "https://app.example.com/w/1/settings",
+  },
   "sla-report": {
     heading: "Client report",
     subject: "Acme shop",

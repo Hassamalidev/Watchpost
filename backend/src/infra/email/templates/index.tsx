@@ -329,6 +329,43 @@ function ProbeOfflineEmail(d: z.infer<typeof probeOfflineData>) {
   );
 }
 
+/* An owner asked for the workspace to be deleted: the 30 days to change their mind start now. */
+const workspaceDeletionData = z.object({
+  workspaceName: z.string(),
+  requestedBy: z.string(),
+  deleteAfter: z.string(),
+  days: z.number().int(),
+  monitors: z.number().int(),
+  url,
+});
+
+function WorkspaceDeletionEmail(d: z.infer<typeof workspaceDeletionData>) {
+  const day = d.deleteAfter.slice(0, 10);
+  return (
+    <EmailLayout
+      preview={`${d.workspaceName} will be deleted on ${day}`}
+      footer={`Sent to the owners and admins of ${d.workspaceName}.`}
+    >
+      <Heading as="h1" className="wp-text" style={styles.heading}>
+        {d.workspaceName} will be deleted on {day}
+      </Heading>
+      <Text className="wp-text" style={styles.text}>
+        {d.requestedBy} asked for this workspace to be deleted. Nothing is removed for {d.days}{" "}
+        days. After {day} (UTC) its monitors, incidents, status pages, people and settings are
+        erased for good and can't be brought back.
+      </Text>
+      <Text className="wp-text" style={styles.text}>
+        {d.monitors === 0
+          ? "No monitors were running."
+          : `${d.monitors} monitor${d.monitors === 1 ? " was" : "s were"} paused: nothing is checked and no alert is sent from now on.`}{" "}
+        An owner can cancel the deletion in Settings until then. Monitors stay paused after a
+        cancellation until someone resumes them.
+      </Text>
+      <Action href={d.url}>Open settings</Action>
+    </EmailLayout>
+  );
+}
+
 /* Emails to a status page's subscribers: people outside the workspace (PRODUCT.md §6.6). */
 const STATUS_UPDATE_LABEL = {
   investigating: "Investigating",
@@ -868,6 +905,12 @@ export const EMAIL_TEMPLATES = {
     data: probeOfflineData,
     subject: (d: { probeName: string }) => `Private probe ${d.probeName} is offline`,
     component: ProbeOfflineEmail,
+  },
+  "workspace-deletion": {
+    data: workspaceDeletionData,
+    subject: (d: { workspaceName: string; deleteAfter: string }) =>
+      `${d.workspaceName} will be deleted on ${d.deleteAfter.slice(0, 10)}`,
+    component: WorkspaceDeletionEmail,
   },
   "sla-report": {
     data: slaReportData,

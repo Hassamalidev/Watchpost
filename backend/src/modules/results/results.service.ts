@@ -60,6 +60,11 @@ export interface IngestOutcome {
 
 export interface ResultsService {
   ingest(results: StoredResult[]): Promise<IngestOutcome>;
+  /*
+   * System (workspace erasure): removes the stored evidence of a workspace's failed checks from
+   * object storage. The rows themselves go with the workspace. Returns how many objects went.
+   */
+  eraseEvidence(workspaceId: string): Promise<number>;
   recent(monitorId: string, region: string, limit: number): Promise<CheckResultRow[]>;
   /* History used by "what changed before this incident" (system-level; the caller checks scope). */
   ipHistory: ResultsRepository["ipHistory"];
@@ -127,6 +132,22 @@ export function createResultsService(deps: {
   }
 
   return {
+    async eraseEvidence(workspaceId) {
+      const { objects } = deps;
+      if (objects === undefined) return 0;
+      let erased = 0;
+      for (const key of await deps.repository.evidenceKeysOf(workspaceId)) {
+        try {
+          await objects.delete(key);
+          erased += 1;
+        } catch (err) {
+          /* The object expires by itself after its lifetime; the erasure goes on. */
+          deps.logger?.warn({ err, key }, "evidence object not deleted");
+        }
+      }
+      return erased;
+    },
+
     async ingest(results) {
       const now = clock.now().getTime();
       const inWindow = results.filter((r) => {

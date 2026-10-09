@@ -9,6 +9,7 @@ import { CheckRegions } from "./check-regions";
 import { ClientWorkspaces } from "./client-workspaces";
 import { RequireTwoFactor } from "./require-two-factor";
 import { PrivateProbes } from "./private-probes";
+import { WorkspaceData } from "./workspace-data";
 import { can, useWorkspace } from "@/components/app/workspace-context";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -112,6 +113,9 @@ export function SettingsPage() {
             </Link>
           </div>
         </section>
+      )}
+      {can(workspace.role, "settings:update") && (
+        <WorkspaceData ws={ws} name={workspace.name} isOwner={workspace.role === "owner"} />
       )}
     </div>
   );

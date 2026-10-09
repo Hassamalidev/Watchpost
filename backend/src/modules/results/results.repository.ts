@@ -392,6 +392,20 @@ export function createResultsRepository(db: DbOrTx) {
       return Boolean(result.rows[0]?.created);
     },
 
+    /* System (workspace erasure): where the evidence of a workspace's failed checks is stored. */
+    async evidenceKeysOf(workspaceId: string): Promise<string[]> {
+      const rows = await db
+        .selectDistinct({ key: checkResults.evidenceKey })
+        .from(checkResults)
+        .where(
+          and(
+            eq(checkResults.workspaceId, workspaceId),
+            sql`${checkResults.evidenceKey} is not null`,
+          ),
+        );
+      return rows.flatMap((row) => (row.key === null ? [] : [row.key]));
+    },
+
     async dropPartition(name: string): Promise<void> {
       if (!PARTITION_NAME.test(name)) throw new Error(`refusing to drop "${name}"`);
       await db.execute(sql.raw(`DROP TABLE IF EXISTS "${name}"`));
