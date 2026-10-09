@@ -29,6 +29,7 @@ const locked = (kind: PublicStatusLocked["locked"]): PublicStatusLocked => ({
       description: null,
       supportUrl: null,
     },
+    languages: ["en"],
   },
 });
 

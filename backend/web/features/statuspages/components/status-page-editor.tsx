@@ -16,7 +16,10 @@ import {
   STATUS_IMPACTS,
   STATUS_INCIDENT_STATUSES,
   STATUS_PAGE_MAX_COMPONENTS,
+  STATUS_PAGE_LANGUAGES,
+  STATUS_PAGE_LANGUAGE_NAMES,
   STATUS_TONES,
+  type StatusPageLanguage,
   type StatusTone,
   type StatusComponentInput,
   type StatusImpact,
@@ -82,6 +85,8 @@ function SettingsForm({ ws, page }: { ws: string; page: StatusPageView }) {
     autoMinutes: String(page.settings.autoIncidents.afterMinutes),
     autoPublish: page.settings.autoIncidents.publish,
     tone: page.settings.tone,
+    /* The default language first. */
+    languages: page.settings.languages,
   }));
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
@@ -103,6 +108,7 @@ function SettingsForm({ ws, page }: { ws: string; page: StatusPageView }) {
           showUptime: form.showUptime,
           subscribers: form.subscribers,
           tone: form.tone,
+          languages: form.languages,
           autoIncidents: {
             enabled: form.autoEnabled,
             afterMinutes: Math.min(120, Math.max(1, Math.round(Number(form.autoMinutes)) || 5)),
@@ -210,6 +216,53 @@ function SettingsForm({ ws, page }: { ws: string; page: StatusPageView }) {
           <span className="block text-xs text-muted-foreground">{t("allowSubscribersHint")}</span>
         </span>
       </label>
+      <fieldset className="grid gap-2 rounded-md border p-3">
+        <legend className="px-1 text-sm font-medium">{t("languages.title")}</legend>
+        <p className="text-xs text-muted-foreground">{t("languages.hint")}</p>
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
+          {STATUS_PAGE_LANGUAGES.map((language) => (
+            <label key={language} className="flex min-h-6 items-center gap-1.5 text-sm">
+              <input
+                type="checkbox"
+                checked={form.languages.includes(language)}
+                /* A page always has at least one language. */
+                disabled={form.languages.length === 1 && form.languages[0] === language}
+                onChange={(e) =>
+                  set(
+                    "languages",
+                    e.target.checked
+                      ? [...form.languages, language]
+                      : form.languages.filter((value) => value !== language),
+                  )
+                }
+              />
+              <span lang={language}>{STATUS_PAGE_LANGUAGE_NAMES[language]}</span>
+            </label>
+          ))}
+        </div>
+        {form.languages.length > 1 && (
+          <Field
+            label={t("languages.default")}
+            htmlFor="spe-language"
+            hint={t("languages.defaultHint")}
+          >
+            <Select
+              id="spe-language"
+              value={form.languages[0]}
+              onChange={(e) => {
+                const first = e.target.value as StatusPageLanguage;
+                set("languages", [first, ...form.languages.filter((value) => value !== first)]);
+              }}
+            >
+              {form.languages.map((language) => (
+                <option key={language} value={language}>
+                  {STATUS_PAGE_LANGUAGE_NAMES[language]}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
+      </fieldset>
       {page.aiDrafts && (
         <Field label={t("tone")} htmlFor="spe-tone" hint={t("toneHint")}>
           <Select

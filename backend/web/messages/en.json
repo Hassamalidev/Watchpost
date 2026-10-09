@@ -2126,7 +2126,8 @@
       "label": "Password",
       "open": "Open the page",
       "wrong": "That password is not right. Try again."
-    }
+    },
+    "language": "Language"
   },
   "statusPages": {
     "title": "Status pages",
@@ -2290,6 +2291,12 @@
         "password": "Saved. Visitors need the password.",
         "ip_allowlist": "Saved. Only the listed networks can open this page."
       }
+    },
+    "languages": {
+      "title": "Languages",
+      "hint": "The page's own text (status words, headings, the subscribe form) is shown in these languages. Visitors get their browser's language when the page has it, and can switch. What you write, such as service names and incident updates, is shown as you wrote it.",
+      "default": "Default language",
+      "defaultHint": "Shown when the page doesn't have the visitor's language."
     }
   },
   "reports": {

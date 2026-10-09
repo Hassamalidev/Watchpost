@@ -96,6 +96,55 @@ export const statusBrandingSchema = z
   .strict();
 export type StatusBranding = z.infer<typeof statusBrandingSchema>;
 
+/*
+ * Languages a page's fixed text comes in (P7-T04b). What the team writes (names, incident updates)
+ * is shown as written. Each is named in its own language, for the switcher.
+ */
+export const STATUS_PAGE_LANGUAGES = ["en", "de", "fr", "es", "pt", "it", "nl"] as const;
+export type StatusPageLanguage = (typeof STATUS_PAGE_LANGUAGES)[number];
+export const STATUS_PAGE_LANGUAGE_NAMES: Record<StatusPageLanguage, string> = {
+  en: "English",
+  de: "Deutsch",
+  fr: "Français",
+  es: "Español",
+  pt: "Português",
+  it: "Italiano",
+  nl: "Nederlands",
+};
+export const isStatusPageLanguage = (value: unknown): value is StatusPageLanguage =>
+  STATUS_PAGE_LANGUAGES.some((language) => language === value);
+
+/*
+ * The language for a visitor: the one they asked for, else the first of their browser's languages
+ * (an Accept-Language header) the page has, else the page's first, which is its default.
+ */
+export function pickStatusPageLanguage(
+  languages: readonly StatusPageLanguage[],
+  asked?: string | undefined,
+  acceptLanguage?: string | null | undefined,
+): StatusPageLanguage {
+  const offered = languages.length > 0 ? languages : (["en"] as const);
+  const exact = offered.find((language) => language === asked);
+  if (exact !== undefined) return exact;
+  const preferred = (acceptLanguage ?? "")
+    .split(",")
+    .map((part) => {
+      const [tag = "", ...params] = part.trim().split(";");
+      const q = params.map((p) => /^\s*q=([0-9.]+)\s*$/.exec(p)?.[1]).find((v) => v !== undefined);
+      return {
+        base: tag.trim().toLowerCase().split("-")[0] ?? "",
+        q: q === undefined ? 1 : Number(q),
+      };
+    })
+    .filter((entry) => entry.base !== "" && entry.q > 0)
+    .sort((a, b) => b.q - a.q);
+  for (const { base } of preferred) {
+    const match = offered.find((language) => language === base);
+    if (match !== undefined) return match;
+  }
+  return offered[0] ?? "en";
+}
+
 export const statusPageSettingsSchema = z
   .object({
     showUptime: z.boolean().default(true),
@@ -113,6 +162,13 @@ export const statusPageSettingsSchema = z
     subscribers: z.boolean().default(true),
     /* How AI-drafted updates should sound. */
     tone: z.enum(STATUS_TONES).default("neutral"),
+    /* Languages of the page's fixed text; the first is the default. */
+    languages: z
+      .array(z.enum(STATUS_PAGE_LANGUAGES))
+      .min(1)
+      .max(STATUS_PAGE_LANGUAGES.length)
+      .refine((list) => new Set(list).size === list.length, "list each language once")
+      .default(["en"]),
   })
   .strict();
 export type StatusPageSettings = z.infer<typeof statusPageSettingsSchema>;
@@ -452,7 +508,13 @@ export interface PublicMaintenance {
 export interface PublicStatusLocked {
   /* What would open it: the page's password, or coming from one of its networks. */
   locked: Exclude<StatusVisibility, "public">;
-  page: { name: string; slug: string; url: string; branding: StatusBranding };
+  page: {
+    name: string;
+    slug: string;
+    url: string;
+    branding: StatusBranding;
+    languages: StatusPageLanguage[];
+  };
 }
 
 /* Everything the public page shows; also the page's JSON API. */
@@ -462,6 +524,8 @@ export interface PublicStatusPage {
     slug: string;
     url: string;
     branding: StatusBranding;
+    /* Languages the page's fixed text comes in; the first is the default. */
+    languages: StatusPageLanguage[];
     /* Visitors can subscribe by email. */
     subscribe: boolean;
     showUptime: boolean;

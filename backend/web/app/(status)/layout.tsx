@@ -8,7 +8,6 @@ import type { Metadata, Viewport } from "next";
 import type * as React from "react";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
-import { getLocale } from "next-intl/server";
 import "../globals.css";
 
 export const metadata: Metadata = { title: "Status" };
@@ -23,11 +22,15 @@ export const viewport: Viewport = {
 const FOLLOW_SYSTEM_THEME =
   "try{if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.classList.add('dark')}catch(e){}";
 
-export default async function StatusLayout({ children }: { children: React.ReactNode }) {
-  const locale = await getLocale();
+/*
+ * Nothing here asks for translations: the page below picks the visitor's language first (page
+ * languages, PRODUCT.md §6.6) and names it on its own element. Asking here would settle on English
+ * before the page had its say.
+ */
+export default function StatusLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
-      lang={locale}
+      lang="en"
       className={`${GeistSans.variable} ${GeistMono.variable}`}
       suppressHydrationWarning
     >

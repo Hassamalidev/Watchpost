@@ -100,7 +100,13 @@ describe("private status pages", () => {
     expect(locked.headers["cache-control"]).toBe("private, no-store");
     expect(locked.body as PublicStatusLocked).toEqual({
       locked: "password",
-      page: { name: "Private Co status", slug, url: pageUrl, branding: expect.any(Object) },
+      page: {
+        name: "Private Co status",
+        slug,
+        url: pageUrl,
+        branding: expect.any(Object),
+        languages: ["en"],
+      },
     });
     expect((await open(undefined, "/rss")).status).toBe(404);
     expect((await open(undefined, "/atom")).status).toBe(404);

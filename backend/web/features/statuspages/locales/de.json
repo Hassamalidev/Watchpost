@@ -1,0 +1,64 @@
+{
+  "title": "{name} Status",
+  "description": "Aktueller Status und Störungsverlauf von {name}.",
+  "current": "Aktueller Status",
+  "overall": {
+    "operational": "Alle Systeme in Betrieb",
+    "degraded": "Eingeschränkte Leistung",
+    "partial_outage": "Teilweiser Ausfall",
+    "major_outage": "Größerer Ausfall",
+    "maintenance": "Wartung läuft"
+  },
+  "component": {
+    "operational": "In Betrieb",
+    "degraded": "Eingeschränkte Leistung",
+    "partial_outage": "Teilweiser Ausfall",
+    "major_outage": "Größerer Ausfall",
+    "maintenance": "In Wartung",
+    "unknown": "Noch keine Daten"
+  },
+  "incident": {
+    "investigating": "Wird untersucht",
+    "identified": "Ursache gefunden",
+    "monitoring": "Wird beobachtet",
+    "resolved": "Behoben"
+  },
+  "components": "Dienste",
+  "noComponents": "Es sind noch keine Dienste aufgeführt.",
+  "activeIncidents": "Offene Störungen",
+  "maintenance": "Geplante Wartung",
+  "maintenanceNow": "Läuft gerade.",
+  "maintenanceUntil": "Läuft bis {time}.",
+  "maintenanceFrom": "{start} bis {end}.",
+  "affects": "Betrifft: {components}",
+  "history": "Frühere Störungen",
+  "noHistory": "Keine Störungen in den letzten 14 Tagen.",
+  "uptimePercent": "{percent} % Verfügbarkeit",
+  "uptimeLabel": "{name}: {percent} in den letzten {days} Tagen",
+  "noData": "keine Daten",
+  "daysAgo": "vor {days} Tagen",
+  "today": "Heute",
+  "updated": "Aktualisiert {time}",
+  "feeds": "Feeds und Links",
+  "support": "Support kontaktieren",
+  "poweredBy": "Bereitgestellt von UptimeWatch",
+  "subscribe": {
+    "title": "Updates per E-Mail erhalten",
+    "intro": "Wir schreiben Ihnen, wenn eine Störung gemeldet, aktualisiert und behoben wird. Abmelden geht mit einem Klick.",
+    "email": "E-Mail-Adresse",
+    "button": "Abonnieren",
+    "notice": {
+      "sent": "Sehen Sie in Ihr Postfach: Wir haben einen Link zum Bestätigen geschickt.",
+      "confirmed": "Sie sind angemeldet. Wir schreiben Ihnen, wenn es eine Störung gibt.",
+      "removed": "Sie sind abgemeldet. Von dieser Seite kommen keine E-Mails mehr."
+    }
+  },
+  "locked": {
+    "password": "Diese Statusseite ist privat. Geben Sie das Passwort ein, um sie zu sehen.",
+    "network": "Diese Statusseite ist privat. Sie lässt sich nur aus dem Netzwerk ihres Betreibers öffnen.",
+    "label": "Passwort",
+    "open": "Seite öffnen",
+    "wrong": "Das Passwort stimmt nicht. Versuchen Sie es noch einmal."
+  },
+  "language": "Sprache"
+}

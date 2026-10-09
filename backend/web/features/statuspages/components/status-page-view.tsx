@@ -5,7 +5,7 @@
  * Status is always an icon and words, never color alone (PRODUCT.md §14).
  */
 import type * as React from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -15,6 +15,7 @@ import {
   XCircle,
   type LucideIcon,
 } from "lucide-react";
+import { STATUS_PAGE_LANGUAGE_NAMES } from "@app/shared";
 import type {
   ComponentStatus,
   PublicMaintenance,
@@ -44,15 +45,27 @@ export const SUBSCRIBE_NOTICES = ["sent", "confirmed", "removed"] as const;
 export type SubscribeNotice = (typeof SUBSCRIBE_NOTICES)[number];
 
 /* Dates are written in UTC with fixed formats, so the server and the browser print the same text. */
-const dateTime = new Intl.DateTimeFormat("en-GB", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  timeZone: "UTC",
-});
-export const formatUtc = (iso: string) => `${dateTime.format(new Date(iso))} UTC`;
+const dateTimes = new Map<string, Intl.DateTimeFormat>();
+function dateTimeIn(locale: string): Intl.DateTimeFormat {
+  /* English dates are written the British way: day first, 24 hours. */
+  const tag = locale === "en" ? "en-GB" : locale;
+  let format = dateTimes.get(tag);
+  if (format === undefined) {
+    format = new Intl.DateTimeFormat(tag, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+      timeZone: "UTC",
+    });
+    dateTimes.set(tag, format);
+  }
+  return format;
+}
+export const formatUtc = (iso: string, locale = "en") =>
+  `${dateTimeIn(locale).format(new Date(iso))} UTC`;
 
 /* Components in page order, with those of the same group kept together under its name. */
 export function groupComponents(
@@ -135,6 +148,7 @@ function ComponentRow({ component }: { component: PublicStatusComponent }) {
 
 function IncidentCard({ incident }: { incident: PublicStatusIncident }) {
   const t = useTranslations("statusPage");
+  const locale = useLocale();
   return (
     <article id={`incident-${incident.id}`} className="rounded-lg border bg-card p-4">
       <h3 className="font-semibold">{incident.title}</h3>
@@ -150,7 +164,7 @@ function IncidentCard({ incident }: { incident: PublicStatusIncident }) {
               <span className="font-medium">{t(`incident.${update.status}`)}</span>
               <span className="text-muted-foreground"> · </span>
               <time className="text-muted-foreground" dateTime={update.at}>
-                {formatUtc(update.at)}
+                {formatUtc(update.at, locale)}
               </time>
             </p>
             <p className="whitespace-pre-wrap">{update.message}</p>
@@ -163,6 +177,7 @@ function IncidentCard({ incident }: { incident: PublicStatusIncident }) {
 
 function MaintenanceCard({ window }: { window: PublicMaintenance }) {
   const t = useTranslations("statusPage");
+  const locale = useLocale();
   return (
     <article className="rounded-lg border bg-card p-4 text-sm">
       <h3 className="flex items-center gap-2 font-semibold">
@@ -173,11 +188,11 @@ function MaintenanceCard({ window }: { window: PublicMaintenance }) {
         {window.active
           ? window.endsAt === null
             ? t("maintenanceNow")
-            : t("maintenanceUntil", { time: formatUtc(window.endsAt) })
+            : t("maintenanceUntil", { time: formatUtc(window.endsAt, locale) })
           : window.startsAt !== null && window.endsAt !== null
             ? t("maintenanceFrom", {
-                start: formatUtc(window.startsAt),
-                end: formatUtc(window.endsAt),
+                start: formatUtc(window.startsAt, locale),
+                end: formatUtc(window.endsAt, locale),
               })
             : null}
       </p>
@@ -208,6 +223,7 @@ export function StatusPageView({
   notice?: SubscribeNotice | undefined;
 }): React.ReactElement {
   const t = useTranslations("statusPage");
+  const locale = useLocale();
   const { page } = data;
   const banner = STATUS_STYLE[data.status];
   const BannerIcon = banner.icon;
@@ -340,7 +356,7 @@ export function StatusPageView({
       <footer className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t pt-4 text-sm text-muted-foreground">
         <p>
           <time dateTime={data.generatedAt}>
-            {t("updated", { time: formatUtc(data.generatedAt) })}
+            {t("updated", { time: formatUtc(data.generatedAt, locale) })}
           </time>
         </p>
         <nav aria-label={t("feeds")} className="flex flex-wrap gap-4">
@@ -366,6 +382,26 @@ export function StatusPageView({
             {t("poweredBy")}
           </a>
         </nav>
+        {feedBase && page.languages.length > 1 && (
+          <nav aria-label={t("language")} className="flex w-full flex-wrap gap-4">
+            {page.languages.map((language) => (
+              <a
+                key={language}
+                href={`?lang=${language}`}
+                lang={language}
+                hrefLang={language}
+                aria-current={language === locale ? "true" : undefined}
+                className={
+                  language === locale
+                    ? "font-medium text-foreground"
+                    : "underline underline-offset-4"
+                }
+              >
+                {STATUS_PAGE_LANGUAGE_NAMES[language]}
+              </a>
+            ))}
+          </nav>
+        )}
       </footer>
     </div>
   );

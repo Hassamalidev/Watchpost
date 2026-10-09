@@ -1,0 +1,64 @@
+{
+  "title": "État de {name}",
+  "description": "État actuel et historique des incidents de {name}.",
+  "current": "État actuel",
+  "overall": {
+    "operational": "Tous les systèmes fonctionnent",
+    "degraded": "Performances dégradées",
+    "partial_outage": "Panne partielle",
+    "major_outage": "Panne majeure",
+    "maintenance": "Maintenance en cours"
+  },
+  "component": {
+    "operational": "Opérationnel",
+    "degraded": "Performances dégradées",
+    "partial_outage": "Panne partielle",
+    "major_outage": "Panne majeure",
+    "maintenance": "En maintenance",
+    "unknown": "Pas encore de données"
+  },
+  "incident": {
+    "investigating": "Analyse en cours",
+    "identified": "Cause identifiée",
+    "monitoring": "Sous surveillance",
+    "resolved": "Résolu"
+  },
+  "components": "Services",
+  "noComponents": "Aucun service n'est encore listé.",
+  "activeIncidents": "Incidents en cours",
+  "maintenance": "Maintenance planifiée",
+  "maintenanceNow": "En cours.",
+  "maintenanceUntil": "En cours jusqu'au {time}.",
+  "maintenanceFrom": "Du {start} au {end}.",
+  "affects": "Concerne : {components}",
+  "history": "Incidents passés",
+  "noHistory": "Aucun incident au cours des 14 derniers jours.",
+  "uptimePercent": "{percent} % de disponibilité",
+  "uptimeLabel": "{name} : {percent} sur les {days} derniers jours",
+  "noData": "aucune donnée",
+  "daysAgo": "il y a {days} jours",
+  "today": "Aujourd'hui",
+  "updated": "Mis à jour le {time}",
+  "feeds": "Flux et liens",
+  "support": "Contacter le support",
+  "poweredBy": "Propulsé par UptimeWatch",
+  "subscribe": {
+    "title": "Recevoir les mises à jour par e-mail",
+    "intro": "Nous vous écrivons lorsqu'un incident est signalé, mis à jour et résolu. Vous pouvez vous désabonner en un clic.",
+    "email": "Adresse e-mail",
+    "button": "S'abonner",
+    "notice": {
+      "sent": "Consultez votre boîte de réception : nous avons envoyé un lien pour confirmer votre abonnement.",
+      "confirmed": "Vous êtes abonné. Nous vous écrirons en cas d'incident.",
+      "removed": "Vous êtes désabonné. Vous ne recevrez plus d'e-mails de cette page."
+    }
+  },
+  "locked": {
+    "password": "Cette page d'état est privée. Saisissez son mot de passe pour la voir.",
+    "network": "Cette page d'état est privée. Elle ne s'ouvre que depuis le réseau de son propriétaire.",
+    "label": "Mot de passe",
+    "open": "Ouvrir la page",
+    "wrong": "Ce mot de passe n'est pas le bon. Réessayez."
+  },
+  "language": "Langue"
+}

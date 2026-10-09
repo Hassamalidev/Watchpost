@@ -656,6 +656,7 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
         slug: page.slug,
         url: urlOf(page),
         branding: statusBrandingSchema.parse(page.branding),
+        languages: settings.languages,
         subscribe: settings.subscribers && (await subscriberLimit(page.workspaceId)) > 0,
         showUptime: settings.showUptime,
         poweredByUrl: deps.webOrigin,
@@ -1449,6 +1450,7 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
               slug: page.slug,
               url: urlOf(page),
               branding: statusBrandingSchema.parse(page.branding),
+              languages: statusPageSettingsSchema.parse(page.settings).languages,
             },
           },
         };

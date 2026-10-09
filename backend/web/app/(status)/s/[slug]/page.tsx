@@ -7,7 +7,8 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, setRequestLocale } from "next-intl/server";
+import { pickStatusPageLanguage } from "@app/shared";
 import { StatusPageLocked } from "@/features/statuspages/components/status-page-locked";
 import {
   SUBSCRIBE_NOTICES,
@@ -22,17 +23,28 @@ import {
 
 type Props = {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ subscribe?: string | string[]; unlock?: string | string[] }>;
+  searchParams: Promise<{
+    subscribe?: string | string[];
+    unlock?: string | string[];
+    lang?: string | string[];
+  }>;
 };
+
+const one = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
 
 const refOf = async (params: Props["params"]) =>
   decodeURIComponent((await params).slug).toLowerCase();
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const data = await loadStatusPage(await refOf(params));
   if (data === null) return {};
-  const t = await getTranslations("statusPage");
   const { page } = data;
+  const locale = pickStatusPageLanguage(
+    page.languages,
+    one((await searchParams).lang),
+    (await headers()).get("accept-language"),
+  );
+  const t = await getTranslations({ locale, namespace: "statusPage" });
   const icons = page.branding.faviconUrl ? { icons: { icon: page.branding.faviconUrl } } : {};
   /* A private page tells search engines and link previews its name and nothing else. */
   if (isLocked(data)) {
@@ -56,29 +68,47 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function StatusPage({ params, searchParams }: Props) {
   const ref = await refOf(params);
   let data = await loadStatusPage(ref);
+  const sent = await headers();
   if (data !== null && isLocked(data)) {
-    const sent = await headers();
     data = await loadStatusPageAs(ref, {
       ip: visitorIp((name) => sent.get(name)),
       cookie: sent.get("cookie") ?? undefined,
     });
   }
   if (data === null) notFound();
-  const { subscribe, unlock } = await searchParams;
+  const { subscribe, unlock, lang } = await searchParams;
+  /*
+   * The page's fixed text in the visitor's language, when the page has it. The layout around us
+   * has already written <html lang>, so the language is named again on our own element.
+   */
+  const locale = pickStatusPageLanguage(
+    data.page.languages,
+    one(lang),
+    sent.get("accept-language"),
+  );
+  setRequestLocale(locale);
   const base = `/api/public/status/${data.page.slug}`;
   if (isLocked(data)) {
     return (
-      <StatusPageLocked locked={data} unlockAction={`${base}/unlock`} wrong={unlock === "wrong"} />
+      <div lang={locale}>
+        <StatusPageLocked
+          locked={data}
+          unlockAction={`${base}/unlock`}
+          wrong={unlock === "wrong"}
+        />
+      </div>
     );
   }
   /* The API sends a visitor back here after the subscribe form and the links in its emails. */
   const notice = SUBSCRIBE_NOTICES.find((value) => value === subscribe);
   return (
-    <StatusPageView
-      data={data}
-      feedBase={base}
-      subscribeAction={`${base}/subscribers`}
-      notice={notice}
-    />
+    <div lang={locale}>
+      <StatusPageView
+        data={data}
+        feedBase={base}
+        subscribeAction={`${base}/subscribers`}
+        notice={notice}
+      />
+    </div>
   );
 }

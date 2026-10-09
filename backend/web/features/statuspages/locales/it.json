@@ -1,0 +1,64 @@
+{
+  "title": "Stato di {name}",
+  "description": "Stato attuale e cronologia degli incidenti di {name}.",
+  "current": "Stato attuale",
+  "overall": {
+    "operational": "Tutti i sistemi funzionano",
+    "degraded": "Prestazioni ridotte",
+    "partial_outage": "Interruzione parziale",
+    "major_outage": "Interruzione grave",
+    "maintenance": "Manutenzione in corso"
+  },
+  "component": {
+    "operational": "Operativo",
+    "degraded": "Prestazioni ridotte",
+    "partial_outage": "Interruzione parziale",
+    "major_outage": "Interruzione grave",
+    "maintenance": "In manutenzione",
+    "unknown": "Ancora nessun dato"
+  },
+  "incident": {
+    "investigating": "In analisi",
+    "identified": "Causa individuata",
+    "monitoring": "In osservazione",
+    "resolved": "Risolto"
+  },
+  "components": "Servizi",
+  "noComponents": "Nessun servizio è ancora in elenco.",
+  "activeIncidents": "Incidenti aperti",
+  "maintenance": "Manutenzione programmata",
+  "maintenanceNow": "In corso.",
+  "maintenanceUntil": "In corso fino al {time}.",
+  "maintenanceFrom": "Dal {start} al {end}.",
+  "affects": "Riguarda: {components}",
+  "history": "Incidenti passati",
+  "noHistory": "Nessun incidente negli ultimi 14 giorni.",
+  "uptimePercent": "{percent}% di disponibilità",
+  "uptimeLabel": "{name}: {percent} negli ultimi {days} giorni",
+  "noData": "nessun dato",
+  "daysAgo": "{days} giorni fa",
+  "today": "Oggi",
+  "updated": "Aggiornato il {time}",
+  "feeds": "Feed e link",
+  "support": "Contatta l'assistenza",
+  "poweredBy": "Realizzato con UptimeWatch",
+  "subscribe": {
+    "title": "Ricevi gli aggiornamenti via email",
+    "intro": "Ti scriviamo quando un incidente viene segnalato, aggiornato e risolto. Puoi annullare l'iscrizione con un clic.",
+    "email": "Indirizzo email",
+    "button": "Iscriviti",
+    "notice": {
+      "sent": "Controlla la posta: abbiamo inviato un link per confermare l'iscrizione.",
+      "confirmed": "Sei iscritto. Ti scriveremo quando c'è un incidente.",
+      "removed": "Iscrizione annullata. Non riceverai altre email da questa pagina."
+    }
+  },
+  "locked": {
+    "password": "Questa pagina di stato è privata. Inserisci la password per vederla.",
+    "network": "Questa pagina di stato è privata. Si apre solo dalla rete del suo proprietario.",
+    "label": "Password",
+    "open": "Apri la pagina",
+    "wrong": "La password non è corretta. Riprova."
+  },
+  "language": "Lingua"
+}

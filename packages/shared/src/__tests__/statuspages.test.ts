@@ -31,6 +31,7 @@ describe("page settings", () => {
       autoIncidents: { enabled: false, afterMinutes: 5, publish: "auto" },
       subscribers: true,
       tone: "neutral",
+      languages: ["en"],
     });
     expect(statusBrandingSchema.parse({})).toEqual({
       logoUrl: null,

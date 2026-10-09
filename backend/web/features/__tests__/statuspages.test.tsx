@@ -32,6 +32,7 @@ const page = (patch: Partial<PublicStatusPage> = {}): PublicStatusPage => ({
       description: "Live status of Acme.",
       supportUrl: "https://acme.example.net/support",
     },
+    languages: ["en"],
     subscribe: false,
     showUptime: true,
     poweredByUrl: "https://watchpost.example.net",

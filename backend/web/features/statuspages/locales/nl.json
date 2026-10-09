@@ -1,0 +1,64 @@
+{
+  "title": "Status van {name}",
+  "description": "Actuele status en storingsgeschiedenis van {name}.",
+  "current": "Actuele status",
+  "overall": {
+    "operational": "Alle systemen werken",
+    "degraded": "Verminderde prestaties",
+    "partial_outage": "Gedeeltelijke storing",
+    "major_outage": "Grote storing",
+    "maintenance": "Onderhoud bezig"
+  },
+  "component": {
+    "operational": "Werkt",
+    "degraded": "Verminderde prestaties",
+    "partial_outage": "Gedeeltelijke storing",
+    "major_outage": "Grote storing",
+    "maintenance": "In onderhoud",
+    "unknown": "Nog geen gegevens"
+  },
+  "incident": {
+    "investigating": "In onderzoek",
+    "identified": "Oorzaak gevonden",
+    "monitoring": "Onder toezicht",
+    "resolved": "Opgelost"
+  },
+  "components": "Diensten",
+  "noComponents": "Er staan nog geen diensten in de lijst.",
+  "activeIncidents": "Open storingen",
+  "maintenance": "Gepland onderhoud",
+  "maintenanceNow": "Bezig.",
+  "maintenanceUntil": "Bezig tot {time}.",
+  "maintenanceFrom": "{start} tot {end}.",
+  "affects": "Betreft: {components}",
+  "history": "Eerdere storingen",
+  "noHistory": "Geen storingen in de afgelopen 14 dagen.",
+  "uptimePercent": "{percent}% beschikbaar",
+  "uptimeLabel": "{name}: {percent} in de afgelopen {days} dagen",
+  "noData": "geen gegevens",
+  "daysAgo": "{days} dagen geleden",
+  "today": "Vandaag",
+  "updated": "Bijgewerkt {time}",
+  "feeds": "Feeds en links",
+  "support": "Contact met support",
+  "poweredBy": "Mogelijk gemaakt door UptimeWatch",
+  "subscribe": {
+    "title": "Updates per e-mail ontvangen",
+    "intro": "We mailen u wanneer een storing wordt gemeld, bijgewerkt en opgelost. Afmelden kan met één klik.",
+    "email": "E-mailadres",
+    "button": "Abonneren",
+    "notice": {
+      "sent": "Kijk in uw inbox: we hebben een link gestuurd om uw abonnement te bevestigen.",
+      "confirmed": "U bent geabonneerd. We mailen u wanneer er een storing is.",
+      "removed": "U bent afgemeld. U krijgt geen e-mails meer van deze pagina."
+    }
+  },
+  "locked": {
+    "password": "Deze statuspagina is privé. Voer het wachtwoord in om haar te bekijken.",
+    "network": "Deze statuspagina is privé. Ze is alleen te openen vanaf het netwerk van de eigenaar.",
+    "label": "Wachtwoord",
+    "open": "Pagina openen",
+    "wrong": "Dat wachtwoord klopt niet. Probeer het opnieuw."
+  },
+  "language": "Taal"
+}

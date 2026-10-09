@@ -1,0 +1,64 @@
+{
+  "title": "Estado de {name}",
+  "description": "Estado actual e historial de incidentes de {name}.",
+  "current": "Estado actual",
+  "overall": {
+    "operational": "Todos los sistemas funcionan",
+    "degraded": "Rendimiento degradado",
+    "partial_outage": "Interrupción parcial",
+    "major_outage": "Interrupción grave",
+    "maintenance": "Mantenimiento en curso"
+  },
+  "component": {
+    "operational": "Operativo",
+    "degraded": "Rendimiento degradado",
+    "partial_outage": "Interrupción parcial",
+    "major_outage": "Interrupción grave",
+    "maintenance": "En mantenimiento",
+    "unknown": "Aún sin datos"
+  },
+  "incident": {
+    "investigating": "Investigando",
+    "identified": "Causa identificada",
+    "monitoring": "En observación",
+    "resolved": "Resuelto"
+  },
+  "components": "Servicios",
+  "noComponents": "Aún no hay servicios en la lista.",
+  "activeIncidents": "Incidentes abiertos",
+  "maintenance": "Mantenimiento programado",
+  "maintenanceNow": "En curso.",
+  "maintenanceUntil": "En curso hasta el {time}.",
+  "maintenanceFrom": "Del {start} al {end}.",
+  "affects": "Afecta a: {components}",
+  "history": "Incidentes anteriores",
+  "noHistory": "Ningún incidente en los últimos 14 días.",
+  "uptimePercent": "{percent} % de disponibilidad",
+  "uptimeLabel": "{name}: {percent} en los últimos {days} días",
+  "noData": "sin datos",
+  "daysAgo": "hace {days} días",
+  "today": "Hoy",
+  "updated": "Actualizado el {time}",
+  "feeds": "Fuentes y enlaces",
+  "support": "Contactar con soporte",
+  "poweredBy": "Con la tecnología de UptimeWatch",
+  "subscribe": {
+    "title": "Recibir novedades por correo",
+    "intro": "Le escribimos cuando se informa de un incidente, cuando se actualiza y cuando se resuelve. Puede darse de baja con un clic.",
+    "email": "Correo electrónico",
+    "button": "Suscribirse",
+    "notice": {
+      "sent": "Revise su bandeja de entrada: le enviamos un enlace para confirmar la suscripción.",
+      "confirmed": "Está suscrito. Le escribiremos cuando haya un incidente.",
+      "removed": "Se ha dado de baja. No recibirá más correos de esta página."
+    }
+  },
+  "locked": {
+    "password": "Esta página de estado es privada. Introduzca la contraseña para verla.",
+    "network": "Esta página de estado es privada. Solo se abre desde la red de su propietario.",
+    "label": "Contraseña",
+    "open": "Abrir la página",
+    "wrong": "La contraseña no es correcta. Inténtelo de nuevo."
+  },
+  "language": "Idioma"
+}
