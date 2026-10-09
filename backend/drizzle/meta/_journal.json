@@ -337,6 +337,13 @@
       "when": 1791547160586,
       "tag": "0047_client_workspaces",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1791549288127,
+      "tag": "0048_private_status_pages",
+      "breakpoints": true
     }
   ]
 }

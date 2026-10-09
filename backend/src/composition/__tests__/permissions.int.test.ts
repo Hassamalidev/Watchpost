@@ -235,6 +235,7 @@ describe("workspace route permissions", () => {
         "PUT /incidents/:incidentRef/postmortem → incident:write",
         "PUT /me/notification-rules/:urgency → contact:manage",
         "PUT /reports/schedules/:scheduleId → settings:update",
+        "PUT /status-pages/:pageId/access → statusPage:write",
         "PUT /status-pages/:pageId/components → statusPage:write",
         "PUT /status-pages/:pageId/domain → statusPage:write",
       ]

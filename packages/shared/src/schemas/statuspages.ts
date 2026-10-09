@@ -137,6 +137,45 @@ export type StatusComponentInput = z.infer<typeof statusComponentInputSchema>;
  * A customer's own host name for a page: at least two labels, letters, digits and hyphens, no
  * scheme, port or path. Lowercased.
  */
+/* Who may open a page: everyone, people with the password, or visitors from listed networks. */
+export const STATUS_VISIBILITIES = ["public", "password", "ip_allowlist"] as const;
+export type StatusVisibility = (typeof STATUS_VISIBILITIES)[number];
+export const STATUS_ALLOWED_IPS_MAX = 50;
+
+/* An address or a network in CIDR form, IPv4 or IPv6. The server checks it again, strictly. */
+export function looksLikeIpOrCidr(value: string): boolean {
+  const [address = "", prefix, ...rest] = value.split("/");
+  if (rest.length > 0) return false;
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(address);
+  const isV4 = v4 !== null && v4.slice(1).every((part) => Number(part) <= 255);
+  const isV6 = !isV4 && address.includes(":") && /^[0-9a-f:.]{2,45}$/i.test(address);
+  if (!isV4 && !isV6) return false;
+  if (prefix === undefined) return true;
+  return /^\d{1,3}$/.test(prefix) && Number(prefix) <= (isV4 ? 32 : 128);
+}
+
+export const setStatusAccessSchema = z
+  .object({
+    visibility: z.enum(STATUS_VISIBILITIES),
+    /* A new password; leave out to keep the one the page has. Never sent back. */
+    password: z.string().min(8).max(200).optional(),
+    allowedIps: z
+      .array(
+        z
+          .string()
+          .trim()
+          .toLowerCase()
+          .max(49)
+          .refine(looksLikeIpOrCidr, "must be an IP address or a network like 203.0.113.0/24"),
+      )
+      .max(STATUS_ALLOWED_IPS_MAX)
+      .optional(),
+  })
+  .strict();
+export type SetStatusAccessInput = z.infer<typeof setStatusAccessSchema>;
+
+export const unlockStatusPageSchema = z.object({ password: z.string().min(1).max(200) });
+
 export const customDomainSchema = z
   .string()
   .trim()
@@ -329,6 +368,10 @@ export interface StatusPageView {
   /* Where the page is served. */
   url: string;
   published: boolean;
+  /* Who may open the page. The password itself is never sent back. */
+  visibility: StatusVisibility;
+  hasPassword: boolean;
+  allowedIps: string[];
   branding: StatusBranding;
   settings: StatusPageSettings;
   components: StatusComponentView[];
@@ -403,6 +446,13 @@ export interface PublicMaintenance {
   startsAt: string | null;
   endsAt: string | null;
   components: string[];
+}
+
+/* What a visitor without access gets from a private page: enough to show who it belongs to. */
+export interface PublicStatusLocked {
+  /* What would open it: the page's password, or coming from one of its networks. */
+  locked: Exclude<StatusVisibility, "public">;
+  page: { name: string; slug: string; url: string; branding: StatusBranding };
 }
 
 /* Everything the public page shows; also the page's JSON API. */

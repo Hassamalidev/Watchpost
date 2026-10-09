@@ -17,11 +17,13 @@ import {
   postUpdateBody,
   publicRefParams,
   replaceComponentsBody,
+  setAccessBody,
   setDomainBody,
   subscribeBody,
   subscriberIdParams,
   subscriptionTokenQuery,
   tlsAskQuery,
+  unlockBody,
   updateIncidentBody,
   updatePageBody,
 } from "./validators/index.js";
@@ -61,6 +63,12 @@ export function createStatuspagesRouter(
     controller.setDomain,
   );
   router.post("/status-pages/:pageId/domain/verify", write, page, controller.verifyDomain);
+  router.put(
+    "/status-pages/:pageId/access",
+    write,
+    validate({ params: pageIdParams, body: setAccessBody }),
+    controller.setAccess,
+  );
   router.post(
     "/status-pages/:pageId/drafts",
     write,
@@ -121,9 +129,20 @@ export function createInternalTlsRouter(controller: StatuspagesController): Rout
   return router;
 }
 
-export function createPublicStatusRouter(controller: StatuspagesController): Router {
+export function createPublicStatusRouter(
+  controller: StatuspagesController,
+  /* Slows down guessing a page's password. */
+  unlockLimit: RequestHandler,
+): Router {
   const router = Router();
   const ref = validate({ params: publicRefParams });
+  router.post(
+    "/:ref/unlock",
+    unlockLimit,
+    urlencoded({ extended: false, limit: "10kb" }),
+    validate({ params: publicRefParams, body: unlockBody }),
+    controller.unlock,
+  );
   router.get("/:ref", ref, controller.publicPage);
   router.get("/:ref/rss", ref, controller.publicRss);
   router.get("/:ref/atom", ref, controller.publicAtom);

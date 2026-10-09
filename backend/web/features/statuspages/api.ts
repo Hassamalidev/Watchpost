@@ -12,6 +12,7 @@ import type {
   StatusComponentInput,
   StatusIncidentView,
   StatusPageSettings,
+  SetStatusAccessInput,
   StatusPageView,
   StatusSubscribersView,
 } from "@app/shared";
@@ -64,6 +65,11 @@ export const statusPagesApi = {
     api<StatusPageView>(wsPath(ws, `/status-pages/${id}/domain`), {
       method: "PUT",
       body: { domain },
+    }),
+  setAccess: (ws: string, id: string, access: SetStatusAccessInput) =>
+    api<StatusPageView>(wsPath(ws, `/status-pages/${id}/access`), {
+      method: "PUT",
+      body: access,
     }),
   verifyDomain: (ws: string, id: string) =>
     api<StatusPageView>(wsPath(ws, `/status-pages/${id}/domain/verify`), {

@@ -166,6 +166,9 @@ export function createStatuspagesRepository(db: DbOrTx) {
             | "domainCheckedAt"
             | "domainError"
             | "domainFailingSince"
+            | "visibility"
+            | "passwordHash"
+            | "allowedIps"
           >
       >,
     ): Promise<StatusPageRow | undefined> {

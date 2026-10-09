@@ -1,9 +1,11 @@
 /* HTTP in and out only; no business logic. */
 import type { RequestHandler } from "express";
-import { NotFoundError } from "../../core/errors.js";
+import { NotFoundError, UnauthorizedError } from "../../core/errors.js";
 import { inputOf } from "../../middleware/validate.js";
 import { scopeOf } from "../../middleware/workspace.js";
-import type { PublicRef, StatuspagesService } from "./statuspages.service.js";
+import { timingSafeEqual } from "node:crypto";
+import { parseCookies } from "./access.js";
+import type { PublicRef, StatusVisitor, StatuspagesService } from "./statuspages.service.js";
 import type {
   createIncidentBody,
   createPageBody,
@@ -13,11 +15,13 @@ import type {
   postUpdateBody,
   publicRefParams,
   replaceComponentsBody,
+  setAccessBody,
   setDomainBody,
   subscribeBody,
   subscriberIdParams,
   subscriptionTokenQuery,
   tlsAskQuery,
+  unlockBody,
   updateIncidentBody,
   updatePageBody,
 } from "./validators/index.js";
@@ -44,6 +48,8 @@ export type StatuspagesController = Record<
   | "unsubscribeOneClick"
   | "setDomain"
   | "verifyDomain"
+  | "setAccess"
+  | "unlock"
   | "tlsAsk"
   | "publicPage"
   | "publicRss"
@@ -71,8 +77,20 @@ function pageAddress(referer: string | undefined): string | undefined {
 
 /* Shared caches may keep a public answer for a few seconds; a change is visible well within 10 s. */
 const PUBLIC_CACHE = "public, max-age=5";
+/* A private page's answer belongs to one visitor: nothing in between may keep it. */
+const PRIVATE_CACHE = "private, no-store";
+/*
+ * The web app renders pages on the server, so a request for a private page comes from it and not
+ * from the visitor. It proves itself with the secret both sides already share and says who the
+ * visitor is; the visitor's cookies it passes on as they are.
+ */
+export const WEB_SECRET_HEADER = "x-status-web-secret";
+export const VISITOR_IP_HEADER = "x-status-visitor-ip";
 
-export function createStatuspagesController(service: StatuspagesService): StatuspagesController {
+export function createStatuspagesController(
+  service: StatuspagesService,
+  options: { webSecret?: string | undefined; secureCookies?: boolean } = {},
+): StatuspagesController {
   type Req = Parameters<RequestHandler>[0];
   type Res = Parameters<RequestHandler>[1];
   const pageOf = (req: Req, res: Res) =>
@@ -85,13 +103,25 @@ export function createStatuspagesController(service: StatuspagesService): Status
     return ref.includes(".") ? { host: ref } : { slug: ref };
   };
 
+  const fromWebApp = (req: Req): boolean => {
+    const given = Buffer.from(req.get(WEB_SECRET_HEADER) ?? "");
+    const expected = Buffer.from(options.webSecret ?? "");
+    return (
+      expected.length > 0 && given.length === expected.length && timingSafeEqual(given, expected)
+    );
+  };
+  const visitorOf = (req: Req): StatusVisitor => ({
+    ip: fromWebApp(req) ? req.get(VISITOR_IP_HEADER) : req.ip,
+    cookies: parseCookies(req.get("cookie")),
+  });
+
   const feed =
     (format: "rss" | "atom"): RequestHandler =>
     async (req, res) => {
-      const xml = await service.publicFeed(refOf(req, res), format);
+      const xml = await service.publicFeed(refOf(req, res), format, visitorOf(req));
       if (xml === undefined) throw new NotFoundError("Status page not found.");
       res
-        .set("cache-control", PUBLIC_CACHE)
+        .set("cache-control", PRIVATE_CACHE)
         .type(format === "rss" ? "application/rss+xml" : "application/atom+xml")
         .send(xml);
     };
@@ -167,7 +197,7 @@ export function createStatuspagesController(service: StatuspagesService): Status
      */
     subscribe: async (req, res) => {
       const { body } = inputOf<{ body: typeof subscribeBody }>(req, res);
-      const result = await service.subscribe(refOf(req, res), body.email);
+      const result = await service.subscribe(refOf(req, res), body.email, visitorOf(req));
       if (result === undefined) throw new NotFoundError("This page doesn't take subscribers.");
       if (req.is("application/x-www-form-urlencoded")) {
         /* Back to the address the form was on, when that is one of the page's own. */
@@ -219,6 +249,37 @@ export function createStatuspagesController(service: StatuspagesService): Status
       await service.unsubscribe(query.token);
       res.status(200).json({ status: "unsubscribed" });
     },
+    setAccess: async (req, res) => {
+      const { body } = inputOf<{ body: typeof setAccessBody }>(req, res);
+      res.json(await service.setAccess(scopeOf(req, res), pageOf(req, res), body));
+    },
+    /*
+     * The password form of a private page posts here without JavaScript and is sent back to the
+     * page, with the cookie that lets the browser in when the password was right.
+     */
+    unlock: async (req, res) => {
+      const { body } = inputOf<{ body: typeof unlockBody }>(req, res);
+      const result = await service.unlock(refOf(req, res), body.password);
+      if (result === undefined) throw new NotFoundError("Status page not found.");
+      if (result.cookie !== undefined) {
+        res.cookie(result.cookie.name, result.cookie.value, {
+          httpOnly: true,
+          sameSite: "lax",
+          secure: options.secureCookies === true,
+          path: "/",
+          maxAge: result.cookie.maxAgeSeconds * 1000,
+        });
+      }
+      res.set("cache-control", PRIVATE_CACHE);
+      if (req.is("application/x-www-form-urlencoded")) {
+        const from = pageAddress(req.get("referer"));
+        const back = result.addresses.find((address) => address === from) ?? result.pageUrl;
+        res.redirect(303, result.ok ? back : `${back}?unlock=wrong`);
+        return;
+      }
+      if (!result.ok) throw new UnauthorizedError("That password is not right.");
+      res.status(200).json({ status: "unlocked" });
+    },
     setDomain: async (req, res) => {
       const { body } = inputOf<{ body: typeof setDomainBody }>(req, res);
       res.json(await service.setDomain(scopeOf(req, res), pageOf(req, res), body.domain));
@@ -235,9 +296,13 @@ export function createStatuspagesController(service: StatuspagesService): Status
       res.status(200).json({ ok: true });
     },
     publicPage: async (req, res) => {
-      const page = await service.publicPage(refOf(req, res));
-      if (page === undefined) throw new NotFoundError("Status page not found.");
-      res.set("cache-control", PUBLIC_CACHE).json(page);
+      const answer = await service.publicAccess(refOf(req, res), visitorOf(req));
+      if (answer === undefined) throw new NotFoundError("Status page not found.");
+      if ("locked" in answer) {
+        res.status(401).set("cache-control", PRIVATE_CACHE).json(answer.locked);
+        return;
+      }
+      res.set("cache-control", answer.private ? PRIVATE_CACHE : PUBLIC_CACHE).json(answer.page);
     },
     publicRss: feed("rss"),
     publicAtom: feed("atom"),

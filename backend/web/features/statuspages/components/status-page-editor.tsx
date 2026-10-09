@@ -41,6 +41,7 @@ import {
   useStatusPage,
   useStatusPreview,
 } from "../api";
+import { AccessCard } from "./access-card";
 import { DomainCard } from "./domain-card";
 import { SubscribersCard } from "./subscribers-card";
 import { WidgetCard } from "./widget-card";
@@ -937,6 +938,18 @@ export function StatusPageEditor({ id }: { id: string }) {
               <WidgetCard page={data} />
             </CardContent>
           </Card>
+
+          {canEdit && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("access.title")}</CardTitle>
+                <CardDescription>{t("access.intro")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AccessCard ws={ws} page={data} />
+              </CardContent>
+            </Card>
+          )}
 
           {canEdit && (
             <Card>

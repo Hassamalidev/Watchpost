@@ -21,7 +21,9 @@ import {
   type PublicMaintenance,
   type PublicStatusComponent,
   type PublicStatusIncident,
+  type PublicStatusLocked,
   type PublicStatusPage,
+  type SetStatusAccessInput,
   type StatusComponentInput,
   type StatusComponentView,
   type StatusIncidentView,
@@ -50,6 +52,16 @@ import type { MaintenanceService } from "../maintenance/index.js";
 import type { MonitorsService } from "../monitors/index.js";
 import { createHash, randomBytes } from "node:crypto";
 import type { DnsLookup } from "../../infra/dns.js";
+import {
+  ACCESS_PASS_SECONDS,
+  accessCookieName,
+  hashPagePassword,
+  ipAllowed,
+  issueAccessPass,
+  normalizeAllowedIp,
+  validAccessPass,
+  verifyPagePassword,
+} from "./access.js";
 import { checkDomain, isSameOrSubdomain } from "./domains.js";
 import { renderAtom, renderRss } from "./feeds.js";
 import type { StatuspagesRepository } from "./statuspages.repository.js";
@@ -137,6 +149,12 @@ export interface StatuspagesService {
   setDomain(scope: WorkspaceScope, id: string, domain: string | null): Promise<StatusPageView>;
   /* Looks at DNS now and says what it found. */
   verifyDomain(scope: WorkspaceScope, id: string): Promise<StatusPageView>;
+  /* Who may open the page: everyone, people with its password, or visitors from its networks. */
+  setAccess(
+    scope: WorkspaceScope,
+    id: string,
+    input: SetStatusAccessInput,
+  ): Promise<StatusPageView>;
   /* System (Caddy asks before getting a certificate): only verified domains of published pages. */
   servesHost(host: string): Promise<boolean>;
   /* System (sweep): looks at the domains that are due. Returns how many were looked at. */
@@ -162,7 +180,24 @@ export interface StatuspagesService {
   subscribe(
     ref: PublicRef,
     email: string,
+    visitor?: StatusVisitor,
   ): Promise<{ pageUrl: string; addresses: string[] } | undefined>;
+  /*
+   * Public: a visitor enters a private page's password. A right one comes with the cookie that
+   * lets their browser in from then on; undefined when there is no such password-protected page.
+   */
+  unlock(
+    ref: PublicRef,
+    password: string,
+  ): Promise<
+    | {
+        ok: boolean;
+        pageUrl: string;
+        addresses: string[];
+        cookie?: { name: string; value: string; maxAgeSeconds: number };
+      }
+    | undefined
+  >;
   /* Public: the link in the confirmation email. */
   confirmSubscription(token: string): Promise<SubscriptionOutcome>;
   /* Public: the unsubscribe link in every email; works once, whoever opens it. */
@@ -175,15 +210,35 @@ export interface StatuspagesService {
    * to pages that show that monitor. Returns what it did.
    */
   autoIncidents(monitorId?: string): Promise<{ opened: number; resolved: number }>;
-  /* Public: what a published page shows; undefined when there is no such page. */
+  /*
+   * Public: what a published page that anyone may open shows; undefined when there is no such
+   * page. A private page is not here: ask `publicAccess` with who is asking.
+   */
   publicPage(ref: PublicRef): Promise<PublicStatusPage | undefined>;
-  publicFeed(ref: PublicRef, format: "rss" | "atom"): Promise<string | undefined>;
+  /* Public: the page for this visitor, or what stands between them and a private page. */
+  publicAccess(
+    ref: PublicRef,
+    visitor: StatusVisitor,
+  ): Promise<
+    { page: PublicStatusPage; private: boolean } | { locked: PublicStatusLocked } | undefined
+  >;
+  publicFeed(
+    ref: PublicRef,
+    format: "rss" | "atom",
+    visitor?: StatusVisitor,
+  ): Promise<string | undefined>;
   /* System (events): the pages showing this monitor are refreshed. Returns how many. */
   onMonitorChanged(monitorId: string): Promise<number>;
   /* System (events): a deleted monitor's components stay, set by hand from now on. */
   onMonitorDeleted(monitorId: string): Promise<number>;
   /* System (events): an update went out on this page. */
   onUpdatePublished(statusPageId: string): Promise<void>;
+}
+
+/* Who is asking for a public page: where from, and the cookies their browser sent. */
+export interface StatusVisitor {
+  ip: string | undefined;
+  cookies: Record<string, string>;
 }
 
 export interface StatuspagesServiceDeps {
@@ -196,6 +251,8 @@ export interface StatuspagesServiceDeps {
   plan?:
     | ((scope: WorkspaceScope) => Promise<{ limits: PlanLimits; features: PlanFeatures }>)
     | undefined;
+  /* Signs the pass a visitor gets for a password-protected page. */
+  accessSecret: string;
   /* Tells the web app to drop cached pages with these tags. Never throws. */
   revalidate: (tags: string[]) => Promise<void>;
   outbox: Outbox;
@@ -239,6 +296,9 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
     slug: row.slug,
     url: urlOf(row),
     published: row.published,
+    visibility: row.visibility,
+    hasPassword: row.passwordHash !== null,
+    allowedIps: row.allowedIps,
     /* Parsed again so a page saved before a field existed still has every field. */
     branding: statusBrandingSchema.parse(row.branding),
     settings: statusPageSettingsSchema.parse(row.settings),
@@ -277,6 +337,35 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
     const row = await repo.findPage(tx, scope, id);
     if (row === undefined) throw new NotFoundError("Status page not found.");
     return row;
+  }
+
+  /* Every address the page answers at, the main one first. */
+  const addressesOf = (page: StatusPageRow) => [
+    ...new Set([
+      urlOf(page),
+      `${deps.webOrigin}/s/${page.slug}`,
+      ...(deps.baseDomain === undefined ? [] : [`https://${page.slug}.${deps.baseDomain}`]),
+    ]),
+  ];
+
+  /* What stands between this visitor and the page; undefined when nothing does. */
+  function lockOf(
+    page: StatusPageRow,
+    visitor: StatusVisitor | undefined,
+  ): PublicStatusLocked["locked"] | undefined {
+    if (page.visibility === "public") return undefined;
+    if (page.visibility === "password") {
+      const pass = visitor?.cookies[accessCookieName(page.id)];
+      const hash = page.passwordHash;
+      const let_in =
+        pass !== undefined &&
+        hash !== null &&
+        validAccessPass(deps.accessSecret, { id: page.id, passwordHash: hash }, pass, clock.now());
+      return let_in ? undefined : "password";
+    }
+    return visitor?.ip !== undefined && ipAllowed(visitor.ip, page.allowedIps)
+      ? undefined
+      : "ip_allowlist";
   }
 
   async function viewOf(tx: DbOrTx, row: StatusPageRow): Promise<StatusPageView> {
@@ -1030,9 +1119,74 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
       }
     },
 
-    async subscribe(ref, email) {
+    async setAccess(scope, id, input) {
+      const before = await mustFindPage(deps.db, scope, id);
+      if (input.visibility !== "public") {
+        const plan = await deps.plan?.(scope);
+        if (plan !== undefined && !plan.features.privateStatusPages) {
+          throw new QuotaExceededError(
+            "Private status pages are part of the Business plan. Upgrade to limit who can open a page.",
+          );
+        }
+      }
+      const allowedIps =
+        input.allowedIps === undefined
+          ? before.allowedIps
+          : [
+              ...new Set(
+                input.allowedIps.map((entry) => {
+                  const normalized = normalizeAllowedIp(entry);
+                  if (normalized === undefined) {
+                    throw new ValidationError(
+                      `"${entry}" is not an IP address or a network like 203.0.113.0/24.`,
+                    );
+                  }
+                  return normalized;
+                }),
+              ),
+            ];
+      if (input.visibility === "ip_allowlist" && allowedIps.length === 0) {
+        throw new ValidationError("List at least one address or network that may open the page.");
+      }
+      const passwordHash =
+        input.password === undefined ? before.passwordHash : await hashPagePassword(input.password);
+      if (input.visibility === "password" && passwordHash === null) {
+        throw new ValidationError("Choose a password for the page.");
+      }
+      const row = await repo.updatePage(deps.db, scope, id, {
+        visibility: input.visibility,
+        passwordHash,
+        allowedIps,
+      });
+      if (row === undefined) throw new NotFoundError("Status page not found.");
+      await refresh(before, row);
+      return viewOf(deps.db, row);
+    },
+
+    async unlock(ref, password) {
       const page = await repo.findPublished(ref);
-      if (page === undefined) return undefined;
+      const hash = page?.passwordHash ?? null;
+      if (page === undefined || page.visibility !== "password" || hash === null) return undefined;
+      const answer = { pageUrl: urlOf(page), addresses: addressesOf(page) };
+      if (!(await verifyPagePassword(password, hash))) return { ok: false, ...answer };
+      return {
+        ok: true,
+        ...answer,
+        cookie: {
+          name: accessCookieName(page.id),
+          value: issueAccessPass(
+            deps.accessSecret,
+            { id: page.id, passwordHash: hash },
+            clock.now(),
+          ),
+          maxAgeSeconds: ACCESS_PASS_SECONDS,
+        },
+      };
+    },
+
+    async subscribe(ref, email, visitor) {
+      const page = await repo.findPublished(ref);
+      if (page === undefined || lockOf(page, visitor) !== undefined) return undefined;
       const settings = statusPageSettingsSchema.parse(page.settings);
       const limit = await subscriberLimit(page.workspaceId);
       if (!settings.subscribers || limit <= 0) return undefined;
@@ -1058,13 +1212,7 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
         });
         if (created !== undefined) await sendConfirmation(tx, page, created);
       });
-      /* Every address the page answers at, the main one first. */
-      const addresses = [
-        urlOf(page),
-        `${deps.webOrigin}/s/${page.slug}`,
-        ...(deps.baseDomain === undefined ? [] : [`https://${page.slug}.${deps.baseDomain}`]),
-      ];
-      return { pageUrl: urlOf(page), addresses: [...new Set(addresses)] };
+      return { pageUrl: urlOf(page), addresses: addressesOf(page) };
     },
 
     async confirmSubscription(token) {
@@ -1285,12 +1433,36 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
 
     async publicPage(ref) {
       const page = await repo.findPublished(ref);
-      return page === undefined ? undefined : snapshot(page, true);
+      return page === undefined || page.visibility !== "public" ? undefined : snapshot(page, true);
     },
 
-    async publicFeed(ref, format) {
-      const page = await service.publicPage(ref);
+    async publicAccess(ref, visitor) {
+      const page = await repo.findPublished(ref);
       if (page === undefined) return undefined;
+      const locked = lockOf(page, visitor);
+      if (locked !== undefined) {
+        return {
+          locked: {
+            locked,
+            page: {
+              name: page.name,
+              slug: page.slug,
+              url: urlOf(page),
+              branding: statusBrandingSchema.parse(page.branding),
+            },
+          },
+        };
+      }
+      return { page: await snapshot(page, true), private: page.visibility !== "public" };
+    },
+
+    async publicFeed(ref, format, visitor) {
+      const answer =
+        visitor === undefined
+          ? await service.publicPage(ref)
+          : await service.publicAccess(ref, visitor);
+      if (answer === undefined || "locked" in answer) return undefined;
+      const page = "private" in answer ? answer.page : answer;
       return format === "rss"
         ? renderRss(page)
         : renderAtom(page, `${deps.webOrigin}/api/public/status/${page.page.slug}/atom`);

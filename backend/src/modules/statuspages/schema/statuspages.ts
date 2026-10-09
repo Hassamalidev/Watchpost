@@ -9,6 +9,7 @@ import type {
   StatusImpact,
   StatusIncidentStatus,
   StatusPageSettings,
+  StatusVisibility,
 } from "@app/shared";
 import { sql } from "drizzle-orm";
 import {
@@ -44,8 +45,12 @@ export const statusPages = pgTable(
     /* Since when a verified domain has stopped pointing at us; a week of that un-verifies it. */
     domainFailingSince: timestamp("domain_failing_since", { withTimezone: true }),
     branding: jsonb("branding").$type<StatusBranding>().notNull(),
-    /* "public" for now; password, SSO and IP allowlist come with private pages (P7). */
-    visibility: text("visibility").$type<"public">().notNull().default("public"),
+    /* Who may open the page (§6.6): everyone, people with the password, or listed networks. */
+    visibility: text("visibility").$type<StatusVisibility>().notNull().default("public"),
+    /* scrypt, never the password; kept when the page is switched to another kind of access. */
+    passwordHash: text("password_hash"),
+    /* Addresses and CIDR networks allowed in when visibility is "ip_allowlist". */
+    allowedIps: jsonb("allowed_ips").$type<string[]>().notNull().default([]),
     settings: jsonb("settings").$type<StatusPageSettings>().notNull(),
     /* Off hides the page from the public; the team still sees it in the app. */
     published: boolean("published").notNull().default(true),

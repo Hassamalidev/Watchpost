@@ -17,13 +17,17 @@ import {
   createStatuspagesRouter,
   createSubscriptionLinksRouter,
 } from "./statuspages.routes.js";
+import { createRateLimiter } from "../../middleware/rate-limit.js";
 import { statuspagesPublicRoutes } from "./statuspages.public.js";
 import { createStatuspagesService, type StatuspagesService } from "./statuspages.service.js";
 
 export { statusPageTag, type PublicRef, type StatuspagesService } from "./statuspages.service.js";
 
 export interface StatuspagesModuleDeps {
-  infra: Pick<Infra, "db" | "outbox" | "clock" | "logger" | "config" | "revalidate" | "dns">;
+  infra: Pick<
+    Infra,
+    "db" | "outbox" | "clock" | "logger" | "config" | "revalidate" | "dns" | "redis"
+  >;
   monitors: Pick<MonitorsService, "get" | "getForDetection">;
   detection: Pick<DetectionService, "states" | "uptimeDays" | "uptime">;
   maintenance: Pick<MaintenanceService, "list">;
@@ -51,6 +55,7 @@ export function createStatuspagesModule(deps: StatuspagesModuleDeps): Statuspage
     maintenance: deps.maintenance,
     plan: deps.plan,
     revalidate: deps.infra.revalidate,
+    accessSecret: config.auth.secret,
     outbox: deps.infra.outbox,
     clock: deps.infra.clock,
     logger: deps.infra.logger,
@@ -61,14 +66,25 @@ export function createStatuspagesModule(deps: StatuspagesModuleDeps): Statuspage
     dns: deps.infra.dns,
     ai: deps.ai,
   });
-  const controller = createStatuspagesController(service);
+  const controller = createStatuspagesController(service, {
+    webSecret: config.statusPages.revalidate?.secret,
+    secureCookies: config.webOrigin.startsWith("https://"),
+  });
+  /* Ten tries in ten minutes per visitor and page. */
+  const unlockLimit = createRateLimiter({
+    name: "status-unlock",
+    redis: deps.infra.redis,
+    windowMs: 10 * 60_000,
+    limit: 10,
+    keyOf: (req) => `${req.ip ?? "unknown"}:${String(req.params.ref).toLowerCase()}`,
+  });
   return {
     name: "statuspages",
     service,
     publicRoutes: statuspagesPublicRoutes(service),
     routers: [
       { path: "/api/w/:workspaceId", router: createStatuspagesRouter(controller, deps.guards) },
-      { path: "/api/public/status", router: createPublicStatusRouter(controller) },
+      { path: "/api/public/status", router: createPublicStatusRouter(controller, unlockLimit) },
       {
         path: "/api/public/status-subscriptions",
         router: createSubscriptionLinksRouter(controller),

@@ -2119,6 +2119,13 @@
         "confirmed": "You are subscribed. We will email you when there is an incident.",
         "removed": "You are unsubscribed. You won't get more emails from this page."
       }
+    },
+    "locked": {
+      "password": "This status page is private. Enter its password to see it.",
+      "network": "This status page is private. It can be opened only from its owner's network.",
+      "label": "Password",
+      "open": "Open the page",
+      "wrong": "That password is not right. Try again."
     }
   },
   "statusPages": {
@@ -2263,6 +2270,26 @@
       "alt": "Current status of {name}",
       "html": "HTML",
       "markdown": "Markdown"
+    },
+    "access": {
+      "title": "Who can open this page",
+      "intro": "Keep the page for people who know its password, or for visitors from your own networks. Feeds, the subscribe form and the embeddable widget follow the same rule. Part of the Business plan.",
+      "who": "Open to",
+      "options": {
+        "public": "Everyone",
+        "password": "People who know the password",
+        "ip_allowlist": "Visitors from listed networks"
+      },
+      "password": "Page password",
+      "passwordHint": "At least 8 characters. Visitors enter it once a month per browser.",
+      "passwordKeepHint": "Leave empty to keep the current password. A new one signs every visitor out.",
+      "ips": "Allowed addresses and networks",
+      "ipsHint": "One per line: an IP address, or a network like 203.0.113.0/24. IPv6 works too.",
+      "saved": {
+        "public": "Saved. Everyone can open this page.",
+        "password": "Saved. Visitors need the password.",
+        "ip_allowlist": "Saved. Only the listed networks can open this page."
+      }
     }
   },
   "reports": {
