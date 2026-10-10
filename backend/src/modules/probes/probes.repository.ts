@@ -1,4 +1,5 @@
 /* Queries on probes and probe_tasks, owned by the probes module. */
+import type { ProbeTaskKind } from "@app/shared";
 import { and, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { assertWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
 import type { DbOrTx } from "../../infra/db/index.js";
@@ -145,16 +146,21 @@ export function createProbesRepository(db: DbOrTx) {
     /* Atomically claims up to `limit` unexpired, unclaimed tasks for a probe. */
     async claimTasks(
       probeId: string,
-      filter: { region: string; workspaceId: string | null },
+      filter: { region: string; workspaceId: string | null; kinds: readonly ProbeTaskKind[] },
       limit: number,
     ): Promise<ProbeTaskRow[]> {
+      const kinds = sql.join(
+        filter.kinds.map((kind) => sql`${kind}`),
+        sql`, `,
+      );
       const workspaceFilter =
         filter.workspaceId === null ? sql`` : sql`and workspace_id = ${filter.workspaceId}`;
       const result = await db.execute<Record<string, unknown>>(sql`
         update ${probeTasks} set claimed_by = ${probeId}, claimed_at = now()
         where id in (
           select id from ${probeTasks}
-          where claimed_by is null and region = ${filter.region} and expires_at > now() ${workspaceFilter}
+          where claimed_by is null and region = ${filter.region} and expires_at > now()
+            and kind in (${kinds}) ${workspaceFilter}
           order by created_at
           limit ${limit}
           for update skip locked
@@ -182,6 +188,27 @@ export function createProbesRepository(db: DbOrTx) {
             ),
           );
       }
+    },
+
+    /* Closes a diagnose task this probe claimed; undefined when it isn't one, or is done. */
+    async completeDiagnosis(
+      probeId: string,
+      taskId: string,
+      result: Record<string, unknown>,
+    ): Promise<ProbeTaskRow | undefined> {
+      const [row] = await db
+        .update(probeTasks)
+        .set({ completedAt: sql`now()`, result })
+        .where(
+          and(
+            eq(probeTasks.id, taskId),
+            eq(probeTasks.claimedBy, probeId),
+            eq(probeTasks.kind, "diagnose"),
+            isNull(probeTasks.completedAt),
+          ),
+        )
+        .returning();
+      return row;
     },
 
     async findTask(scope: WorkspaceScope, taskId: string): Promise<ProbeTaskRow | undefined> {

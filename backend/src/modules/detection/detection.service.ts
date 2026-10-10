@@ -5,6 +5,7 @@
  * monitor's state row, runs the pure engine (detection.engine.ts) and applies its decision in the
  * same transaction: status, incident, downtime, verification tasks and outbox events.
  */
+import { NETWORK_DIAGNOSTICS_EVENT, diagnosticsReportSchema } from "@app/shared";
 import {
   effectiveRecoverySuccesses,
   resultsBatchSchema,
@@ -74,6 +75,11 @@ export interface DetectionService {
   evaluateMonitor(monitorId: string): Promise<EvaluationOutcome | undefined>;
   /* Creates verification tasks (the delayed same-region re-check). */
   requestVerification(job: Extract<DetectionJob, { kind: "verify" }>): Promise<string[]>;
+  /*
+   * A probe reports what a diagnose task found. It goes on the timeline of the monitor's open
+   * incident; false when the task wasn't this probe's, or the incident is already over.
+   */
+  recordDiagnostics(probe: AuthenticatedProbe, body: unknown): Promise<{ recorded: boolean }>;
   /* Queues evaluations for results no evaluation has seen. Returns how many were queued. */
   sweep(): Promise<number>;
   state(monitorId: string): Promise<MonitorStateRow | undefined>;
@@ -143,11 +149,17 @@ export interface DetectionServiceDeps {
   >;
   probes: Pick<
     ProbesService,
-    "isAssigned" | "completeTasks" | "createTasks" | "healthyRegions" | "guard" | "servedRegions"
+    | "isAssigned"
+    | "completeTasks"
+    | "createTasks"
+    | "healthyRegions"
+    | "guard"
+    | "servedRegions"
+    | "completeDiagnosis"
   >;
   incidents: Pick<
     IncidentsService,
-    "openForMonitor" | "resolveForMonitor" | "setFlapping" | "findOpenForMonitor"
+    "openForMonitor" | "resolveForMonitor" | "setFlapping" | "findOpenForMonitor" | "addSystemEvent"
   >;
   outbox: Outbox;
   clock: Clock;
@@ -395,6 +407,23 @@ export function createDetectionService(deps: DetectionServiceDeps): DetectionSer
               : {}),
           });
           incidentId = opened.incident.id;
+          /*
+           * A new outage: each failing region is asked to trace the path and the name (P8-T04).
+           * Only probes that say they can are handed the task; it expires unclaimed otherwise.
+           */
+          if (
+            opened.created &&
+            monitor.target !== null &&
+            monitor.type !== "domain" &&
+            monitor.type !== "heartbeat"
+          ) {
+            await deps.probes.createTasks(tx, {
+              workspaceId: monitor.workspaceId,
+              monitorId,
+              kind: "diagnose",
+              regions: decision.failingRegions,
+            });
+          }
         }
         if (incidentId !== null && decision.flappingStarted) {
           await deps.incidents.setFlapping(tx, incidentId, true);
@@ -472,6 +501,21 @@ export function createDetectionService(deps: DetectionServiceDeps): DetectionSer
         });
       }
       return outcome;
+    },
+
+    async recordDiagnostics(probe, body) {
+      const parsed = diagnosticsReportSchema.safeParse(body);
+      if (!parsed.success) throw new ValidationError("The diagnostics report is invalid.");
+      const { taskId, diagnostics } = parsed.data;
+      const task = await deps.probes.completeDiagnosis(probe, taskId, diagnostics);
+      if (task === undefined) return { recorded: false };
+      const incident = await deps.incidents.findOpenForMonitor(deps.db, task.monitorId);
+      if (incident === undefined) return { recorded: false };
+      await deps.incidents.addSystemEvent(incident.id, NETWORK_DIAGNOSTICS_EVENT, {
+        region: task.region,
+        ...diagnostics,
+      });
+      return { recorded: true };
     },
 
     async requestVerification(job) {

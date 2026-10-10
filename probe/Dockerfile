@@ -15,7 +15,8 @@ RUN pnpm --filter @app/shared build && pnpm --filter @app/probe build \
   && cp -r probe/dist /out/dist
 
 FROM node:24-alpine
-RUN apk add --no-cache iputils-ping
+# tracepath traces the path to a failing target without special rights (network diagnostics).
+RUN apk add --no-cache iputils-ping iputils-tracepath
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /out /app

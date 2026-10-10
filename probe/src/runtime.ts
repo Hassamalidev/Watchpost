@@ -70,15 +70,16 @@ export function createProbeRuntime(options: ProbeRuntimeOptions): ProbeRuntime {
     now: Date.now,
     ...(options.timeScale ? { timeScale: options.timeScale } : {}),
   });
+  const policy = createAddressPolicy({
+    allowPrivate: config.mode === "private",
+    allowCidrs: config.allowCidrs,
+    denyHosts: config.denyHosts,
+  });
   const executor = createExecutor({
     region: config.region,
     concurrency: config.concurrency,
     runners: options.runners,
-    policy: createAddressPolicy({
-      allowPrivate: config.mode === "private",
-      allowCidrs: config.allowCidrs,
-      denyHosts: config.denyHosts,
-    }),
+    policy,
   });
   const reporter = createReporter({
     client,
@@ -95,6 +96,7 @@ export function createProbeRuntime(options: ProbeRuntimeOptions): ProbeRuntime {
     client,
     executor,
     report,
+    policy,
     logger: logger.child({ component: "tasks" }),
     ...(options.taskWaitSeconds !== undefined ? { waitSeconds: options.taskWaitSeconds } : {}),
   });

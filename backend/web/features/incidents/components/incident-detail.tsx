@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { NetworkDiagnosticsEvent } from "./network-diagnostics";
 import * as React from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -287,6 +288,7 @@ export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
                 "unsuppressed",
                 "ai_summary",
                 "postmortem_started",
+                "network_diagnostics",
               ] as const;
               const type = known.find((k) => k === event.type);
               return (
@@ -296,6 +298,9 @@ export function IncidentDetailView({ incidentRef }: { incidentRef: string }) {
                     {formatDateTime(event.at)}
                   </time>
                   {commentBody && <p className="whitespace-pre-wrap">{commentBody}</p>}
+                  {event.type === "network_diagnostics" && (
+                    <NetworkDiagnosticsEvent data={event.data} />
+                  )}
                 </li>
               );
             })}

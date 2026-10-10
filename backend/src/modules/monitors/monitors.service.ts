@@ -819,6 +819,13 @@ function targetOf(config: MonitorRow["config"] | MonitorConfig): string {
 /* The hostname a monitor checks, from its (secret-free) stored config. */
 function targetHostOf(config: MonitorRow["config"]): string | null {
   const c = config as Record<string, unknown>;
+  /* A multi-step check: where its first step goes. */
+  const first = Array.isArray(c.steps) ? (c.steps[0] as { url?: unknown } | undefined) : undefined;
+  if (typeof first?.url === "string") {
+    return (
+      /^https?:\/\/(\[[^\]]+\]|[^/?#:]+)/i.exec(first.url)?.[1]?.replace(/^\[|\]$/g, "") ?? null
+    );
+  }
   if (typeof c.url === "string") {
     try {
       return new URL(c.url).hostname;

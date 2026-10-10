@@ -312,7 +312,8 @@
       "suppressed": "Kept quiet: a monitor it depends on is down",
       "unsuppressed": "Announced: the monitor it depends on recovered",
       "ai_summary": "AI summary added",
-      "postmortem_started": "Postmortem started"
+      "postmortem_started": "Postmortem started",
+      "network_diagnostics": "Network traced from a failing region"
     },
     "suppressedBy": "No alerts were sent for this incident: a monitor it depends on is already down. See <link>{incident}</link>.",
     "statuses": {
@@ -378,6 +379,28 @@
       "savedAt": "Saved {time}.",
       "downloadMarkdown": "Download Markdown",
       "downloadPdf": "Download PDF"
+    },
+    "diagnostics": {
+      "summary": "{region}: path and DNS for {host}",
+      "reached": "target reached in {hops} hops",
+      "notReached": "the path stops before the target",
+      "pathTo": "Path to {address}",
+      "hop": "Hop",
+      "address": "Address",
+      "time": "Time",
+      "noReply": "no reply",
+      "ms": "{ms} ms",
+      "dnsFor": "How {name} resolves, from the root down",
+      "zone": "Zone",
+      "server": "Server asked",
+      "said": "What it said",
+      "dnsOutcome": {
+        "referral": "Referred on",
+        "answer": "Answered",
+        "nxdomain": "No such name",
+        "no_data": "No address record",
+        "error": "Failed"
+      }
     }
   },
   "integrations": {

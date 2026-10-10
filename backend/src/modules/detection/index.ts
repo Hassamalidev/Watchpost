@@ -171,6 +171,10 @@ export function createDetectionModule(deps: DetectionModuleDeps): DetectionModul
   probeRouter.post("/results", async (req, res) => {
     res.status(202).json(await service.ingest(probeOf(res), req.body));
   });
+  /* POST /api/probe/v1/diagnostics: what a probe found when asked to trace a failing target. */
+  probeRouter.post("/diagnostics", async (req, res) => {
+    res.status(202).json(await service.recordDiagnostics(probeOf(res), req.body));
+  });
   return {
     name: "detection",
     service,

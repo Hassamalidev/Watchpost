@@ -3,6 +3,7 @@
  * feed filtered to what a probe may run; tasks (verification, "Test now") are claimed atomically and
  * delivered through the long-poll, woken by NOTIFY.
  */
+import type { ProbeTaskKind } from "@app/shared";
 import { randomBytes } from "node:crypto";
 import {
   LAUNCH_REGIONS,
@@ -52,7 +53,7 @@ const AUTH_CACHE_MS = 30_000;
 export interface ProbeTaskView {
   id: string;
   region: string;
-  kind: "verify" | "test";
+  kind: ProbeTaskKind;
   status: "pending" | "running" | "completed" | "expired";
   result: Record<string, unknown> | null;
 }
@@ -79,11 +80,25 @@ export interface ProbesService {
   isAssigned(probe: AuthenticatedProbe, monitor: MonitorForProbe): boolean;
   createTasks(
     tx: DbOrTx,
-    input: { workspaceId: string; monitorId: string; kind: "verify" | "test"; regions: string[] },
+    input: { workspaceId: string; monitorId: string; kind: ProbeTaskKind; regions: string[] },
   ): Promise<string[]>;
   testNow(scope: WorkspaceScope, monitorId: string): Promise<ProbeTaskView[]>;
   getTask(scope: WorkspaceScope, taskId: string): Promise<ProbeTaskView>;
-  pollTasks(probe: AuthenticatedProbe, waitSeconds: number): Promise<ProbeTask[]>;
+  /* `kinds` is what the probe says it can run; verify and test when it doesn't say. */
+  pollTasks(
+    probe: AuthenticatedProbe,
+    waitSeconds: number,
+    kinds?: readonly ProbeTaskKind[],
+  ): Promise<ProbeTask[]>;
+  /*
+   * A probe hands in what a diagnose task found. Answers the task's monitor and region, or
+   * undefined when the task isn't this probe's to close.
+   */
+  completeDiagnosis(
+    probe: AuthenticatedProbe,
+    taskId: string,
+    result: Record<string, unknown>,
+  ): Promise<{ monitorId: string; workspaceId: string; region: string } | undefined>;
   completeTasks(tx: DbOrTx, probeId: string, results: CheckResult[]): Promise<void>;
   /* Of `regions`, those with a healthy probe that may run this workspace's monitors. */
   healthyRegions(input: { regions: string[]; workspaceId: string }): Promise<string[]>;
@@ -197,7 +212,7 @@ export function createProbesService(deps: {
   const view = (row: {
     id: string;
     region: string;
-    kind: "verify" | "test";
+    kind: ProbeTaskKind;
     claimedBy: string | null;
     completedAt: Date | null;
     expiresAt: Date;
@@ -304,9 +319,9 @@ export function createProbesService(deps: {
       for (const region of input.regions) {
         const id = deps.newId();
         const dedupeKey =
-          input.kind === "verify"
-            ? `verify:${input.monitorId}:${region}:${Math.floor(now / VERIFY_WINDOW_MS)}`
-            : `test:${id}`;
+          input.kind === "test"
+            ? `test:${id}`
+            : `${input.kind}:${input.monitorId}:${region}:${Math.floor(now / VERIFY_WINDOW_MS)}`;
         const created = await repo.insertTask(
           tx,
           {
@@ -421,10 +436,18 @@ export function createProbesService(deps: {
       return view(row);
     },
 
-    async pollTasks(probe, waitSeconds) {
+    async completeDiagnosis(probe, taskId, result) {
+      const row = await repo.completeDiagnosis(probe.id, taskId, result);
+      return row === undefined
+        ? undefined
+        : { monitorId: row.monitorId, workspaceId: row.workspaceId, region: row.region };
+    },
+
+    async pollTasks(probe, waitSeconds, kinds = ["verify", "test"]) {
       const filter = {
         region: probe.region,
         workspaceId: probe.kind === "private" ? probe.workspaceId : null,
+        kinds,
       };
       const deadline = Date.now() + waitSeconds * 1_000;
       for (;;) {

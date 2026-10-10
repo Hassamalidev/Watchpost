@@ -2,6 +2,7 @@
  * Tables owned by the probes module (PRODUCT.md §7.4, §8): the probe registry and on-demand tasks
  * (cross-region verification and "Test now").
  */
+import type { ProbeTaskKind } from "@app/shared";
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -42,7 +43,7 @@ export const probeTasks = pgTable(
     workspaceId: uuid("workspace_id").notNull(),
     monitorId: uuid("monitor_id").notNull(),
     region: text("region").notNull(),
-    kind: text("kind").$type<"verify" | "test">().notNull(),
+    kind: text("kind").$type<ProbeTaskKind>().notNull(),
     /* Dedupe key per monitor/region/kind/window (§9.2: one verification per window). */
     dedupeKey: text("dedupe_key").notNull(),
     claimedBy: uuid("claimed_by"),

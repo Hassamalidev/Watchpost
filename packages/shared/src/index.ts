@@ -587,3 +587,17 @@ export {
   templateVariables,
   type MultistepStep,
 } from "./schemas/monitors.js";
+export {
+  DNS_TRACE_OUTCOMES,
+  NETWORK_DIAGNOSTICS_EVENT,
+  diagnosticHostOf,
+  diagnosticsReportSchema,
+  dnsTraceSchema,
+  networkDiagnosticsSchema,
+  tracerouteSchema,
+  type DnsTrace,
+  type NetworkDiagnostics,
+  type NetworkDiagnosticsEvent,
+  type Traceroute,
+} from "./schemas/diagnostics.js";
+export { PROBE_TASK_KINDS, type ProbeTaskKind } from "./schemas/probe-protocol.js";

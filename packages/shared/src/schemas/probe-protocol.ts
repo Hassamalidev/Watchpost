@@ -81,9 +81,17 @@ export const resultsAcceptedSchema = z.object({
   duplicates: z.number().int().min(0),
 });
 
+/*
+ * verify and test run the monitor's check at once. diagnose traces the network instead (P8-T04);
+ * a probe gets those only when it says it can run them, so older probes are never sent one.
+ */
+export const PROBE_TASK_KINDS = ["verify", "test", "diagnose"] as const;
+export type ProbeTaskKind = (typeof PROBE_TASK_KINDS)[number];
+const DEFAULT_TASK_KINDS: ProbeTaskKind[] = ["verify", "test"];
+
 export const probeTaskSchema = z.object({
   id: z.uuid(),
-  kind: z.enum(["verify", "test"]),
+  kind: z.enum(PROBE_TASK_KINDS),
   monitor: assignedMonitorSchema,
   /* The probe drops a task it can't start before this time. */
   deadline: z.iso.datetime({ offset: true }),
@@ -91,6 +99,16 @@ export const probeTaskSchema = z.object({
 
 export const tasksQuerySchema = z.object({
   wait: z.coerce.number().int().min(0).max(30).default(25),
+  /* The kinds of task this probe runs, comma-separated; verify and test when left out. */
+  kinds: z
+    .string()
+    .max(100)
+    .optional()
+    .transform((value): ProbeTaskKind[] => {
+      if (value === undefined) return DEFAULT_TASK_KINDS;
+      const asked = PROBE_TASK_KINDS.filter((kind) => value.split(",").includes(kind));
+      return asked.length > 0 ? asked : DEFAULT_TASK_KINDS;
+    }),
 });
 
 export const tasksResponseSchema = z.object({ tasks: z.array(probeTaskSchema) });

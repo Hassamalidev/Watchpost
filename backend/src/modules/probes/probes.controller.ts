@@ -42,7 +42,7 @@ export function createProbesController(service: ProbesService): ProbesController
     },
     tasks: async (req, res) => {
       const query = parse(tasksQuerySchema, req.query);
-      res.json({ tasks: await service.pollTasks(probeOf(res), query.wait) });
+      res.json({ tasks: await service.pollTasks(probeOf(res), query.wait, query.kinds) });
     },
     heartbeat: async (req, res) => {
       await service.heartbeat(probeOf(res), parse(probeHeartbeatSchema, req.body));
