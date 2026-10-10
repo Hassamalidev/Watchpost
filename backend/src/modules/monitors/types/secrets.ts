@@ -21,6 +21,8 @@ export interface MonitorSecrets {
   password?: string;
   /* Lower-cased header name → value. */
   headers?: Record<string, string>;
+  /* A multi-step check's named secrets. */
+  variables?: Record<string, string>;
 }
 
 type HeaderList = Array<{ name: string; value: string }>;
@@ -50,6 +52,12 @@ export function extractSecrets(config: MonitorConfig): {
     secrets.password = copy.password;
     copy.password = MASKED;
   }
+  if (copy.type === "multistep") {
+    for (const secret of copy.secrets) {
+      (secrets.variables ??= {})[secret.name] = secret.value;
+      secret.value = MASKED;
+    }
+  }
   const headers = headersOf(copy);
   if (headers !== undefined) {
     for (const header of headers) {
@@ -62,6 +70,7 @@ export function extractSecrets(config: MonitorConfig): {
     secrets.authPassword !== undefined ||
     secrets.authToken !== undefined ||
     secrets.password !== undefined ||
+    (secrets.variables !== undefined && Object.keys(secrets.variables).length > 0) ||
     (secrets.headers !== undefined && Object.keys(secrets.headers).length > 0);
   return { config: copy, secrets: hasSecrets ? secrets : null };
 }
@@ -88,6 +97,12 @@ export function applySecrets(config: MonitorConfig, secrets: MonitorSecrets | nu
   if ("password" in copy && copy.password === MASKED && secrets.password !== undefined) {
     copy.password = secrets.password;
   }
+  if (copy.type === "multistep" && secrets.variables !== undefined) {
+    for (const secret of copy.secrets) {
+      const stored = secrets.variables[secret.name];
+      if (secret.value === MASKED && stored !== undefined) secret.value = stored;
+    }
+  }
   const headers = headersOf(copy);
   if (headers !== undefined && secrets.headers !== undefined) {
     for (const header of headers) {
@@ -105,5 +120,6 @@ export function hasUnresolvedMask(config: MonitorConfig): boolean {
     if (config.auth.kind === "bearer" && config.auth.token === MASKED) return true;
   }
   if ("password" in config && config.password === MASKED) return true;
+  if (config.type === "multistep" && config.secrets.some((s) => s.value === MASKED)) return true;
   return (headersOf(config) ?? []).some((h) => h.value === MASKED);
 }

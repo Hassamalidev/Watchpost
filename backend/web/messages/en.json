@@ -212,7 +212,8 @@
       "heartbeat": "Heartbeat",
       "redis": "Redis",
       "mqtt": "MQTT broker",
-      "grpc": "gRPC health"
+      "grpc": "gRPC health",
+      "multistep": "Multi-step API"
     },
     "severities": {
       "critical": "Critical",
@@ -270,7 +271,11 @@
     "grpcServiceHint": "Leave empty to ask about the server as a whole.",
     "serviceUsername": "Username (optional)",
     "servicePassword": "Password (optional)",
-    "servicePasswordHint": "Stored encrypted and never shown again."
+    "servicePasswordHint": "Stored encrypted and never shown again.",
+    "steps": "Steps (JSON)",
+    "stepsHint": "Requests run in order; the first one that fails ends the check and is named in the alert. Each step has a name and a url, and may have method, headers, body, acceptedStatusCodes, extract (take a value from the JSON body with a JSONata expression, or from a header with \"from\": \"header\") and assertions (expression, operator, expected). Later steps use an extracted value or a secret as {{name}}. The host of every url is written out in full.",
+    "stepSecrets": "Secrets",
+    "stepSecretsHint": "One per line, as name=value. Use them in steps as {{name}}. Stored encrypted and never shown again; a line left as name=******** keeps the saved value."
   },
   "incidents": {
     "title": "Incidents",

@@ -67,3 +67,41 @@ describe("monitor secrets", () => {
     expect(hasUnresolvedMask(http)).toBe(false);
   });
 });
+
+describe("multi-step secrets", () => {
+  const multistep = monitorConfigSchema.parse({
+    type: "multistep",
+    secrets: [
+      { name: "password", value: "hunter2-pass" },
+      { name: "apiKey", value: "key-abc-123" },
+    ],
+    steps: [
+      {
+        name: "Sign in",
+        url: "https://api.example.com/login",
+        method: "POST",
+        headers: [{ name: "X-Api-Key", value: "{{apiKey}}" }],
+        body: '{"password":"{{password}}"}',
+      },
+    ],
+  });
+
+  it("masks the named secrets and nothing else, and puts them back", () => {
+    const { config, secrets } = extractSecrets(multistep);
+    const text = JSON.stringify(config);
+    expect(text).not.toContain("hunter2-pass");
+    expect(text).not.toContain("key-abc-123");
+    /* The references stay readable: they say where a secret is used, not what it is. */
+    expect(text).toContain("{{apiKey}}");
+    expect(secrets).toEqual({ variables: { password: "hunter2-pass", apiKey: "key-abc-123" } });
+    expect(hasUnresolvedMask(config)).toBe(true);
+    expect(applySecrets(config, secrets)).toEqual(multistep);
+    expect(hasUnresolvedMask(applySecrets(config, secrets))).toBe(false);
+  });
+
+  it("leaves a mask in place for a secret it has no value for", () => {
+    const { config } = extractSecrets(multistep);
+    const partial = applySecrets(config, { variables: { password: "hunter2-pass" } });
+    expect(hasUnresolvedMask(partial)).toBe(true);
+  });
+});

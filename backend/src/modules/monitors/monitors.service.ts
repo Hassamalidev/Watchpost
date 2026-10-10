@@ -798,6 +798,14 @@ export function createMonitorsService(deps: MonitorsServiceDeps): MonitorsServic
 /* Where a monitor sends its requests: the URL's origin, or host and port. */
 function targetOf(config: MonitorRow["config"] | MonitorConfig): string {
   const c = config as Record<string, unknown>;
+  /* A multi-step check goes to every server its steps name. */
+  if (Array.isArray(c.steps)) {
+    const origins = (c.steps as Array<{ url?: unknown }>).map((step) => {
+      const url = typeof step.url === "string" ? step.url : "";
+      return /^https?:\/\/[^/?#]+/i.exec(url)?.[0].toLowerCase() ?? url;
+    });
+    return [...new Set(origins)].sort().join(" ");
+  }
   if (typeof c.url === "string") {
     try {
       return new URL(c.url).origin;

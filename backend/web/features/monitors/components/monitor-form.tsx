@@ -21,7 +21,7 @@ import { usePrivateProbes } from "@/features/settings/private-probes";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
-import { Input, Select } from "@/components/ui/input";
+import { Input, Select, Textarea } from "@/components/ui/input";
 import { ApiError, errorMessage } from "@/lib/api";
 import { workspaceHref } from "@/lib/navigation";
 import { monitorsApi, type CreateMonitorBody, type Monitor } from "../api";
@@ -30,6 +30,7 @@ import { monitorKeys, useCreateMonitor, useMonitorGroups, useMonitors } from "..
 const FORM_TYPES = [
   "http",
   "keyword",
+  "multistep",
   "tcp",
   "ping",
   "dns",
@@ -65,6 +66,9 @@ interface Values {
   username: string;
   password: string;
   service: string;
+  /* Multi-step checks: the steps as JSON, and secrets as name=value lines. */
+  steps: string;
+  secrets: string;
   intervalSeconds: string;
   regions: string[];
   minFailingRegions: string;
@@ -102,6 +106,44 @@ const FIELD_OF: Record<string, keyof Values> = {
   "config.domain": "host",
   "config.port": "port",
 };
+/* Anything inside a multi-step check's steps or secrets belongs to that one box. */
+const fieldFor = (path: string): keyof Values | undefined =>
+  path.startsWith("config.steps")
+    ? "steps"
+    : path.startsWith("config.secrets")
+      ? "secrets"
+      : FIELD_OF[path];
+
+const EXAMPLE_STEPS = `[
+  {
+    "name": "Sign in",
+    "url": "https://api.example.com/login",
+    "method": "POST",
+    "headers": [{ "name": "content-type", "value": "application/json" }],
+    "body": "{\\"user\\":\\"monitor\\",\\"password\\":\\"{{password}}\\"}",
+    "extract": [{ "name": "token", "expression": "token" }]
+  },
+  {
+    "name": "Read profile",
+    "url": "https://api.example.com/me",
+    "headers": [{ "name": "Authorization", "value": "Bearer {{token}}" }],
+    "assertions": [{ "expression": "status", "operator": "==", "expected": "active" }]
+  }
+]`;
+
+/* "name=value" lines as the API's list; the value may contain "=". */
+export function parseSecretLines(text: string): Array<{ name: string; value: string }> {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "")
+    .map((line) => {
+      const at = line.indexOf("=");
+      return at < 0
+        ? { name: line, value: "" }
+        : { name: line.slice(0, at).trim(), value: line.slice(at + 1) };
+    });
+}
 
 function toBody(v: Values): CreateMonitorBody {
   const settings = {
@@ -117,6 +159,19 @@ function toBody(v: Values): CreateMonitorBody {
   const url = v.url.trim();
   const host = v.host.trim();
   switch (v.type) {
+    case "multistep": {
+      /* Unreadable JSON goes on as text, so the schema's error lands on the steps box. */
+      let steps: unknown = v.steps;
+      try {
+        steps = JSON.parse(v.steps);
+      } catch {
+        /* Reported by the schema below. */
+      }
+      return {
+        settings,
+        config: { type: "multistep", steps, secrets: parseSecretLines(v.secrets) },
+      } as CreateMonitorBody;
+    }
     case "http":
       return { settings, config: { type: "http", url } };
     case "keyword":
@@ -192,6 +247,8 @@ const DEFAULTS: Values = {
   username: "",
   password: "",
   service: "",
+  steps: EXAMPLE_STEPS,
+  secrets: "",
   intervalSeconds: "300",
   regions: ["eu-central", "us-east"],
   minFailingRegions: "2",
@@ -227,6 +284,13 @@ function valuesOf(monitor: Monitor): Values {
     /* A saved password comes back masked; sending the mask back keeps it. */
     password: text("password"),
     service: text("service"),
+    steps: Array.isArray(c.steps) ? JSON.stringify(c.steps, null, 2) : DEFAULTS.steps,
+    /* Saved secrets come back masked; sending the mask back keeps them. */
+    secrets: Array.isArray(c.secrets)
+      ? (c.secrets as Array<{ name: string; value: string }>)
+          .map((secret) => `${secret.name}=${secret.value}`)
+          .join("\n")
+      : "",
     intervalSeconds: String(monitor.intervalSeconds),
     regions: monitor.regions,
     minFailingRegions: String(monitor.minFailingRegions ?? 2),
@@ -294,7 +358,7 @@ export function MonitorForm({ ws, monitor }: { ws: string; monitor?: Monitor }) 
     const parsed = createMonitorSchema.safeParse(body);
     if (!parsed.success) {
       for (const issue of parsed.error.issues) {
-        const field = FIELD_OF[issue.path.join(".")];
+        const field = fieldFor(issue.path.join("."));
         if (field) form.setError(field, { message: issue.message });
         else setFormError(issue.message);
       }
@@ -355,7 +419,7 @@ export function MonitorForm({ ws, monitor }: { ws: string; monitor?: Monitor }) 
     } catch (err) {
       if (err instanceof ApiError) {
         for (const e of err.fieldErrors) {
-          const field = FIELD_OF[e.path];
+          const field = fieldFor(e.path);
           if (field) form.setError(field, { message: e.message });
         }
       }
@@ -380,7 +444,40 @@ export function MonitorForm({ ws, monitor }: { ws: string; monitor?: Monitor }) 
       <Field label={t("name")} htmlFor="monitor-name" error={errors.name?.message}>
         <Input id="monitor-name" autoComplete="off" {...form.register("name")} />
       </Field>
-      {usesUrl ? (
+      {type === "multistep" ? (
+        <>
+          <Field
+            label={t("steps")}
+            htmlFor="monitor-steps"
+            hint={t("stepsHint")}
+            error={errors.steps?.message}
+          >
+            <Textarea
+              id="monitor-steps"
+              rows={16}
+              spellCheck={false}
+              className="font-mono text-xs"
+              {...form.register("steps")}
+            />
+          </Field>
+          <Field
+            label={t("stepSecrets")}
+            htmlFor="monitor-secrets"
+            hint={t("stepSecretsHint")}
+            error={errors.secrets?.message}
+          >
+            <Textarea
+              id="monitor-secrets"
+              rows={3}
+              spellCheck={false}
+              autoComplete="off"
+              className="font-mono text-xs"
+              placeholder="password=…"
+              {...form.register("secrets")}
+            />
+          </Field>
+        </>
+      ) : usesUrl ? (
         <Field label={t("url")} htmlFor="monitor-url" error={errors.url?.message}>
           <Input id="monitor-url" type="url" inputMode="url" {...form.register("url")} />
         </Field>

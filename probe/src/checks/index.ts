@@ -5,6 +5,7 @@
 import type { CheckRunners } from "../executor/executor.js";
 import { runDns } from "./dns.js";
 import { runHttp, runJsonQuery, runKeyword } from "./http.js";
+import { runMultistep } from "./multistep.js";
 import { runPing } from "./ping.js";
 import { runGrpc, runMqtt, runRedis } from "./protocols.js";
 import { runSsl } from "./ssl.js";
@@ -15,6 +16,7 @@ export const defaultCheckRunners: CheckRunners = {
   http: runHttp,
   keyword: runKeyword,
   json_query: runJsonQuery,
+  multistep: runMultistep,
   tcp: runTcp,
   ping: runPing,
   dns: runDns,

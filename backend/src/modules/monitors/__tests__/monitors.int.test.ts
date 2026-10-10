@@ -319,6 +319,98 @@ describe("secrets", () => {
   });
 });
 
+describe("multi-step API checks", () => {
+  const steps = (host: string) => [
+    {
+      name: "Sign in",
+      url: `https://${host}/login`,
+      method: "POST",
+      body: '{"user":"monitor","password":"{{password}}"}',
+      extract: [{ name: "token", expression: "token" }],
+    },
+    {
+      name: "Read profile",
+      url: `https://${host}/me`,
+      headers: [{ name: "Authorization", value: "Bearer {{token}}" }],
+      assertions: [{ expression: "status", operator: "==", expected: "active" }],
+    },
+  ];
+
+  it("keeps the secrets encrypted, hands them to probes, and not to another server", async () => {
+    const created = await createMonitor(
+      owner,
+      ws,
+      { name: "Login flow" },
+      {
+        type: "multistep",
+        secrets: [{ name: "password", value: "flow-pass-789" }],
+        steps: steps("api.example.com"),
+      },
+    );
+    expect(created.status, created.text).toBe(201);
+    expect(created.text).not.toContain("flow-pass-789");
+    expect(created.body.config.secrets).toEqual([{ name: "password", value: MASKED }]);
+    expect(created.body.config.steps).toHaveLength(2);
+    const id = created.body.id as string;
+    const [row] = await ctx.db.select().from(monitorsTable).where(eq(monitorsTable.id, id));
+    expect(JSON.stringify(row)).not.toContain("flow-pass-789");
+
+    /* The form sends the mask back; a step added on the same server keeps the secret. */
+    const edited = await patch(owner, `/api/w/${ws}/monitors/${id}`, {
+      config: {
+        ...created.body.config,
+        steps: [
+          ...created.body.config.steps,
+          { name: "Sign out", url: "https://api.example.com/logout", method: "POST" },
+        ],
+      },
+    });
+    expect(edited.status, edited.text).toBe(200);
+    const feed = await ctx.monitors.service.changesSince(0, 10_000);
+    const forProbe = feed.upserts.find((m) => m.id === id);
+    expect(forProbe?.config).toMatchObject({
+      type: "multistep",
+      secrets: [{ name: "password", value: "flow-pass-789" }],
+    });
+    expect((forProbe?.config as { steps: unknown[] }).steps).toHaveLength(3);
+
+    /* Pointing a step at another server asks for the secrets again. */
+    const retarget = await patch(owner, `/api/w/${ws}/monitors/${id}`, {
+      config: { ...created.body.config, steps: steps("attacker.example.net") },
+    });
+    expect(retarget.status).toBe(400);
+    expect(retarget.text).toContain("target changed");
+  });
+
+  it("refuses a step that uses a value nothing provides, or a credential written into a header", async () => {
+    const unknown = await createMonitor(
+      owner,
+      ws,
+      { name: "No password" },
+      { type: "multistep", steps: steps("api.example.com") },
+    );
+    expect(unknown.status).toBe(400);
+    expect(unknown.text).toContain("{{password}} has no value yet");
+    const literal = await createMonitor(
+      owner,
+      ws,
+      { name: "Literal key" },
+      {
+        type: "multistep",
+        steps: [
+          {
+            name: "One",
+            url: "https://api.example.com/x",
+            headers: [{ name: "X-Api-Key", value: "key-abc-123" }],
+          },
+        ],
+      },
+    );
+    expect(literal.status).toBe(400);
+    expect(literal.text).toContain("Secrets");
+  });
+});
+
 describe("change feed", () => {
   it("hands out seqs in commit order, so a probe cursor never skips a slow transaction", async () => {
     const repo = createMonitorsRepository(ctx.db);

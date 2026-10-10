@@ -45,6 +45,25 @@ describe("monitor configs", () => {
         type: "heartbeat",
         schedule: { kind: "cron", expression: "*/5 * * * *", timezone: "Asia/Karachi" },
       },
+      {
+        type: "multistep",
+        secrets: [{ name: "password", value: "s3cret" }],
+        steps: [
+          {
+            name: "Sign in",
+            url: "https://example.com/login",
+            method: "POST",
+            body: '{"password":"{{password}}"}',
+            extract: [{ name: "token", expression: "token" }],
+          },
+          {
+            name: "Profile",
+            url: "https://example.com/me",
+            headers: [{ name: "Authorization", value: "Bearer {{token}}" }],
+            assertions: [{ expression: "status", operator: "==", expected: "active" }],
+          },
+        ],
+      },
       { type: "redis", host: "10.0.0.20", password: "s3cret" },
       { type: "mqtt", host: "broker.internal", username: "sensor", password: "s3cret" },
       { type: "grpc", host: "api.internal", port: 50_051, tls: false, service: "shop.Checkout" },

@@ -148,6 +148,13 @@ export const monitorsApi = {
 
 /* Hostname or URL a monitor points at, for lists. */
 export function targetOf(monitor: Pick<Monitor, "config">): string {
+  /* A multi-step check: where its first step goes, and how many steps there are. */
+  const steps = monitor.config.steps;
+  if (Array.isArray(steps) && steps.length > 0) {
+    const first = (steps[0] as { url?: unknown }).url;
+    const origin = /^https?:\/\/[^/?#]+/i.exec(typeof first === "string" ? first : "")?.[0];
+    return `${origin ?? ""} (${steps.length})`.trim();
+  }
   const c = monitor.config;
   for (const key of ["url", "host", "hostname", "domain"] as const) {
     const value = c[key];

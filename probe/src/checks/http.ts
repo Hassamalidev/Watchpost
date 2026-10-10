@@ -137,7 +137,12 @@ export async function runKeyword(config: MonitorConfig, ctx: CheckContext): Prom
   return { ...baseOutcome(res), ok: true };
 }
 
-function compare(actual: unknown, operator: string, expected: string): Promise<boolean> | boolean {
+/* How a JSON value is held against the expected text; shared with multi-step checks. */
+export function compare(
+  actual: unknown,
+  operator: string,
+  expected: string,
+): Promise<boolean> | boolean {
   const asText = typeof actual === "string" ? actual : JSON.stringify(actual);
   const asNumber = Number(expected);
   switch (operator) {

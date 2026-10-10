@@ -18,6 +18,8 @@ export const MONITOR_TYPES = [
   "ssl",
   "domain",
   "heartbeat",
+  /* Several requests in a row, each able to use what an earlier one returned (§6.1). */
+  "multistep",
   /* Protocol checks for services inside a network: private probes only (§6.1). */
   "redis",
   "mqtt",
@@ -238,7 +240,140 @@ export const grpcConfigSchema = z.object({
   service: z.string().max(100).default(""),
 });
 
+/*
+ * Multi-step API checks (§6.1). Text in a step may refer to a value as {{name}}: a secret of the
+ * monitor, or something an earlier step took out of its response.
+ */
+export const MULTISTEP_MAX_STEPS = 10;
+export const MULTISTEP_MAX_SECRETS = 10;
+const VARIABLE_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,31}$/;
+const variableName = z
+  .string()
+  .regex(VARIABLE_NAME, "use letters, digits and _ (up to 32), not starting with a digit");
+const TEMPLATE = /\{\{\s*([A-Za-z_][A-Za-z0-9_]{0,31})\s*\}\}/g;
+
+/* The variables a text refers to, in order of appearance. */
+export function templateVariables(text: string): string[] {
+  return [...text.matchAll(TEMPLATE)].map((match) => match[1] ?? "");
+}
+
+/* The text with each {{name}} replaced; a name without a value is left as written. */
+export function renderTemplate(text: string, variables: Readonly<Record<string, string>>): string {
+  return text.replace(TEMPLATE, (whole, name: string) =>
+    Object.hasOwn(variables, name) ? (variables[name] ?? whole) : whole,
+  );
+}
+
+/* Header names whose values are credentials. */
+const CREDENTIAL_HEADER =
+  /^(authorization|proxy-authorization|cookie|x-api-key|api-key)$|token|secret|key|password/i;
+
+/*
+ * Scheme, host and port are written out, so no variable can send a request (and the secrets in
+ * it) to another server; {{variables}} may appear in the path and the query.
+ */
+const stepUrl = z
+  .string()
+  .trim()
+  .max(2_048)
+  .refine((value) => {
+    if (!/^https?:\/\/[^/?#{}\s]+([/?#]|$)/i.test(value)) return false;
+    try {
+      new URL(value.replace(TEMPLATE, "x"));
+      return true;
+    } catch {
+      return false;
+    }
+  }, "must be an http:// or https:// URL; {{variables}} may appear after the host only");
+
+export const multistepStepSchema = z.object({
+  name: z.string().trim().min(1).max(60),
+  url: stepUrl,
+  method: z.enum(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]).default("GET"),
+  headers: z
+    .array(header)
+    .max(20)
+    .default([])
+    .refine(
+      (headers) =>
+        headers.every(
+          (h) => !CREDENTIAL_HEADER.test(h.name) || templateVariables(h.value).length > 0,
+        ),
+      "put this header's value in Secrets and refer to it as {{name}}",
+    ),
+  body: z.string().max(65_536).optional(),
+  acceptedStatusCodes: z.array(statusRange).min(1).max(20).default(["200-299"]),
+  /* Values taken from the response for later steps: a JSONata expression, or a header's name. */
+  extract: z
+    .array(
+      z.object({
+        name: variableName,
+        from: z.enum(["body", "header"]).default("body"),
+        expression: z.string().min(1).max(1_024),
+      }),
+    )
+    .max(10)
+    .default([]),
+  /* Each must hold for the step to pass: a JSONata expression on the JSON body. */
+  assertions: z
+    .array(
+      z.object({
+        expression: z.string().min(1).max(2_048),
+        operator: z.enum(JSON_QUERY_OPERATORS),
+        expected: z.string().max(1_024),
+      }),
+    )
+    .max(10)
+    .default([]),
+});
+export type MultistepStep = z.infer<typeof multistepStepSchema>;
+
+export const multistepConfigSchema = z
+  .object({
+    type: z.literal("multistep"),
+    steps: z.array(multistepStepSchema).min(1).max(MULTISTEP_MAX_STEPS),
+    /* Passwords, keys and tokens the steps use as {{name}}; stored encrypted, never shown again. */
+    secrets: z
+      .array(z.object({ name: variableName, value: z.string().min(1).max(4_096) }))
+      .max(MULTISTEP_MAX_SECRETS)
+      .default([]),
+    followRedirects: z.boolean().default(true),
+    ignoreTlsErrors: z.boolean().default(false),
+  })
+  .superRefine((config, ctx) => {
+    const known = new Set<string>();
+    config.secrets.forEach((secret, index) => {
+      if (known.has(secret.name)) {
+        ctx.addIssue({
+          code: "custom",
+          message: `"${secret.name}" is used twice`,
+          path: ["secrets", index, "name"],
+        });
+      }
+      known.add(secret.name);
+    });
+    config.steps.forEach((step, index) => {
+      const texts = [
+        step.url,
+        step.body ?? "",
+        ...step.headers.map((h) => h.value),
+        ...step.assertions.map((a) => a.expected),
+      ];
+      const unknown = new Set(texts.flatMap(templateVariables).filter((name) => !known.has(name)));
+      for (const name of unknown) {
+        ctx.addIssue({
+          code: "custom",
+          message: `{{${name}}} has no value yet: add it to Secrets or extract it in an earlier step`,
+          path: ["steps", index],
+        });
+      }
+      /* What a step extracts exists from the next step on. */
+      for (const extract of step.extract) known.add(extract.name);
+    });
+  });
+
 export const monitorConfigSchema = z.discriminatedUnion("type", [
+  multistepConfigSchema,
   httpConfigSchema,
   keywordConfigSchema,
   jsonQueryConfigSchema,
@@ -336,6 +471,7 @@ export const PROBE_MONITOR_TYPES: readonly MonitorType[] = [
   "http",
   "keyword",
   "json_query",
+  "multistep",
   "tcp",
   "ping",
   "dns",
