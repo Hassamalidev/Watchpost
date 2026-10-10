@@ -17,7 +17,7 @@ import {
   createStatuspagesRouter,
   createSubscriptionLinksRouter,
 } from "./statuspages.routes.js";
-import { createRateLimiter } from "../../middleware/rate-limit.js";
+import { clientIpKey, createRateLimiter } from "../../middleware/rate-limit.js";
 import { statuspagesPublicRoutes } from "./statuspages.public.js";
 import { createStatuspagesService, type StatuspagesService } from "./statuspages.service.js";
 
@@ -76,7 +76,7 @@ export function createStatuspagesModule(deps: StatuspagesModuleDeps): Statuspage
     redis: deps.infra.redis,
     windowMs: 10 * 60_000,
     limit: 10,
-    keyOf: (req) => `${req.ip ?? "unknown"}:${String(req.params.ref).toLowerCase()}`,
+    keyOf: (req) => `${clientIpKey(req)}:${String(req.params.ref).toLowerCase()}`,
   });
   return {
     name: "statuspages",

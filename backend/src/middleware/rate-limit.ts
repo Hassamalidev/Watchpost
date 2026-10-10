@@ -3,10 +3,16 @@
  * (PRODUCT.md §13: the UI and ingest keep working without Redis).
  */
 import type { Request, RequestHandler, Response } from "express";
-import { rateLimit } from "express-rate-limit";
+import { ipKeyGenerator, rateLimit } from "express-rate-limit";
 import { RedisStore, type RedisReply } from "rate-limit-redis";
 import type { RedisClient } from "../infra/redis.js";
 import { RateLimitedError } from "../core/errors.js";
+
+/*
+ * The caller's address as a rate-limit key, for limiters that count by address and something else.
+ * An IPv6 caller is counted by network, not by single address, which they could change at will.
+ */
+export const clientIpKey = (req: Request): string => ipKeyGenerator(req.ip ?? "unknown");
 
 export interface RateLimitOptions {
   redis: RedisClient;
