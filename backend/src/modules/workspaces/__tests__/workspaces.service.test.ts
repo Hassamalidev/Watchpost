@@ -19,9 +19,28 @@ function setup(
   const settings = new Map<string, WorkspaceSettingsRow>();
   const emitted: Array<{ type: string; payload: unknown }> = [];
   const parents = new Map<string, string>(Object.entries(options.parents ?? {}));
+  /* Memberships as "user:workspace" → role, and which of them came from the agency. */
+  const roles: Record<string, string> = { ...options.roles };
+  const grants = new Set<string>();
   const repository: WorkspacesRepository = {
-    findMemberRole: async (userId, workspaceId) => options.roles?.[`${userId}:${workspaceId}`],
+    findMemberRole: async (userId, workspaceId) => roles[`${userId}:${workspaceId}`],
     findParent: async (workspaceId) => parents.get(workspaceId),
+    memberRoles: async (workspaceId) =>
+      Object.entries(roles)
+        .filter(([key]) => key.endsWith(`:${workspaceId}`))
+        .map(([key, role]) => ({ userId: key.split(":")[0] ?? "", role })),
+    grantedUserIds: async (workspaceId) =>
+      [...grants].filter((g) => g.endsWith(`:${workspaceId}`)).map((g) => g.split(":")[0] ?? ""),
+    hasGrant: async (workspaceId, userId) => grants.has(`${userId}:${workspaceId}`),
+    grantClientAdmin: async (workspaceId, userId) => {
+      if (roles[`${userId}:${workspaceId}`] !== undefined) return;
+      grants.add(`${userId}:${workspaceId}`);
+      roles[`${userId}:${workspaceId}`] = "admin";
+    },
+    revokeClientAdmin: async (workspaceId, userId) => {
+      if (!grants.delete(`${userId}:${workspaceId}`)) return;
+      delete roles[`${userId}:${workspaceId}`];
+    },
     linkClient: async (workspaceId, parentId) => {
       parents.set(workspaceId, parentId);
     },
@@ -88,7 +107,7 @@ function setup(
     clientLimit: async () => options.clientLimit ?? 0,
     createWorkspace: async () => newId(),
   });
-  return { service, emitted, settings, db };
+  return { service, emitted, settings, db, roles, grants };
 }
 
 describe("workspaces service", () => {
@@ -190,5 +209,54 @@ describe("client workspaces", () => {
         userId: "owner",
       }),
     ).rejects.toThrow("can't have client workspaces");
+  });
+});
+
+describe("client workspaces follow the agency's admins", () => {
+  const agency = "00000000-0000-7000-8000-00000000a001";
+  const client = "00000000-0000-7000-8000-00000000c001";
+
+  it("makes an agency admin a real member on first use, and takes it back with their standing", async () => {
+    const { service, roles, grants } = setup({
+      parents: { [client]: agency },
+      roles: { [`ada:${agency}`]: "admin", [`guest:${client}`]: "viewer" },
+    });
+    expect(await service.resolveRole("ada", client)).toBe("admin");
+    expect(roles[`ada:${client}`]).toBe("admin");
+    expect(grants.has(`ada:${client}`)).toBe(true);
+
+    /* Demoted in the agency: the membership that came with the role goes at the next request. */
+    roles[`ada:${agency}`] = "member";
+    expect(await service.resolveRole("ada", client)).toBeUndefined();
+    expect(roles[`ada:${client}`]).toBeUndefined();
+    /* Someone invited into the client in their own right is never touched. */
+    expect(await service.resolveRole("guest", client)).toBe("viewer");
+  });
+
+  it("syncs every client when people change in the agency", async () => {
+    const other = "00000000-0000-7000-8000-00000000c002";
+    const { service, roles, grants } = setup({
+      parents: { [client]: agency, [other]: agency },
+      roles: {
+        [`owner:${agency}`]: "owner",
+        [`ada:${agency}`]: "admin",
+        [`bob:${agency}`]: "member",
+        /* Ada was invited into one client herself, as a viewer. */
+        [`ada:${other}`]: "viewer",
+      },
+    });
+    await service.syncClientAdmins(agency);
+    expect(roles[`owner:${client}`]).toBe("admin");
+    expect(roles[`ada:${client}`]).toBe("admin");
+    expect(roles[`bob:${client}`]).toBeUndefined();
+    /* Her own membership stays as it was, and is not ours to remove. */
+    expect(roles[`ada:${other}`]).toBe("viewer");
+    expect(grants.has(`ada:${other}`)).toBe(false);
+
+    delete roles[`ada:${agency}`];
+    await service.syncClientAdmins(agency);
+    expect(roles[`ada:${client}`]).toBeUndefined();
+    expect(roles[`ada:${other}`]).toBe("viewer");
+    expect(roles[`owner:${client}`]).toBe("admin");
   });
 });

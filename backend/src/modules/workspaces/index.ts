@@ -2,6 +2,7 @@
 import type { RequestHandler } from "express";
 import type { PlanFeature } from "@app/shared";
 import type { AppModule, Infra } from "../../composition/types.js";
+import { withAdvisoryLock } from "../../infra/db/lock.js";
 import { newId } from "../../infra/ids.js";
 import { requireSession } from "../../middleware/session.js";
 import type { WorkspaceScope } from "../../core/workspace-scope.js";
@@ -49,6 +50,8 @@ export function createWorkspacesModule(deps: WorkspacesModuleDeps): WorkspacesMo
     clock: deps.infra.clock,
     hasFeature: deps.hasFeature,
     clientLimit: deps.clientLimit,
+    newId,
+    lock: (key, fn) => withAdvisoryLock(deps.infra.db, key, () => fn()),
     /* Through the auth library, so the workspace gets its owner and every hook runs. */
     createWorkspace: async ({ name, ownerUserId }) => {
       const created = await deps.infra.auth.auth.api.createOrganization({
@@ -77,6 +80,10 @@ export function createWorkspacesModule(deps: WorkspacesModuleDeps): WorkspacesMo
     ],
     hooks: {
       onWorkspaceCreated: (workspaceId) => service.ensureSettings(workspaceId).then(() => {}),
+      /* Someone joined, left or changed role: an agency's clients follow its owners and admins. */
+      onSecurityEvent: async (event) => {
+        if (event.action.startsWith("member.")) await service.syncClientAdmins(event.workspaceId);
+      },
     },
   };
 }

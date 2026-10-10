@@ -58,7 +58,8 @@
     "network": "Cette page d'état est privée. Elle ne s'ouvre que depuis le réseau de son propriétaire.",
     "label": "Mot de passe",
     "open": "Ouvrir la page",
-    "wrong": "Ce mot de passe n'est pas le bon. Réessayez."
+    "wrong": "Ce mot de passe n'est pas le bon. Réessayez.",
+    "wait": "Trop de tentatives. Patientez dix minutes, puis réessayez."
   },
   "language": "Langue"
 }

@@ -33,14 +33,6 @@ const scoped = (scope: WorkspaceScope, ...conditions: Array<SQL | undefined>) =>
 
 export function createMonitorsRepository(db: DbOrTx) {
   return {
-    /* Serializes limit checks and creates within one workspace for the rest of the transaction. */
-    async lockWorkspace(tx: DbOrTx, scope: WorkspaceScope): Promise<void> {
-      assertWorkspaceScope(scope);
-      await tx.execute(
-        sql`select pg_advisory_xact_lock(hashtextextended(${scope.workspaceId}, 7))`,
-      );
-    },
-
     async countByKind(
       tx: DbOrTx,
       scope: WorkspaceScope,

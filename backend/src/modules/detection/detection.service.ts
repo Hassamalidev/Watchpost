@@ -5,7 +5,7 @@
  * monitor's state row, runs the pure engine (detection.engine.ts) and applies its decision in the
  * same transaction: status, incident, downtime, verification tasks and outbox events.
  */
-import { NETWORK_DIAGNOSTICS_EVENT, diagnosticsReportSchema } from "@app/shared";
+import { NETWORK_DIAGNOSTICS_EVENT, diagnosticsReportSchema, isNetworkCause } from "@app/shared";
 import {
   effectiveRecoverySuccesses,
   resultsBatchSchema,
@@ -408,11 +408,13 @@ export function createDetectionService(deps: DetectionServiceDeps): DetectionSer
           });
           incidentId = opened.incident.id;
           /*
-           * A new outage: each failing region is asked to trace the path and the name (P8-T04).
+           * A new outage the network may be behind (not one where the server answered): each
+           * failing region is asked to trace the path and the name (P8-T04).
            * Only probes that say they can are handed the task; it expires unclaimed otherwise.
            */
           if (
             opened.created &&
+            isNetworkCause(decision.causeCode) &&
             monitor.target !== null &&
             monitor.type !== "domain" &&
             monitor.type !== "heartbeat"

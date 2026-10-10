@@ -95,6 +95,7 @@ export default async function StatusPage({ params, searchParams }: Props) {
           locked={data}
           unlockAction={`${base}/unlock`}
           wrong={unlock === "wrong"}
+          wait={unlock === "wait"}
         />
       </div>
     );

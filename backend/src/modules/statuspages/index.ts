@@ -1,4 +1,5 @@
 /* Public API of the statuspages module. Other modules import only from this file (PRODUCT.md §7.1). */
+import { RateLimitedError } from "../../core/errors.js";
 import type { RequestHandler } from "express";
 import type { AppModule, Infra } from "../../composition/types.js";
 import type { PlanFeatures, PlanLimits } from "../../config/plans.js";
@@ -71,13 +72,37 @@ export function createStatuspagesModule(deps: StatuspagesModuleDeps): Statuspage
     secureCookies: config.webOrigin.startsWith("https://"),
   });
   /* Ten tries in ten minutes per visitor and page. */
-  const unlockLimit = createRateLimiter({
+  const unlockLimiter = createRateLimiter({
     name: "status-unlock",
     redis: deps.infra.redis,
     windowMs: 10 * 60_000,
     limit: 10,
     keyOf: (req) => `${clientIpKey(req)}:${String(req.params.ref).toLowerCase()}`,
   });
+  /*
+   * Someone typing into the page's own form gets the page back with a line to wait, not a raw
+   * error. Only the path of where they came from is used, so this can't send anyone elsewhere.
+   */
+  const unlockLimit: RequestHandler = (req, res, next) => {
+    void unlockLimiter(req, res, (err?: unknown) => {
+      const from = req.get("referer");
+      if (
+        err instanceof RateLimitedError &&
+        from !== undefined &&
+        req.is("application/x-www-form-urlencoded") !== false
+      ) {
+        try {
+          const path = `/${new URL(from).pathname.replace(/^\/+/, "")}`;
+          res.redirect(303, `${path}?unlock=wait`);
+          return;
+        } catch {
+          /* Not an address: answer as the API does. */
+        }
+      }
+      next(err);
+    });
+  };
+
   return {
     name: "statuspages",
     service,

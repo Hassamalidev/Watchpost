@@ -24,6 +24,7 @@ import {
 import type { WorkspaceScope } from "../../core/workspace-scope.js";
 import type { PlanLimits } from "../../config/plans.js";
 import type { TokenCipher } from "../../infra/crypto.js";
+import { withAdvisoryLock } from "../../infra/db/lock.js";
 import type { Db, DbOrTx } from "../../infra/db/index.js";
 import type { Outbox } from "../../infra/outbox/index.js";
 import type { MonitorGroupRow, MonitorPolicies, MonitorRow } from "./schema/monitors.js";
@@ -409,8 +410,7 @@ export function createMonitorsService(deps: MonitorsServiceDeps): MonitorsServic
       checkSchedule(config);
       const id = deps.newId();
 
-      return db.transaction(async (tx) => {
-        await repo.lockWorkspace(tx, scope);
+      return withAdvisoryLock(db, scope.workspaceId, async (tx) => {
         await checkLimits(tx, scope, config.type, settings, { countsTowardLimit: true });
         await checkRelations(tx, scope, settings, id);
 
@@ -458,8 +458,7 @@ export function createMonitorsService(deps: MonitorsServiceDeps): MonitorsServic
     },
 
     async update(scope, id, input) {
-      return db.transaction(async (tx) => {
-        await repo.lockWorkspace(tx, scope);
+      return withAdvisoryLock(db, scope.workspaceId, async (tx) => {
         const row = await mustFind(tx, scope, id, true);
         const currentTags = (await repo.tagsFor(tx, [id])).get(id) ?? [];
 
@@ -540,8 +539,7 @@ export function createMonitorsService(deps: MonitorsServiceDeps): MonitorsServic
     },
 
     async setPaused(scope, id, paused) {
-      return db.transaction(async (tx) => {
-        await repo.lockWorkspace(tx, scope);
+      return withAdvisoryLock(db, scope.workspaceId, async (tx) => {
         const row = await mustFind(tx, scope, id, true);
         if (row.paused === paused) return viewOf(tx, row);
         if (!paused) {
@@ -581,8 +579,7 @@ export function createMonitorsService(deps: MonitorsServiceDeps): MonitorsServic
     },
 
     async enforcePlanLimits(scope) {
-      return db.transaction(async (tx) => {
-        await repo.lockWorkspace(tx, scope);
+      return withAdvisoryLock(db, scope.workspaceId, async (tx) => {
         const limits = await deps.limits(scope);
         const rows = await repo.allForWorkspace(tx, scope);
         const result: PlanEnforcement = { paused: 0, resumed: 0, adjusted: 0 };

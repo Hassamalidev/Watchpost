@@ -9,6 +9,7 @@
  *   owners and admins get one email; the next report clears that.
  * - How many a workspace may have comes from its plan (`privateProbes`).
  */
+import { withAdvisoryLock } from "../../infra/db/lock.js";
 import { Router, type RequestHandler } from "express";
 import { z } from "zod";
 import {
@@ -117,34 +118,36 @@ export function createPrivateProbesService(deps: {
       return (await repo.privateProbes(scope)).map((row) => row.region);
     },
 
-    async create(scope, input) {
-      const [limits, existing] = await Promise.all([
-        deps.monitors.planLimits(scope),
-        repo.privateProbes(scope),
-      ]);
-      if (existing.length >= limits.privateProbes) {
-        throw new QuotaExceededError(
-          limits.privateProbes === 0
-            ? "Private probes are part of the Pro and Business plans. Upgrade to monitor services inside your network."
-            : `Your plan includes ${limits.privateProbes} private probe${limits.privateProbes === 1 ? "" : "s"}. Remove one, or add another to your plan.`,
-        );
-      }
-      /* The location is named after the probe's ID, which exists only once it is registered. */
-      const { id, secret } = await deps.register({
-        name: input.name,
-        region: "private:pending",
-        kind: "private",
-        workspaceId: scope.workspaceId,
-      });
-      await repo.setRegion(id, privateRegionOf(id));
-      deps.forget(id);
-      const row = (await repo.privateProbes(scope)).find((probe) => probe.id === id);
-      if (row === undefined) throw new Error("private probe wasn't stored");
-      const token = `${PROBE_TOKEN_PREFIX}${id}.${secret}`;
-      const [view] = await views(scope, [row]);
-      if (view === undefined) throw new Error("private probe has no view");
-      return { ...view, token, command: commandOf(token) };
-    },
+    /* One at a time per workspace, so the plan's number can't be passed by a burst. */
+    create: (scope, input) =>
+      withAdvisoryLock(deps.db, `private-probes:${scope.workspaceId}`, async () => {
+        const [limits, existing] = await Promise.all([
+          deps.monitors.planLimits(scope),
+          repo.privateProbes(scope),
+        ]);
+        if (existing.length >= limits.privateProbes) {
+          throw new QuotaExceededError(
+            limits.privateProbes === 0
+              ? "Private probes are part of the Pro and Business plans. Upgrade to monitor services inside your network."
+              : `Your plan includes ${limits.privateProbes} private probe${limits.privateProbes === 1 ? "" : "s"}. Remove one, or add another to your plan.`,
+          );
+        }
+        /* The location is named after the probe's ID, which exists only once it is registered. */
+        const { id, secret } = await deps.register({
+          name: input.name,
+          region: "private:pending",
+          kind: "private",
+          workspaceId: scope.workspaceId,
+        });
+        await repo.setRegion(id, privateRegionOf(id));
+        deps.forget(id);
+        const row = (await repo.privateProbes(scope)).find((probe) => probe.id === id);
+        if (row === undefined) throw new Error("private probe wasn't stored");
+        const token = `${PROBE_TOKEN_PREFIX}${id}.${secret}`;
+        const [view] = await views(scope, [row]);
+        if (view === undefined) throw new Error("private probe has no view");
+        return { ...view, token, command: commandOf(token) };
+      }),
 
     async remove(scope, id) {
       const row = (await repo.privateProbes(scope)).find((probe) => probe.id === id);

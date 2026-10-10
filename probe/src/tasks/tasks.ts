@@ -3,12 +3,7 @@
  * "Test now" task arrives. Tasks run at once, outside the schedule, and report with their taskId.
  */
 import { z } from "zod";
-import {
-  tasksResponseSchema,
-  type AddressPolicy,
-  type CheckResult,
-  type ProbeTask,
-} from "@app/shared";
+import { probeTaskSchema, type AddressPolicy, type CheckResult, type ProbeTask } from "@app/shared";
 import { runDiagnostics } from "../diagnostics/index.js";
 import type { Logger } from "pino";
 import type { Executor } from "../executor/executor.js";
@@ -18,6 +13,9 @@ export interface TaskLoop {
   start(): void;
   stop(): Promise<void>;
 }
+
+/* The answer's frame; each task inside is checked on its own. */
+const tasksEnvelope = z.object({ tasks: z.array(z.unknown()) });
 
 export function createTaskLoop(options: {
   client: ProbeClient;
@@ -64,12 +62,19 @@ export function createTaskLoop(options: {
           "GET",
           `/tasks?wait=${wait}&kinds=${kinds}`,
           {
-            schema: tasksResponseSchema,
+            schema: tasksEnvelope,
             timeoutMs: (wait + 10) * 1_000,
           },
         );
         backoffMs = 1_000;
-        for (const task of tasks) {
+        for (const item of tasks) {
+          /* A task for a monitor we can't read is dropped alone; the rest still run. */
+          const parsed = probeTaskSchema.safeParse(item);
+          if (!parsed.success) {
+            options.logger.warn({ task: (item as { id?: unknown } | null)?.id }, "task skipped");
+            continue;
+          }
+          const task = parsed.data;
           if (Date.parse(task.deadline) < now()) continue;
           if (task.kind === "diagnose") {
             if (policy !== undefined) void diagnose(task, policy);

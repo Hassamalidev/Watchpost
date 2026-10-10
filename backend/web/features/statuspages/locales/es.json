@@ -58,7 +58,8 @@
     "network": "Esta página de estado es privada. Solo se abre desde la red de su propietario.",
     "label": "Contraseña",
     "open": "Abrir la página",
-    "wrong": "La contraseña no es correcta. Inténtelo de nuevo."
+    "wrong": "La contraseña no es correcta. Inténtelo de nuevo.",
+    "wait": "Demasiados intentos. Espere diez minutos e inténtelo de nuevo."
   },
   "language": "Idioma"
 }

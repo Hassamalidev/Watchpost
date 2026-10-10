@@ -409,7 +409,8 @@ describe("the task loop", () => {
   it("says it runs diagnostics, runs them for a diagnose task and posts the result", async () => {
     const monitor = {
       id: "0199c0de-0000-7000-8000-000000000001",
-      type: "http",
+      workspaceId: "0199c0de-0000-7000-8000-0000000000ff",
+      configSeq: 1,
       intervalSeconds: 60,
       timeoutMs: 5_000,
       config: monitorConfigSchema.parse({ type: "http", url: "https://shop.example.com/" }),

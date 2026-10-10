@@ -113,7 +113,16 @@ export async function runMultistep(
     } catch (err) {
       done.push({ name: step.name, ms: Math.round(performance.now() - stepStarted) });
       if (err instanceof CheckError) return fail(index, step, err.code, err.message);
-      throw err;
+      /*
+       * A request that can't be built, most often a value from an earlier step with a line break
+       * in it used in a header. That is the checked service's doing, not a fault of the probe.
+       */
+      return fail(
+        index,
+        step,
+        "protocol_error",
+        `the request could not be sent: ${(err as Error).message}`,
+      );
     }
     last = res;
     done.push({ name: step.name, status: res.status, ms: res.timings.total });

@@ -2169,7 +2169,8 @@
       "network": "This status page is private. It can be opened only from its owner's network.",
       "label": "Password",
       "open": "Open the page",
-      "wrong": "That password is not right. Try again."
+      "wrong": "That password is not right. Try again.",
+      "wait": "Too many tries. Wait ten minutes and try again."
     },
     "language": "Language"
   },

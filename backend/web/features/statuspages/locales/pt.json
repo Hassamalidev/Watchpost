@@ -58,7 +58,8 @@
     "network": "Esta página de estado é privada. Só pode ser aberta a partir da rede do seu proprietário.",
     "label": "Palavra-passe",
     "open": "Abrir a página",
-    "wrong": "A palavra-passe não está certa. Tente novamente."
+    "wrong": "A palavra-passe não está certa. Tente novamente.",
+    "wait": "Demasiadas tentativas. Aguarde dez minutos e tente novamente."
   },
   "language": "Idioma"
 }

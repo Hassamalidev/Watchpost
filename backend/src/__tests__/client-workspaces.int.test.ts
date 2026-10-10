@@ -109,6 +109,60 @@ describe("agency client workspaces", () => {
     });
   });
 
+  it("makes the agency's admins real members, so they can invite people, and follows changes", async () => {
+    /* The admin was there when the client was made: a member of it from the start. */
+    const members = async () =>
+      (
+        await ctx.container.infra.db.execute<{ email: string; role: string }>(
+          sql`select u.email, m.role from member m join "user" u on u.id = m.user_id
+              where m.organization_id = ${client} order by m.role`,
+        )
+      ).rows;
+    expect(await members()).toEqual([
+      { email: `agency-admin-${run}@example.com`, role: "admin" },
+      { email: `agency-${run}@example.com`, role: "owner" },
+    ]);
+    /* The sign-in library sends invitations, and it knows only real members. */
+    const invited = await auth(agencyAdmin, "organization/invite-member", {
+      email: `client-contact-${run}@example.com`,
+      role: "viewer",
+      organizationId: client,
+    });
+    expect(invited.status, invited.text).toBe(200);
+
+    /* Demoted in the agency: out of the client, without anyone touching the client. */
+    const listed = await owner
+      .get(`/api/auth/organization/list-members?organizationId=${agency}`)
+      .set("Origin", WEB_ORIGIN);
+    const adminMember = (
+      listed.body.members as Array<{ id: string; user: { email: string } }>
+    ).find((m) => m.user.email === `agency-admin-${run}@example.com`);
+    const demoted = await auth(owner, "organization/update-member-role", {
+      memberId: adminMember?.id,
+      role: "member",
+      organizationId: agency,
+    });
+    expect(demoted.status, demoted.text).toBe(200);
+    expect(await members()).toEqual([{ email: `agency-${run}@example.com`, role: "owner" }]);
+    expect((await api(agencyAdmin, "get", client, "/me")).status).toBeGreaterThanOrEqual(403);
+    const refused = await auth(agencyAdmin, "organization/invite-member", {
+      email: `client-other-${run}@example.com`,
+      role: "viewer",
+      organizationId: client,
+    });
+    expect(refused.status).toBeGreaterThanOrEqual(400);
+
+    /* Promoted again: back in. */
+    const promoted = await auth(owner, "organization/update-member-role", {
+      memberId: adminMember?.id,
+      role: "admin",
+      organizationId: agency,
+    });
+    expect(promoted.status, promoted.text).toBe(200);
+    expect((await members()).map((m) => m.role)).toEqual(["admin", "owner"]);
+    expect((await api(agencyAdmin, "get", client, "/me")).body.role).toBe("admin");
+  });
+
   it("gives the client the agency's plan, with no trial, clients or billing of its own", async () => {
     const entitlements = await api(agencyAdmin, "get", client, "/entitlements");
     expect(entitlements.status, entitlements.text).toBe(200);

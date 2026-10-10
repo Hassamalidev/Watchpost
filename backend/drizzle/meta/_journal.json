@@ -351,6 +351,13 @@
       "when": 1791551261111,
       "tag": "0049_workspace_deletions",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1791622844724,
+      "tag": "0050_client_admin_grants",
+      "breakpoints": true
     }
   ]
 }

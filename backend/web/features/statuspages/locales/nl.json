@@ -58,7 +58,8 @@
     "network": "Deze statuspagina is privé. Ze is alleen te openen vanaf het netwerk van de eigenaar.",
     "label": "Wachtwoord",
     "open": "Pagina openen",
-    "wrong": "Dat wachtwoord klopt niet. Probeer het opnieuw."
+    "wrong": "Dat wachtwoord klopt niet. Probeer het opnieuw.",
+    "wait": "Te veel pogingen. Wacht tien minuten en probeer het opnieuw."
   },
   "language": "Taal"
 }

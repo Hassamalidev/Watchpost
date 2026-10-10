@@ -6,7 +6,7 @@ import { and, asc, eq, gt, gte, isNull, lt, sql } from "drizzle-orm";
 import { assertWorkspaceScope, type WorkspaceScope } from "../../core/workspace-scope.js";
 import { member, organization, user } from "../../infra/auth/schema.js";
 import type { DbOrTx } from "../../infra/db/index.js";
-import { workspaceParents } from "./schema/workspace-parents.js";
+import { clientAdminGrants, workspaceParents } from "./schema/workspace-parents.js";
 import { workspaceSettings, type WorkspaceSettingsRow } from "./schema/workspace-settings.js";
 
 export interface MemberRow {
@@ -39,6 +39,89 @@ export function createWorkspacesRepository(db: DbOrTx) {
         .where(eq(workspaceParents.workspaceId, workspaceId))
         .limit(1);
       return rows[0]?.parentId;
+    },
+
+    /* Every member of a workspace with their raw role string. */
+    async memberRoles(workspaceId: string): Promise<Array<{ userId: string; role: string }>> {
+      return db
+        .select({ userId: member.userId, role: member.role })
+        .from(member)
+        .where(eq(member.organizationId, workspaceId));
+    },
+
+    /* The people who are members of a client workspace through the agency. */
+    async grantedUserIds(workspaceId: string): Promise<string[]> {
+      const rows = await db
+        .select({ userId: clientAdminGrants.userId })
+        .from(clientAdminGrants)
+        .where(eq(clientAdminGrants.workspaceId, workspaceId));
+      return rows.map((row) => row.userId);
+    },
+
+    async hasGrant(workspaceId: string, userId: string): Promise<boolean> {
+      const rows = await db
+        .select({ userId: clientAdminGrants.userId })
+        .from(clientAdminGrants)
+        .where(
+          and(eq(clientAdminGrants.workspaceId, workspaceId), eq(clientAdminGrants.userId, userId)),
+        )
+        .limit(1);
+      return rows.length > 0;
+    },
+
+    /* Makes an agency admin an admin member of a client workspace, and notes why. */
+    async grantClientAdmin(workspaceId: string, userId: string, memberId: string): Promise<void> {
+      await db.transaction(async (tx) => {
+        const granted = await tx
+          .insert(clientAdminGrants)
+          .values({ workspaceId, userId })
+          .onConflictDoNothing()
+          .returning({ userId: clientAdminGrants.userId });
+        if (granted.length === 0) return;
+        const existing = await tx
+          .select({ id: member.id })
+          .from(member)
+          .where(and(eq(member.organizationId, workspaceId), eq(member.userId, userId)))
+          .limit(1);
+        if (existing.length > 0) {
+          /* Already a member in their own right: nothing of ours to remove later. */
+          await tx
+            .delete(clientAdminGrants)
+            .where(
+              and(
+                eq(clientAdminGrants.workspaceId, workspaceId),
+                eq(clientAdminGrants.userId, userId),
+              ),
+            );
+          return;
+        }
+        await tx.insert(member).values({
+          id: memberId,
+          organizationId: workspaceId,
+          userId,
+          role: "admin",
+          createdAt: new Date(),
+        });
+      });
+    },
+
+    /* Takes back a membership that came with standing in the agency. */
+    async revokeClientAdmin(workspaceId: string, userId: string): Promise<void> {
+      await db.transaction(async (tx) => {
+        const revoked = await tx
+          .delete(clientAdminGrants)
+          .where(
+            and(
+              eq(clientAdminGrants.workspaceId, workspaceId),
+              eq(clientAdminGrants.userId, userId),
+            ),
+          )
+          .returning({ userId: clientAdminGrants.userId });
+        if (revoked.length === 0) return;
+        await tx
+          .delete(member)
+          .where(and(eq(member.organizationId, workspaceId), eq(member.userId, userId)));
+      });
     },
 
     async linkClient(workspaceId: string, parentId: string): Promise<void> {

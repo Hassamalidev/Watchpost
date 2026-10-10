@@ -6,6 +6,7 @@
  * (an outbox event in its own transaction).
  */
 import { betterAuth } from "better-auth";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { captcha, magicLink, organization, twoFactor } from "better-auth/plugins";
 import type { Db } from "../db/index.js";
@@ -64,6 +65,39 @@ export const DEFAULT_MEMBER_LIMIT = 100;
 export const AUTH_BASE_PATH = "/api/auth";
 export const INVITATION_EXPIRES_SECONDS = 48 * 3_600;
 
+/*
+ * IDs here are UUIDs. Text that isn't one, where the library expects an ID (a cut-off invitation
+ * link, a hand-made request), would reach the database and come back as a server error; it is a
+ * bad request. The same goes for a NUL character, which Postgres text can't hold.
+ */
+const ID_FIELDS = ["id", "invitationId", "organizationId", "memberId", "userId"] as const;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function unstorableInput(input: unknown): string | undefined {
+  if (typeof input !== "object" || input === null) return undefined;
+  const fields = input as Record<string, unknown>;
+  for (const [name, value] of Object.entries(fields)) {
+    if (typeof value === "string" && value.includes("\u0000")) return `${name} is not valid text.`;
+  }
+  for (const name of ID_FIELDS) {
+    const value = fields[name];
+    if (typeof value === "string" && !UUID.test(value)) return `${name} is not a valid ID.`;
+  }
+  /* Either a member's ID or their email address. */
+  const member = fields.memberIdOrEmail;
+  if (typeof member === "string" && !member.includes("@") && !UUID.test(member)) {
+    return "memberIdOrEmail is neither an ID nor an email address.";
+  }
+  return undefined;
+}
+
+const rejectUnstorableInput = createAuthMiddleware(async (ctx) => {
+  const problem =
+    unstorableInput((ctx as { body?: unknown }).body) ??
+    unstorableInput((ctx as { query?: unknown }).query);
+  if (problem !== undefined) throw new APIError("BAD_REQUEST", { message: problem });
+});
+
 export function createAuth(options: AuthOptions) {
   const { requestEmail } = options;
   return betterAuth({
@@ -77,6 +111,7 @@ export function createAuth(options: AuthOptions) {
       cookiePrefix: "watchpost",
       database: { generateId: () => newId() },
     },
+    hooks: { before: rejectUnstorableInput },
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,

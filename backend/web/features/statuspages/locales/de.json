@@ -58,7 +58,8 @@
     "network": "Diese Statusseite ist privat. Sie lässt sich nur aus dem Netzwerk ihres Betreibers öffnen.",
     "label": "Passwort",
     "open": "Seite öffnen",
-    "wrong": "Das Passwort stimmt nicht. Versuchen Sie es noch einmal."
+    "wrong": "Das Passwort stimmt nicht. Versuchen Sie es noch einmal.",
+    "wait": "Zu viele Versuche. Warten Sie zehn Minuten und versuchen Sie es erneut."
   },
   "language": "Sprache"
 }

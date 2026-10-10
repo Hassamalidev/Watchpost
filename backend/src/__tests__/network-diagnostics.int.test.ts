@@ -217,6 +217,40 @@ describe("network diagnostics", () => {
     expect(await rows(sql`select 1 from probe_tasks where monitor_id = ${heartbeat}`)).toEqual([]);
   });
 
+  it("asks for nothing when the server answered: the network was fine", async () => {
+    const answered = await createMonitor("Answering", {
+      type: "http",
+      url: "https://answers.example.com/",
+    });
+    await ctx.container.infra.db.execute(
+      sql`update probes set last_seen_at = now() where id = ${probe.id}`,
+    );
+    for (const secondsAgo of [20, 5]) {
+      await detection.service.ingest(probe, {
+        batchId: uuidv7(),
+        results: [
+          {
+            ...refused(answered, secondsAgo),
+            errorCode: "http_status_unexpected",
+            httpStatus: 503,
+            message: "HTTP 503 (expected 200-299)",
+          },
+        ],
+      });
+      await detection.service.evaluateMonitor(answered);
+    }
+    expect(
+      await rows(
+        sql`select 1 from incidents where monitor_id = ${answered} and resolved_at is null`,
+      ),
+    ).toHaveLength(1);
+    expect(
+      await rows(
+        sql`select 1 from probe_tasks where monitor_id = ${answered} and kind = 'diagnose'`,
+      ),
+    ).toEqual([]);
+  });
+
   it("traces a multi-step check to the host of its first step", async () => {
     const flow = await createMonitor("Login flow", {
       type: "multistep",

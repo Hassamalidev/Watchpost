@@ -58,7 +58,8 @@
     "network": "Questa pagina di stato è privata. Si apre solo dalla rete del suo proprietario.",
     "label": "Password",
     "open": "Apri la pagina",
-    "wrong": "La password non è corretta. Riprova."
+    "wrong": "La password non è corretta. Riprova.",
+    "wait": "Troppi tentativi. Attendi dieci minuti e riprova."
   },
   "language": "Lingua"
 }

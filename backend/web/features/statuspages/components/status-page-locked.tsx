@@ -11,12 +11,15 @@ export function StatusPageLocked({
   locked,
   unlockAction,
   wrong = false,
+  wait = false,
 }: {
   locked: PublicStatusLocked;
   /* Where the password form posts. */
   unlockAction: string;
   /* The password just entered was not right. */
   wrong?: boolean;
+  /* Too many tries from this visitor's network for now. */
+  wait?: boolean;
 }): React.ReactElement {
   const t = useTranslations("statusPage.locked");
   const { page } = locked;
@@ -39,9 +42,9 @@ export function StatusPageLocked({
       </p>
       {locked.locked === "password" && (
         <form method="post" action={unlockAction} className="grid gap-3">
-          {wrong && (
+          {(wrong || wait) && (
             <p role="alert" className="rounded-md border border-status-down p-3 text-sm">
-              {t("wrong")}
+              {wait ? t("wait") : t("wrong")}
             </p>
           )}
           <div className="grid gap-1.5">

@@ -61,6 +61,27 @@ export const diagnosticsReportSchema = z.object({
 export const NETWORK_DIAGNOSTICS_EVENT = "network_diagnostics";
 export type NetworkDiagnosticsEvent = NetworkDiagnostics & { region: string };
 
+/*
+ * Failures where the trouble may be between us and the target, so a trace can say something.
+ * When the server answered (a wrong status, a missing keyword) the network was fine.
+ */
+const NETWORK_CAUSES: ReadonlySet<string> = new Set([
+  "dns_nxdomain",
+  "dns_servfail",
+  "dns_timeout",
+  "dns_no_records",
+  "connect_refused",
+  "connect_timeout",
+  "connect_reset",
+  "network_unreachable",
+  "tls_handshake_failed",
+  "response_timeout",
+  "ping_loss",
+  "ws_handshake_failed",
+]);
+export const isNetworkCause = (code: string | null | undefined): boolean =>
+  code != null && NETWORK_CAUSES.has(code);
+
 /* The host a monitor reaches over the network; undefined for types that reach nothing themselves. */
 export function diagnosticHostOf(config: MonitorConfig): string | undefined {
   const fromUrl = (url: string): string | undefined => {

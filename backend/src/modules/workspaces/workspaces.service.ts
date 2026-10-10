@@ -4,6 +4,7 @@
  * transaction; ensureSettings is idempotent so the creation hook, lazy reads and the recovery
  * sweep can all call it.
  */
+import { randomUUID } from "node:crypto";
 import type { Clock } from "../../core/clock.js";
 import type { PlanFeature } from "@app/shared";
 import { ConflictError, NotFoundError, QuotaExceededError } from "../../core/errors.js";
@@ -48,6 +49,11 @@ export interface WorkspacesService {
   resolveRole(userId: string, workspaceId: string): Promise<WorkspaceRole | undefined>;
   /* The agency workspace this one is a client of, if any (its plan pays for this one). */
   parentOf(workspaceId: string): Promise<string | undefined>;
+  /*
+   * System (people changed in an agency): its owners and admins are admin members of every client
+   * workspace, and nobody else is one on the agency's account.
+   */
+  syncClientAdmins(agencyId: string): Promise<void>;
   listClients(scope: WorkspaceScope): Promise<ClientWorkspace[]>;
   /* Creates a client workspace under this one, owned by whoever asks. */
   createClient(
@@ -124,6 +130,10 @@ export function createWorkspacesService(deps: {
   hasFeature?: ((scope: WorkspaceScope, feature: PlanFeature) => Promise<boolean>) | undefined;
   /* How many client workspaces the plan includes (billing, wired by the container). */
   clientLimit?: ((scope: WorkspaceScope) => Promise<number>) | undefined;
+  /* Runs one change at a time per key (an advisory lock; tests run without one). */
+  lock?: (<T>(key: string, fn: () => Promise<T>) => Promise<T>) | undefined;
+  /* IDs for the memberships we add ourselves. */
+  newId?: (() => string) | undefined;
   /* Creates a workspace owned by the given person (the auth library) and answers its ID. */
   createWorkspace?: ((input: { name: string; ownerUserId: string }) => Promise<string>) | undefined;
 }): WorkspacesService {
@@ -139,15 +149,49 @@ export function createWorkspacesService(deps: {
   const service: WorkspacesService = {
     async resolveRole(userId, workspaceId) {
       const own = parseMemberRole(await repository.findMemberRole(userId, workspaceId));
-      if (own !== undefined) return own;
-      /*
-       * Client workspaces: the agency's owners and admins run them as admins without being added
-       * to each one. Everyone else of the agency has no access unless invited there.
-       */
       const parentId = await service.parentOf(workspaceId);
-      if (parentId === undefined) return undefined;
+      if (parentId === undefined) return own;
+      /*
+       * Client workspaces: the agency's owners and admins run them as admins. They are made real
+       * members (the sign-in library, which sends invitations, knows only those), and that
+       * membership goes when their standing in the agency does. Everyone else of the agency has no
+       * access unless invited there.
+       */
       const inAgency = parseMemberRole(await repository.findMemberRole(userId, parentId));
-      return inAgency === "owner" || inAgency === "admin" ? "admin" : undefined;
+      const runsAgency = inAgency === "owner" || inAgency === "admin";
+      if (own !== undefined) {
+        if (runsAgency || !(await repository.hasGrant(workspaceId, userId))) return own;
+        /* A membership that came with a standing they no longer have. */
+        await repository.revokeClientAdmin(workspaceId, userId);
+        return undefined;
+      }
+      if (!runsAgency) return undefined;
+      await repository.grantClientAdmin(workspaceId, userId, deps.newId?.() ?? randomUUID());
+      return "admin";
+    },
+
+    async syncClientAdmins(agencyId) {
+      const clients = await repository.listClients(systemScope(agencyId));
+      if (clients.length === 0) return;
+      const admins = new Set(
+        (await repository.memberRoles(agencyId))
+          .filter((m) => {
+            const role = parseMemberRole(m.role);
+            return role === "owner" || role === "admin";
+          })
+          .map((m) => m.userId),
+      );
+      for (const client of clients) {
+        const members = new Set((await repository.memberRoles(client.id)).map((m) => m.userId));
+        for (const userId of admins) {
+          if (!members.has(userId)) {
+            await repository.grantClientAdmin(client.id, userId, deps.newId?.() ?? randomUUID());
+          }
+        }
+        for (const userId of await repository.grantedUserIds(client.id)) {
+          if (!admins.has(userId)) await repository.revokeClientAdmin(client.id, userId);
+        }
+      }
     },
 
     async parentOf(workspaceId) {
@@ -172,26 +216,31 @@ export function createWorkspacesService(deps: {
       if ((await service.parentOf(scope.workspaceId)) !== undefined) {
         throw new ConflictError("A client workspace can't have client workspaces of its own.");
       }
-      const limit = (await deps.clientLimit?.(scope)) ?? 0;
-      const existing = await repository.listClients(scope);
-      if (existing.length >= limit) {
-        throw new QuotaExceededError(
-          limit === 0
-            ? "Client workspaces are part of the Business plan."
-            : `Your plan includes ${limit} client workspaces. Add more to your plan to create another.`,
-        );
-      }
-      if (deps.createWorkspace === undefined) throw new Error("workspace creation isn't wired");
-      const id = await deps.createWorkspace({ name, ownerUserId: session.userId });
-      await repository.linkClient(id, scope.workspaceId);
-      parentCache.delete(id);
-      /*
-       * No trial of its own: the agency's plan pays for it, so nothing should count down, send
-       * trial emails or downgrade it on its own clock.
-       */
-      await service.ensureSettings(id);
-      await repository.updateSettings(systemScope(id), { trialEndsAt: null });
-      return { id, name, createdAt: clock.now().toISOString() };
+      /* One at a time per agency, so the plan's number can't be passed by a burst. */
+      const lock = deps.lock ?? ((_key: string, fn: () => Promise<ClientWorkspace>) => fn());
+      return lock(`clients:${scope.workspaceId}`, async () => {
+        const limit = (await deps.clientLimit?.(scope)) ?? 0;
+        const existing = await repository.listClients(scope);
+        if (existing.length >= limit) {
+          throw new QuotaExceededError(
+            limit === 0
+              ? "Client workspaces are part of the Business plan."
+              : `Your plan includes ${limit} client workspaces. Add more to your plan to create another.`,
+          );
+        }
+        if (deps.createWorkspace === undefined) throw new Error("workspace creation isn't wired");
+        const id = await deps.createWorkspace({ name, ownerUserId: session.userId });
+        await repository.linkClient(id, scope.workspaceId);
+        parentCache.delete(id);
+        await service.syncClientAdmins(scope.workspaceId);
+        /*
+         * No trial of its own: the agency's plan pays for it, so nothing should count down, send
+         * trial emails or downgrade it on its own clock.
+         */
+        await service.ensureSettings(id);
+        await repository.updateSettings(systemScope(id), { trialEndsAt: null });
+        return { id, name, createdAt: clock.now().toISOString() };
+      });
     },
 
     async me(scope, session) {

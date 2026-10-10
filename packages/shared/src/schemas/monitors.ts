@@ -52,13 +52,25 @@ const wsUrl = z
   .max(2_048)
   .describe("ws:// or wss:// URL");
 
+/* Line breaks and other control characters (a tab is fine): a header value is one line. */
+function hasControlCharacter(value: string): boolean {
+  for (let i = 0; i < value.length; i += 1) {
+    const code = value.charCodeAt(i);
+    if ((code < 0x20 && code !== 0x09) || code === 0x7f) return true;
+  }
+  return false;
+}
 const header = z.object({
   name: z
     .string()
     .min(1)
     .max(256)
     .regex(/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/, "must be a valid header name"),
-  value: z.string().max(8_192),
+  /* No line breaks or other control characters: a header is one line. */
+  value: z
+    .string()
+    .max(8_192)
+    .refine((value) => !hasControlCharacter(value), "must not contain line breaks"),
 });
 
 /* "200", "200-299" or "3xx"-style shorthand is kept simple: single codes and inclusive ranges. */

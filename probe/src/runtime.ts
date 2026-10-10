@@ -119,7 +119,10 @@ export function createProbeRuntime(options: ProbeRuntimeOptions): ProbeRuntime {
 
   async function syncSafely(): Promise<void> {
     try {
-      await sync.syncOnce();
+      const { skipped } = await sync.syncOnce();
+      if (skipped.length > 0) {
+        logger.warn({ monitors: skipped.slice(0, 20), count: skipped.length }, "monitors skipped");
+      }
     } catch (err) {
       errors += 1;
       logger.warn({ err: (err as Error).message }, "assignment sync failed");

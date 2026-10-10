@@ -42,6 +42,29 @@ function toAppError(err: unknown): AppError | undefined {
     if (err.type === "entity.too.large")
       return new AppError(413, "payload_too_large", "The request body is too large.");
   }
+  /* An address the router couldn't decode ("%ff" is not text). */
+  if (err instanceof URIError) {
+    return new AppError(400, "validation_failed", "The address of this request is not valid.");
+  }
+  /*
+   * A value the database can't store (class 22, "data exception": a NUL character in text, text
+   * that is not an ID where one is expected). Validation should have caught it; the caller still
+   * sent something wrong, so this is their error to fix and not a failure of ours.
+   */
+  if (databaseCode(err)?.startsWith("22") === true) {
+    return new AppError(400, "validation_failed", "The request has a value that can't be stored.");
+  }
+  return undefined;
+}
+
+/* The Postgres error code of an error, wherever the driver or the query builder put it. */
+function databaseCode(err: unknown): string | undefined {
+  for (let current = err, depth = 0; depth < 4; depth += 1) {
+    if (typeof current !== "object" || current === null) return undefined;
+    const code = (current as { code?: unknown }).code;
+    if (typeof code === "string" && /^[0-9A-Z]{5}$/.test(code)) return code;
+    current = (current as { cause?: unknown }).cause;
+  }
   return undefined;
 }
 

@@ -592,6 +592,7 @@ export {
   NETWORK_DIAGNOSTICS_EVENT,
   diagnosticHostOf,
   diagnosticsReportSchema,
+  isNetworkCause,
   dnsTraceSchema,
   networkDiagnosticsSchema,
   tracerouteSchema,

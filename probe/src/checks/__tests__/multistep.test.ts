@@ -345,3 +345,47 @@ describe("multi-step config", () => {
     expect(parse({ type: "multistep", steps: [] }).success).toBe(false);
   });
 });
+
+describe("multi-step requests that can't be sent", () => {
+  it("fails the step, and doesn't crash the check, when a value breaks a header", async () => {
+    const config = monitorConfigSchema.parse({
+      type: "multistep",
+      secrets: [{ name: "odd", value: "line one\nX-Injected: yes" }],
+      steps: [
+        {
+          name: "Broken header",
+          url: `${base}/me`,
+          headers: [{ name: "X-Value", value: "{{odd}}" }],
+        },
+      ],
+    });
+    const outcome = await runMultistep(config, ctx());
+    expect(outcome).toMatchObject({
+      ok: false,
+      errorCode: "protocol_error",
+      details: { failedStep: 1 },
+    });
+    expect(outcome.message).toMatch(/^Step 1 "Broken header": the request could not be sent/);
+    expect(seen.some((request) => request.url === "/me" && request.body === "")).toBe(true);
+  });
+
+  it("refuses a header with a line break when the monitor is saved", () => {
+    for (const type of ["http", "multistep"] as const) {
+      const headers = [{ name: "X-A", value: "a\r\nX-B: c" }];
+      const result = monitorConfigSchema.safeParse(
+        type === "http"
+          ? { type, url: "https://api.example.com", headers }
+          : { type, steps: [{ name: "One", url: "https://api.example.com", headers }] },
+      );
+      expect(result.success, type).toBe(false);
+    }
+    /* A tab is fine. */
+    expect(
+      monitorConfigSchema.safeParse({
+        type: "http",
+        url: "https://api.example.com",
+        headers: [{ name: "X-A", value: "a\tb" }],
+      }).success,
+    ).toBe(true);
+  });
+});
