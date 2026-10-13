@@ -19,12 +19,17 @@ type Billing = "monthly" | "annual";
 export const signupHref = (plan: MarketingPlan, billing: Billing) =>
   plan.key === "free" ? "/signup" : `/signup?plan=${plan.key}&billing=${billing}`;
 
-export function PlanPicker() {
+export function PlanPicker({
+  compact = false,
+}: {
+  /* Tighter cards for the landing page, where pricing shares one screen with its heading. */
+  compact?: boolean;
+}) {
   const t = useTranslations("marketing");
   const [billing, setBilling] = React.useState<Billing>("monthly");
 
   return (
-    <div className="grid gap-6">
+    <div className={cn("grid", compact ? "gap-4" : "gap-6")}>
       <div
         role="group"
         aria-label={t("billingPeriod")}
@@ -55,7 +60,8 @@ export function PlanPicker() {
             <li
               key={plan.key}
               className={cn(
-                "flex flex-col gap-4 rounded-lg border bg-card p-5 text-card-foreground shadow-xs",
+                "flex flex-col rounded-lg border bg-card text-card-foreground shadow-xs",
+                compact ? "gap-2.5 p-4" : "gap-4 p-5",
                 plan.highlighted && "border-brand",
               )}
             >
@@ -71,7 +77,9 @@ export function PlanPicker() {
                 <p className="text-sm text-muted-foreground">{t(`plans.${plan.key}.tagline`)}</p>
               </div>
               <p>
-                <span className="text-3xl font-semibold tracking-tight">
+                <span
+                  className={cn("font-semibold tracking-tight", compact ? "text-2xl" : "text-3xl")}
+                >
                   {formatPlanPrice(billing === "annual" ? plan.annual : plan.monthly)}
                 </span>{" "}
                 <span className="text-sm text-muted-foreground">
@@ -80,7 +88,7 @@ export function PlanPicker() {
                     : t(billing === "annual" ? "pricePerMonthAnnual" : "pricePerMonth")}
                 </span>
               </p>
-              <ul className="grid gap-2 text-sm">
+              <ul className={cn("grid text-sm", compact ? "gap-1" : "gap-2")}>
                 {PLAN_FEATURE_KEYS.map((feature) => (
                   <li key={feature} className="flex items-start gap-2">
                     <Check aria-hidden className="mt-0.5 size-4 shrink-0 text-status-up" />

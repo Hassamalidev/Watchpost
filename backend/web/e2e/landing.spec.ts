@@ -51,6 +51,8 @@ test("the landing page describes itself to search engines", async ({ page }) => 
   );
 
   await expect(page.getByRole("heading", { level: 3, name: "Cron job monitoring" })).toBeVisible();
+  /* Questions start closed, so all nine fit one screen; each opens in place. */
+  await page.getByText("What is UptimeWatch?").click();
   await expect(page.getByText("UptimeWatch is an uptime monitoring service.")).toBeVisible();
   await page.getByText("How does UptimeWatch reduce false alarms?").click();
   await expect(page.getByText(/One failed check does not alert anyone/)).toBeVisible();

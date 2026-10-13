@@ -97,13 +97,23 @@ const MIGRATE_FROM = ["uptimerobot", "uptime-kuma", "better-stack"] as const;
 
 const FAQ = ["1", "2", "3", "4", "5", "6", "7", "8", "9"] as const;
 
+/*
+ * One section, one screen. On a laptop or larger each section is exactly as tall as the window
+ * under the site header, with its content in the middle, so scrolling moves from one complete
+ * screen to the next and a menu link lands on a full section. The content of every section is kept
+ * short enough to fit a 1280 by 720 window; on phones sections keep their natural height, because
+ * nine cards can't fit a phone screen.
+ */
+const SCREEN =
+  "scroll-mt-[4.0625rem] lg:flex lg:min-h-[calc(100svh-4.0625rem)] lg:flex-col lg:justify-center";
+
 function SectionHeading({ id, title, intro }: { id: string; title: string; intro: string }) {
   return (
-    <div className="mx-auto grid max-w-2xl gap-3 text-center">
-      <h2 id={id} className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+    <div className="mx-auto grid max-w-2xl gap-2 text-center">
+      <h2 id={id} className="text-3xl font-semibold tracking-tight text-balance">
         {title}
       </h2>
-      <p className="text-lg text-muted-foreground text-pretty">{intro}</p>
+      <p className="text-muted-foreground text-pretty">{intro}</p>
     </div>
   );
 }
@@ -129,19 +139,19 @@ export default async function HomePage() {
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
       />
 
-      <section className="relative isolate overflow-hidden">
+      <section className="relative isolate overflow-hidden lg:h-[calc(100svh-4.0625rem)] lg:min-h-[38rem]">
         <div aria-hidden="true" className="landing-grid absolute inset-0 -z-10" />
         <div aria-hidden="true" className="landing-glow absolute inset-0 -z-10" />
-        <div className="mx-auto grid max-w-6xl gap-12 px-4 pt-16 pb-20 sm:px-6 sm:pt-24">
-          <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 text-center">
+        <div className="mx-auto grid max-w-6xl gap-10 px-4 pt-12 pb-16 sm:px-6 lg:gap-8 lg:pt-10 lg:pb-0">
+          <div className="mx-auto flex max-w-3xl flex-col items-center gap-5 text-center">
             <p className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-sm text-muted-foreground">
               <span className="size-2 rounded-full bg-status-up" />
               {l("eyebrow")}
             </p>
-            <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-6xl">
+            <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
               <span className="text-brand">{l("heroLead")}</span> {l("heroRest")}
             </h1>
-            <p className="max-w-2xl text-lg text-muted-foreground text-pretty">{t("subhead")}</p>
+            <p className="max-w-2xl text-muted-foreground text-pretty sm:text-lg">{t("subhead")}</p>
             <div className="flex flex-wrap items-center justify-center gap-3">
               <Button asChild className="h-11 px-6 text-base">
                 <Link href="/signup">
@@ -172,24 +182,26 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section id="monitors" aria-labelledby="monitors-title" className="scroll-mt-20 border-t">
-        <div className="mx-auto grid max-w-6xl gap-10 px-4 py-20 sm:px-6">
+      <section id="monitors" aria-labelledby="monitors-title" className={cn(SCREEN, "border-t")}>
+        <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-14 sm:px-6 lg:py-6">
           <SectionHeading
             id="monitors-title"
             title={l("monitorsTitle")}
             intro={l("monitorsIntro")}
           />
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {MONITOR_TYPES.map(({ key, icon: Icon }) => (
               <li
                 key={key}
-                className="grid content-start gap-3 rounded-xl border bg-card p-6 transition-colors hover:border-brand/60"
+                className="grid grid-cols-[auto_1fr] content-start gap-x-3 gap-y-1 rounded-xl border bg-card p-4 transition-colors hover:border-brand/60"
               >
-                <span className="grid size-11 place-items-center rounded-full border bg-background">
-                  <Icon aria-hidden className="size-5 text-brand" />
+                <span className="row-span-2 grid size-9 place-items-center rounded-full border bg-background">
+                  <Icon aria-hidden className="size-4 text-brand" />
                 </span>
-                <h3 className="text-lg font-semibold">{l(`monitors.${key}.title`)}</h3>
-                <p className="text-sm text-muted-foreground">{l(`monitors.${key}.body`)}</p>
+                <h3 className="font-semibold">{l(`monitors.${key}.title`)}</h3>
+                <p className="line-clamp-2 text-sm text-muted-foreground">
+                  {l(`monitors.${key}.body`)}
+                </p>
               </li>
             ))}
           </ul>
@@ -208,9 +220,9 @@ export default async function HomePage() {
       <section
         id="how-it-works"
         aria-labelledby="steps-title"
-        className="scroll-mt-20 border-t bg-muted/40"
+        className={cn(SCREEN, "border-t bg-muted/40")}
       >
-        <div className="mx-auto grid max-w-6xl gap-10 px-4 py-20 sm:px-6">
+        <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-14 sm:px-6 lg:py-6">
           <SectionHeading id="steps-title" title={l("stepsTitle")} intro={l("stepsIntro")} />
           <ol className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {STEPS.map((key, index) => (
@@ -229,8 +241,8 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section id="features" aria-labelledby="features-title" className="scroll-mt-20 border-t">
-        <div className="mx-auto grid max-w-6xl gap-10 px-4 py-20 sm:px-6">
+      <section id="features" aria-labelledby="features-title" className={cn(SCREEN, "border-t")}>
+        <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-14 sm:px-6 lg:py-6">
           <SectionHeading
             id="features-title"
             title={t("featuresTitle")}
@@ -238,7 +250,7 @@ export default async function HomePage() {
           />
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {FEATURES.map(({ key, icon: Icon }) => (
-              <li key={key} className="grid content-start gap-2 rounded-xl border bg-card p-6">
+              <li key={key} className="grid content-start gap-2 rounded-xl border bg-card p-5">
                 <Icon aria-hidden className="size-5 text-brand" />
                 <h3 className="font-semibold">{t(`features.${key}.title`)}</h3>
                 <p className="text-sm text-muted-foreground">{t(`features.${key}.body`)}</p>
@@ -251,15 +263,12 @@ export default async function HomePage() {
       <section
         id="status-pages"
         aria-labelledby="status-title"
-        className="scroll-mt-20 border-t bg-muted/40"
+        className={cn(SCREEN, "border-t bg-muted/40")}
       >
-        <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-20 sm:px-6 lg:grid-cols-2">
+        <div className="mx-auto grid w-full max-w-6xl items-center gap-10 px-4 py-14 sm:px-6 lg:grid-cols-2 lg:py-6">
           <div className="grid gap-6">
             <div className="grid gap-3">
-              <h2
-                id="status-title"
-                className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl"
-              >
+              <h2 id="status-title" className="text-3xl font-semibold tracking-tight text-balance">
                 {l("statusTitle")}
               </h2>
               <p className="text-lg text-muted-foreground text-pretty">{l("statusIntro")}</p>
@@ -283,9 +292,9 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section aria-labelledby="oncall-title" className="border-t">
-        <div className="mx-auto grid max-w-6xl gap-4 px-4 py-20 sm:px-6 lg:grid-cols-2">
-          <div className="grid content-start gap-4 rounded-xl border bg-card p-6 sm:p-8">
+      <section aria-labelledby="oncall-title" className={cn(SCREEN, "border-t")}>
+        <div className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-14 sm:px-6 lg:grid-cols-2 lg:py-6">
+          <div className="grid content-start gap-3 rounded-xl border bg-card p-6">
             <h2 id="oncall-title" className="text-2xl font-semibold tracking-tight text-balance">
               {l("onCallTitle")}
             </h2>
@@ -301,7 +310,7 @@ export default async function HomePage() {
               </Link>
             </p>
           </div>
-          <div className="grid content-start gap-4 rounded-xl border bg-card p-6 sm:p-8">
+          <div className="grid content-start gap-3 rounded-xl border bg-card p-6">
             <h2 className="text-2xl font-semibold tracking-tight text-balance">
               {l("channelsTitle")}
             </h2>
@@ -323,44 +332,46 @@ export default async function HomePage() {
               </Link>
             </p>
           </div>
-        </div>
-      </section>
-
-      <section aria-labelledby="migrate-title" className="border-t bg-muted/40">
-        <div className="mx-auto grid max-w-6xl gap-6 px-4 py-16 sm:px-6 lg:grid-cols-[1fr_auto] lg:items-center">
-          <div className="grid max-w-2xl gap-3">
-            <h2 id="migrate-title" className="text-2xl font-semibold tracking-tight text-balance">
-              {l("migrateTitle")}
-            </h2>
-            <p className="text-muted-foreground text-pretty">{l("migrateBody")}</p>
-          </div>
-          <ul className="flex flex-wrap gap-2">
-            {MIGRATE_FROM.map((slug) => (
-              <li key={slug}>
+          {/* Moving from another tool belongs with the tools we connect to: same screen. */}
+          <div
+            role="group"
+            aria-labelledby="migrate-title"
+            className="grid gap-4 rounded-xl border bg-muted/40 p-6 lg:col-span-2 lg:grid-cols-[1fr_auto] lg:items-center"
+          >
+            <div className="grid max-w-2xl gap-2">
+              <h2 id="migrate-title" className="text-xl font-semibold tracking-tight text-balance">
+                {l("migrateTitle")}
+              </h2>
+              <p className="text-sm text-muted-foreground text-pretty">{l("migrateBody")}</p>
+            </div>
+            <ul className="flex flex-wrap gap-2">
+              {MIGRATE_FROM.map((slug) => (
+                <li key={slug}>
+                  <Link
+                    href={`/compare/${slug}`}
+                    className={buttonVariants({ variant: "outline", size: "sm" })}
+                  >
+                    {l("migrateCompare", { name: findCompetitor(slug)?.name ?? slug })}
+                  </Link>
+                </li>
+              ))}
+              <li>
                 <Link
-                  href={`/compare/${slug}`}
+                  href="/alternatives/opsgenie"
                   className={buttonVariants({ variant: "outline", size: "sm" })}
                 >
-                  {l("migrateCompare", { name: findCompetitor(slug)?.name ?? slug })}
+                  {l("migrateOpsgenie")}
                 </Link>
               </li>
-            ))}
-            <li>
-              <Link
-                href="/alternatives/opsgenie"
-                className={buttonVariants({ variant: "outline", size: "sm" })}
-              >
-                {l("migrateOpsgenie")}
-              </Link>
-            </li>
-          </ul>
+            </ul>
+          </div>
         </div>
       </section>
 
-      <section id="pricing" aria-labelledby="pricing-title" className="scroll-mt-20 border-t">
-        <div className="mx-auto grid max-w-6xl gap-10 px-4 py-20 sm:px-6">
+      <section id="pricing" aria-labelledby="pricing-title" className={cn(SCREEN, "border-t")}>
+        <div className="mx-auto grid w-full max-w-6xl gap-5 px-4 py-14 sm:px-6 lg:py-5">
           <SectionHeading id="pricing-title" title={t("pricingTitle")} intro={t("pricingIntro")} />
-          <PlanPicker />
+          <PlanPicker compact />
           <p className="text-center">
             <Link href="/pricing" className="inline-block py-1 text-sm font-medium underline">
               {t("compareAll")}
@@ -369,22 +380,16 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section id="faq" aria-labelledby="faq-title" className="scroll-mt-20 border-t bg-muted/40">
-        <div className="mx-auto grid max-w-3xl gap-8 px-4 py-20 sm:px-6">
-          <h2
-            id="faq-title"
-            className="text-center text-3xl font-semibold tracking-tight sm:text-4xl"
-          >
+      <section id="faq" aria-labelledby="faq-title" className={cn(SCREEN, "border-t bg-muted/40")}>
+        <div className="mx-auto grid w-full max-w-5xl gap-6 px-4 py-14 sm:px-6 lg:py-6">
+          <h2 id="faq-title" className="text-center text-3xl font-semibold tracking-tight">
             {l("faqTitle")}
           </h2>
-          <div className="grid gap-3">
-            {faq.map((entry, index) => (
-              <details
-                key={entry.question}
-                open={index === 0}
-                className="group rounded-xl border bg-card px-5"
-              >
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 font-medium [&::-webkit-details-marker]:hidden">
+          {/* Two columns of closed questions: nine fit one screen, and one opens in place. */}
+          <div className="grid items-start gap-3 lg:grid-cols-2">
+            {faq.map((entry) => (
+              <details key={entry.question} className="group rounded-xl border bg-card px-5">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-3.5 font-medium [&::-webkit-details-marker]:hidden">
                   {entry.question}
                   <Plus
                     aria-hidden
@@ -398,9 +403,12 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section aria-labelledby="cta-title" className="relative isolate overflow-hidden border-t">
+      <section
+        aria-labelledby="cta-title"
+        className={cn(SCREEN, "relative isolate overflow-hidden border-t")}
+      >
         <div aria-hidden="true" className="landing-glow absolute inset-0 -z-10" />
-        <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-4 py-24 text-center sm:px-6">
+        <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-4 py-20 text-center sm:px-6">
           <h2
             id="cta-title"
             className="text-3xl font-semibold tracking-tight text-balance sm:text-5xl"
