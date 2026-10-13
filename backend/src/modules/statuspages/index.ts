@@ -139,6 +139,8 @@ export function createStatuspagesModule(deps: StatuspagesModuleDeps): Statuspage
         async run(logger) {
           const checked = await service.checkDomains();
           if (checked > 0) logger.info({ checked }, "status page domains checked");
+          const forgotten = await service.purgeUnconfirmedSubscribers();
+          if (forgotten > 0) logger.info({ forgotten }, "unconfirmed subscribers forgotten");
         },
       },
       {

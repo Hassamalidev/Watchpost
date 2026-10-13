@@ -76,15 +76,19 @@ describe("parsers", () => {
     expect(() => parseInbound("email", {})).toThrow(/subject/);
   });
 
-  it("handles the first 50 alerts of an oversized request instead of refusing them all", () => {
-    const events = parseInbound("alertmanager", {
-      alerts: Array.from({ length: 80 }, (_, i) => ({
-        status: "firing",
-        labels: { alertname: `A${i}` },
-      })),
+  it("handles a big request instead of refusing it: every recovery, and up to 200 new alerts", () => {
+    const alerts = (status: string, count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        status,
+        labels: { alertname: `${status}-${i}` },
+      }));
+    expect(parseInbound("alertmanager", { alerts: alerts("firing", 80) })).toHaveLength(80);
+    const mixed = parseInbound("alertmanager", {
+      alerts: [...alerts("firing", 250), ...alerts("resolved", 300)],
     });
-    expect(events).toHaveLength(50);
-    expect(events[0]?.title).toContain("A0");
+    expect(mixed.filter((e) => e.status === "trigger")).toHaveLength(200);
+    expect(mixed.filter((e) => e.status === "resolve")).toHaveLength(300);
+    expect(mixed[0]?.title).toContain("firing-0");
   });
 });
 

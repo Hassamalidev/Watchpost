@@ -19,6 +19,9 @@ FROM node:24-alpine
 RUN apk add --no-cache iputils-ping iputils-tracepath
 WORKDIR /app
 ENV NODE_ENV=production
+# Name lookups run on libuv's thread pool (4 threads by default). With more, a few targets whose
+# nameservers are dead can't hold up every other check's lookup.
+ENV UV_THREADPOOL_SIZE=32
 COPY --from=build /out /app
 USER node
 EXPOSE 8080

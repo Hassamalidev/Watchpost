@@ -5,7 +5,7 @@
  * /api/public/reports is the public zone (§7.1): links from report emails, which carry a signed
  * token instead of a session.
  */
-import { Router, type RequestHandler } from "express";
+import { Router, urlencoded, type RequestHandler } from "express";
 import { requirePermission } from "../../middleware/roles.js";
 import { validate } from "../../middleware/validate.js";
 import type { ReportsController } from "./reports.controller.js";
@@ -54,8 +54,14 @@ export function createReportsRouter(
 export function createPublicReportsRouter(controller: ReportsController): Router {
   const router = Router();
   const token = validate({ query: unsubscribeQuery });
-  router.get("/unsubscribe", token, controller.unsubscribe);
-  router.post("/unsubscribe", token, controller.unsubscribeOneClick);
+  /* Opening the link shows a page with one button; only the button's POST changes anything. */
+  router.get("/unsubscribe", token, controller.askUnsubscribe);
+  router.post(
+    "/unsubscribe",
+    urlencoded({ extended: false, limit: "10kb" }),
+    token,
+    controller.unsubscribe,
+  );
   router.get("/:token/sla.pdf", validate({ params: sharedReportParams }), controller.sharedPdf);
   return router;
 }

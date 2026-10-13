@@ -96,6 +96,16 @@ export function createHeartbeatsRepository() {
         .for("update", { skipLocked: true });
     },
 
+    /* Heartbeats that are down: the ones an open incident may belong to. */
+    async down(tx: DbOrTx, limit: number): Promise<HeartbeatStateRow[]> {
+      return tx
+        .select()
+        .from(heartbeatState)
+        .where(eq(heartbeatState.status, "down"))
+        .limit(limit)
+        .for("update", { skipLocked: true });
+    },
+
     /* Runs still going after their maximum duration. */
     async dueTooLong(tx: DbOrTx, now: Date, limit: number): Promise<HeartbeatStateRow[]> {
       return tx

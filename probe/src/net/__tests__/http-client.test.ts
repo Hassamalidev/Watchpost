@@ -316,6 +316,22 @@ describe("limits", () => {
     expect(big.truncated).toBe(true);
   });
 
+  it("a name that doesn't resolve in time is a DNS timeout, inside the check's own time", async () => {
+    const never: Resolver = () => new Promise(() => undefined);
+    const started = Date.now();
+    expect(
+      await codeOf(
+        httpRequest({
+          url: `http://slow-dns.test:${port}/ok`,
+          policy,
+          timeoutMs: 300,
+          resolver: never,
+        }),
+      ),
+    ).toBe("dns_timeout");
+    expect(Date.now() - started).toBeLessThan(2_000);
+  });
+
   it("maps a refused connection", async () => {
     const closed = http.createServer();
     closed.listen(0, "127.0.0.1");

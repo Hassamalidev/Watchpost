@@ -1,6 +1,7 @@
 /* HTTP in and out only; no business logic. */
 import type { RequestHandler } from "express";
 import { NotFoundError } from "../../core/errors.js";
+import { isFromLinkPage, linkPage } from "../../middleware/email-link-page.js";
 import { inputOf } from "../../middleware/validate.js";
 import { scopeOf } from "../../middleware/workspace.js";
 import type { ReportFile, ReportsService, SlaQuery } from "./reports.service.js";
@@ -21,8 +22,8 @@ export type ReportsController = Record<
   | "updateSchedule"
   | "deleteSchedule"
   | "sharedPdf"
-  | "unsubscribe"
-  | "unsubscribeOneClick",
+  | "askUnsubscribe"
+  | "unsubscribe",
   RequestHandler
 >;
 
@@ -88,9 +89,30 @@ export function createReportsController(service: ReportsService): ReportsControl
       res.set("x-robots-tag", "noindex");
       sendFile(res, file, "application/pdf");
     },
+    askUnsubscribe: (req, res) => {
+      res
+        .status(200)
+        .set("cache-control", "no-store")
+        .type("html")
+        .send(
+          linkPage(req, {
+            title: "Unsubscribe from these reports",
+            text: "Press the button and this address gets no more of these reports.",
+            button: "Unsubscribe",
+          }),
+        );
+    },
+    /*
+     * The button on that page, and (RFC 8058) the mail app's own "Unsubscribe" button, which posts
+     * to the same address without a person seeing a page.
+     */
     unsubscribe: async (req, res) => {
       const { query } = inputOf<{ query: typeof unsubscribeQuery }>(req, res);
       const ok = await service.unsubscribe(query.token);
+      if (!isFromLinkPage(req)) {
+        res.status(200).json({ status: "unsubscribed" });
+        return;
+      }
       res
         .status(ok ? 200 : 404)
         .type("html")
@@ -99,12 +121,6 @@ export function createReportsController(service: ReportsService): ReportsControl
             ? notice("You are unsubscribed", "This address gets no more of these reports.")
             : notice("This link has expired", "Ask the sender to take you off the report."),
         );
-    },
-    /* RFC 8058: mail apps post here when the reader presses their own "Unsubscribe" button. */
-    unsubscribeOneClick: async (req, res) => {
-      const { query } = inputOf<{ query: typeof unsubscribeQuery }>(req, res);
-      await service.unsubscribe(query.token);
-      res.status(200).json({ status: "unsubscribed" });
     },
   };
 }

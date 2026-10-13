@@ -13,7 +13,7 @@ import {
   type OutboundResponse,
 } from "../../../infra/http/outbound.js";
 import { createDiscordAdapter } from "../adapters/discord.js";
-import { renderPlain } from "../adapters/render.js";
+import { escapeMarkdown, renderMarkdownBody, renderPlain } from "../adapters/render.js";
 import { createSlackAdapter, slackBlocks } from "../adapters/slack.js";
 import { createTeamsAdapter } from "../adapters/teams.js";
 import { createTelegramAdapter, createTelegramApi } from "../adapters/telegram.js";
@@ -339,6 +339,40 @@ describe("what customers and other tools put in an alert", () => {
     expect(text).not.toContain("<http://evil.example");
     expect(text).toContain("&lt;!channel&gt;");
     expect(text).toContain("&amp; more");
+  });
+
+  it("can't mention a whole Zulip stream or make a link in Markdown", () => {
+    const hostile = event();
+    hostile.incident.monitorName = "@**all** [the fix](http://evil.example) `x` <b>";
+    const body = renderMarkdownBody(hostile, renderPlain(hostile));
+    expect(body).not.toContain("@**all**");
+    expect(body).not.toContain("[the fix](");
+    expect(body).toContain("@\\*\\*all\\*\\*");
+    /* What we write ourselves still renders. */
+    expect(body).toContain("**Severity:**");
+    expect(escapeMarkdown("http_status_unexpected")).toBe("http_status_unexpected");
+  });
+
+  it("follows a Telegram group to its new ID when it became a supergroup", async () => {
+    const provider = stub((req) =>
+      JSON.parse(req.body ?? "{}").chat_id === "-100200"
+        ? {
+            status: 400,
+            body: '{"ok":false,"description":"Bad Request: group chat was upgraded to a supergroup chat","parameters":{"migrate_to_chat_id":-1009999}}',
+          }
+        : { body: '{"ok":true,"result":{"message_id":7}}' },
+    );
+    const adapter = createTelegramAdapter({
+      api: createTelegramApi({ http: provider.http, botToken: "123:abc" }),
+    });
+    const sent = await adapter.send(
+      { chatId: "-100200", chatTitle: "Ops" },
+      adapter.render(event()),
+      meta(),
+    );
+    expect(provider.requests).toHaveLength(2);
+    expect(provider.body(1).chat_id).toBe("-1009999");
+    expect(sent.providerRef).toBe("-1009999:7");
   });
 
   it("lists a big burst in part, and stays inside Telegram's message size", async () => {

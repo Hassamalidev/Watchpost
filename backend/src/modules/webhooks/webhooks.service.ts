@@ -90,6 +90,26 @@ export interface WebhooksService {
   purgeDeliveries(): Promise<number>;
 }
 
+/*
+ * Deliveries go out several at a time. One after another, an endpoint that accepts the connection
+ * and never answers held every other workspace's deliveries behind its 10-second timeouts.
+ */
+const SEND_CONCURRENCY = 10;
+
+async function sideBySide<T, R>(items: readonly T[], run: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      results[index] = await run(items[index] as T);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(SEND_CONCURRENCY, items.length) }, worker));
+  return results;
+}
+
 function originOf(url: string): string {
   try {
     return new URL(url).origin;
@@ -421,7 +441,7 @@ export function createWebhooksService(deps: {
       const endpoints = (await repo.enabledIn(workspaceId)).filter(
         (e) => webhookEventMatches(e.events, type) && e.createdAt.getTime() <= occurredAt.getTime(),
       );
-      let created = 0;
+      const made: string[] = [];
       for (const endpoint of endpoints) {
         const id = deps.newId();
         const row = await repo.insertDelivery({
@@ -436,19 +456,17 @@ export function createWebhooksService(deps: {
         });
         /* Already there: this event was handled before (the job ran twice). */
         if (row === undefined) continue;
-        created += 1;
-        await attempt(row.id);
+        made.push(row.id);
       }
-      return created;
+      /* Every endpoint's row exists before the first request goes out, so a slow one delays nobody. */
+      await sideBySide(made, attempt);
+      return made.length;
     },
 
     async deliverDue() {
       const ids = await repo.dueDeliveryIds(clock.now(), SWEEP_BATCH);
-      let attempted = 0;
-      for (const id of ids) {
-        if ((await attempt(id)) !== undefined) attempted += 1;
-      }
-      return attempted;
+      const done = await sideBySide(ids, attempt);
+      return done.filter((row) => row !== undefined).length;
     },
 
     purgeDeliveries: () =>

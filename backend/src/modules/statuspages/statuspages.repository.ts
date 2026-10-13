@@ -461,6 +461,15 @@ export function createStatuspagesRepository(db: DbOrTx) {
       return row;
     },
 
+    /* System: forgets addresses that asked to subscribe before `before` and never confirmed. */
+    async deleteUnconfirmedBefore(before: Date): Promise<number> {
+      const rows = await db
+        .delete(statusSubscribers)
+        .where(and(isNull(statusSubscribers.confirmedAt), lt(statusSubscribers.createdAt, before)))
+        .returning({ id: statusSubscribers.id });
+      return rows.length;
+    },
+
     async deleteSubscriber(scope: WorkspaceScope, pageId: string, id: string): Promise<boolean> {
       const rows = await db
         .delete(statusSubscribers)

@@ -402,7 +402,15 @@ describe("scheduled reports", () => {
     const emails = await reportEmails();
     const link = (to: string) =>
       String(emails.find((e) => e.to === to)?.data.unsubscribeUrl).slice(WEB_ORIGIN.length);
-    const page = await request(ctx.app).get(link("client@example.com"));
+    /* Opening the link only asks; a mail scanner that fetches it takes nobody off. */
+    const opened = await request(ctx.app).get(link("client@example.com"));
+    expect(opened.status).toBe(200);
+    expect(opened.text).toContain('<form method="post"');
+    expect((await get("/reports/schedules")).body.data[0].recipients).toHaveLength(2);
+    const page = await request(ctx.app)
+      .post(link("client@example.com"))
+      .type("form")
+      .send({ from: "page" });
     expect(page.status).toBe(200);
     expect(page.text).toContain("You are unsubscribed");
     expect((await get("/reports/schedules")).body.data[0].recipients).toEqual(["boss@example.com"]);
@@ -412,8 +420,12 @@ describe("scheduled reports", () => {
     expect(oneClick.status).toBe(200);
     expect((await get("/reports/schedules")).body.data[0].recipients).toEqual([]);
     expect(
-      (await request(ctx.app).get("/api/public/reports/unsubscribe?token=" + "x".repeat(40)))
-        .status,
+      (
+        await request(ctx.app)
+          .post("/api/public/reports/unsubscribe?token=" + "x".repeat(40))
+          .type("form")
+          .send({ from: "page" })
+      ).status,
     ).toBe(404);
   });
 

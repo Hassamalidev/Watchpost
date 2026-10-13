@@ -336,6 +336,33 @@ describe("maintenance", () => {
   });
 });
 
+describe("a heartbeat deleted or paused while it is down", () => {
+  beforeAll(async () => {
+    await newWorkspace();
+    await db().execute(sql`delete from platform_gaps`);
+    await db().execute(sql`delete from platform_ticks`);
+  });
+  async function down(name: string) {
+    const { monitorId, token } = await heartbeat(name);
+    await service.ping(token, { kind: "fail" });
+    expect((await incidents(monitorId)).map((i) => i.status)).toEqual(["triggered"]);
+    return monitorId;
+  }
+
+  it("has its incident resolved at the next sweep", async () => {
+    clock.set(new Date());
+    const deleted = await down("Deleted job");
+    const paused = await down("Paused down job");
+    const gone = await owner.delete(`/api/w/${ws}/monitors/${deleted}`).set("Origin", WEB_ORIGIN);
+    expect(gone.status, gone.text).toBe(204);
+    await post(`/api/w/${ws}/monitors/${paused}/pause`);
+    await service.sweep();
+    expect((await incidents(deleted)).map((i) => i.status)).toEqual(["resolved"]);
+    expect(await state(deleted)).toBeUndefined();
+    expect((await incidents(paused)).map((i) => i.status)).toEqual(["resolved"]);
+  });
+});
+
 describe("platform gap guard", () => {
   beforeAll(async () => {
     await newWorkspace();

@@ -197,7 +197,9 @@ describe("subscribing", () => {
     const mails = await emailsTo(ada, "status-confirm");
     expect(mails).toHaveLength(2);
     const stale = await request(ctx.app)
-      .get("/api/public/status-subscriptions/confirm")
+      .post("/api/public/status-subscriptions/confirm")
+      .type("form")
+      .send({ from: "page" })
       .query({ token: tokenOf(mails[0]?.data.url) });
     expect(stale.status).toBe(404);
     expect(stale.text).toContain("no longer valid");
@@ -207,12 +209,16 @@ describe("subscribing", () => {
     const mails = await emailsTo(ada, "status-confirm");
     const token = tokenOf(mails.at(-1)?.data.url);
     const confirmed = await request(ctx.app)
-      .get("/api/public/status-subscriptions/confirm")
+      .post("/api/public/status-subscriptions/confirm")
+      .type("form")
+      .send({ from: "page" })
       .query({ token });
     expect(confirmed.status).toBe(303);
     expect(confirmed.headers.location).toBe(`${WEB_ORIGIN}/s/${slug}?subscribe=confirmed`);
     const again = await request(ctx.app)
-      .get("/api/public/status-subscriptions/confirm")
+      .post("/api/public/status-subscriptions/confirm")
+      .type("form")
+      .send({ from: "page" })
       .query({ token });
     expect(again.status).toBe(404);
 
@@ -240,7 +246,9 @@ describe("subscribing", () => {
     expect(elsewhere.headers.location).toBe(`${WEB_ORIGIN}/s/${slug}?subscribe=sent`);
     const [mail] = await emailsTo(bob, "status-confirm");
     await request(ctx.app)
-      .get("/api/public/status-subscriptions/confirm")
+      .post("/api/public/status-subscriptions/confirm")
+      .type("form")
+      .send({ from: "page" })
       .query({ token: tokenOf(mail?.data.url) });
     const bad = await request(ctx.app)
       .post(`/api/public/status/${slug}/subscribers`)
@@ -345,15 +353,33 @@ describe("updates by email", () => {
     expect(await emailsTo(ada, "status-update")).toHaveLength(before);
     expect((await emailsTo(bob, "status-update")).at(-1)?.data.title).toBe("After Ada left");
 
-    /* The link in the email does the same for a person, and using it twice is not an error. */
+    /*
+     * The link in the email opens a page with a button. Opening it changes nothing, so a mail
+     * scanner that fetches every link can't unsubscribe anyone; the button does it, and pressing
+     * it twice is not an error.
+     */
     const [bobMail] = await emailsTo(bob, "status-update");
-    const link = await request(ctx.app)
+    const opened = await request(ctx.app)
       .get("/api/public/status-subscriptions/unsubscribe")
+      .query({ token: tokenOf(bobMail?.data.unsubscribeUrl) });
+    expect(opened.status).toBe(200);
+    expect(opened.text).toContain('<form method="post"');
+    expect(
+      (await api("get", `/status-pages/${page.id}/subscribers`)).body.data.map(
+        (sub: { email: string }) => sub.email,
+      ),
+    ).toContain(bob);
+    const link = await request(ctx.app)
+      .post("/api/public/status-subscriptions/unsubscribe")
+      .type("form")
+      .send({ from: "page" })
       .query({ token: tokenOf(bobMail?.data.unsubscribeUrl) });
     expect(link.status).toBe(303);
     expect(link.headers.location).toBe(`${WEB_ORIGIN}/s/${slug}?subscribe=removed`);
     const twice = await request(ctx.app)
-      .get("/api/public/status-subscriptions/unsubscribe")
+      .post("/api/public/status-subscriptions/unsubscribe")
+      .type("form")
+      .send({ from: "page" })
       .query({ token: tokenOf(bobMail?.data.unsubscribeUrl) });
     expect(twice.status).toBe(200);
     expect(twice.text).toContain("You are unsubscribed");
@@ -397,7 +423,9 @@ describe("automatic incidents", () => {
     await subscribe(bob);
     const [mail] = (await emailsTo(bob, "status-confirm")).slice(-1);
     await request(ctx.app)
-      .get("/api/public/status-subscriptions/confirm")
+      .post("/api/public/status-subscriptions/confirm")
+      .type("form")
+      .send({ from: "page" })
       .query({ token: tokenOf(mail?.data.url) });
 
     await api("patch", `/status-pages/${page.id}`).send({
@@ -502,5 +530,13 @@ describe("a script at the subscribe form", () => {
     const after = await repoCount();
     expect(after?.pending).toBe(before?.pending);
     expect(after?.recent).toBe(0);
+
+    /* And after a week the address itself is forgotten; confirmed subscribers stay. */
+    expect(await statuspages().purgeUnconfirmedSubscribers()).toBe(0);
+    await ctx.container.infra.db.execute(sql`
+      update status_subscribers set created_at = now() - interval '8 days'
+      where page_id = ${page.id} and confirmed_at is null`);
+    expect(await statuspages().purgeUnconfirmedSubscribers()).toBe(before?.pending);
+    expect((await repoCount())?.pending).toBe(0);
   });
 });

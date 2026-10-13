@@ -37,6 +37,20 @@ export function inlineKeyboard(event: AlertEvent | undefined): { inline_keyboard
   };
 }
 
+/*
+ * A group that was upgraded to a supergroup gets a new chat ID; Telegram refuses the old one and
+ * names the new one. Without following it every alert to that group failed until it was relinked.
+ */
+export class TelegramChatMovedError extends ChannelDeliveryError {
+  constructor(
+    description: string,
+    readonly chatId: string,
+  ) {
+    super(`Telegram refused the message: ${description}`, true);
+    this.name = "TelegramChatMovedError";
+  }
+}
+
 export interface TelegramApi {
   call(method: string, payload: object): Promise<Record<string, unknown>>;
 }
@@ -56,9 +70,17 @@ export function createTelegramApi(deps: { http: OutboundHttp; botToken: string }
         "Telegram",
       );
       const body = parseJson(res.body) as
-        { ok?: boolean; description?: string; result?: Record<string, unknown> } | undefined;
+        | {
+            ok?: boolean;
+            description?: string;
+            result?: Record<string, unknown>;
+            parameters?: { migrate_to_chat_id?: number | string };
+          }
+        | undefined;
       if (body?.ok === true) return body.result ?? {};
       const description = body?.description ?? `HTTP ${res.status}`;
+      const movedTo = body?.parameters?.migrate_to_chat_id;
+      if (movedTo !== undefined) throw new TelegramChatMovedError(description, String(movedTo));
       const permanent = [400, 401, 403].includes(res.status);
       throw new ChannelDeliveryError(`Telegram refused the message: ${description}`, permanent);
     },
@@ -87,18 +109,29 @@ export function createTelegramAdapter(deps: {
         );
       }
       const replyTo = Number(meta.threadRef?.split(":")[1]);
-      const result = await deps.api.call("sendMessage", {
-        chat_id: config.chatId,
-        text: truncate(message.text, TEXT_MAX),
-        link_preview_options: { is_disabled: true },
-        /* Only the first message acts: it is the one edited to the latest state. */
-        ...(Number.isInteger(replyTo)
-          ? { reply_parameters: { message_id: replyTo, allow_sending_without_reply: true } }
-          : { reply_markup: inlineKeyboard(message.body as AlertEvent | undefined) }),
-      });
+      const post = (chatId: string) =>
+        deps.api.call("sendMessage", {
+          chat_id: chatId,
+          text: truncate(message.text, TEXT_MAX),
+          link_preview_options: { is_disabled: true },
+          /* Only the first message acts: it is the one edited to the latest state. */
+          ...(Number.isInteger(replyTo)
+            ? { reply_parameters: { message_id: replyTo, allow_sending_without_reply: true } }
+            : { reply_markup: inlineKeyboard(message.body as AlertEvent | undefined) }),
+        });
+      let chatId = config.chatId;
+      let result: Record<string, unknown>;
+      try {
+        result = await post(chatId);
+      } catch (err) {
+        if (!(err instanceof TelegramChatMovedError)) throw err;
+        /* The same group under its new ID: the alert goes there. */
+        chatId = err.chatId;
+        result = await post(chatId);
+      }
       const messageId = result.message_id;
       return {
-        providerRef: typeof messageId === "number" ? `${config.chatId}:${messageId}` : undefined,
+        providerRef: typeof messageId === "number" ? `${chatId}:${messageId}` : undefined,
       };
     },
     async note(config, ref, text) {

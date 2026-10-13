@@ -203,6 +203,7 @@ async function requestHop(
     url.hostname,
     options.policy,
     options.resolver ?? systemResolver,
+    deadline,
   );
   const vetted = preferredAddress(addresses);
   if (vetted === undefined)

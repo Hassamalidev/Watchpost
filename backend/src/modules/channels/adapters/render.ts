@@ -212,14 +212,26 @@ export function escapeHtml(text: string): string {
 }
 
 /*
+ * Names and titles come from customers and from other tools' alerts. Unescaped, `@**all**` mentions
+ * a whole Zulip stream and `[text](address)` becomes a link in the alert. The characters that start
+ * emphasis, code and HTML are escaped, and a `](` is broken up so no link forms; our own "[Critical]"
+ * and an underscore inside a word need nothing.
+ */
+export function escapeMarkdown(text: string): string {
+  return text.replace(/[\\`*<>]/g, (char) => `\\${char}`).replace(/\]\(/g, "]\\(");
+}
+
+/*
  * A Markdown body for tools that render it (Zulip, Gotify, Mattermost): facts as a list, the likely
  * cause, and a link to the incident. `title` is left to the caller, which often has a title field.
  */
 export function renderMarkdownBody(event: AlertEvent, message: RenderedMessage): string {
   if (event.kind === "test") return message.text;
-  const lines = alertFacts(event).map((f) => `- **${f.label}:** ${f.value}`);
+  const lines = alertFacts(event).map((f) => `- **${f.label}:** ${escapeMarkdown(f.value)}`);
   const why = explanationLines(event);
-  if (why.length > 0) lines.push("", ...why.map((l) => l.replace(/^([^:]+):/, "**$1:**")));
+  if (why.length > 0) {
+    lines.push("", ...why.map((l) => escapeMarkdown(l).replace(/^([^:]+):/, "**$1:**")));
+  }
   if (event.kind === "flapping") {
     lines.push(
       "",

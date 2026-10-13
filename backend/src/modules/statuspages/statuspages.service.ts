@@ -159,6 +159,8 @@ export interface StatuspagesService {
   servesHost(host: string): Promise<boolean>;
   /* System (sweep): looks at the domains that are due. Returns how many were looked at. */
   checkDomains(): Promise<number>;
+  /* System: forgets subscribers who never confirmed within a week; returns how many. */
+  purgeUnconfirmedSubscribers(): Promise<number>;
   /*
    * An AI draft of a public update for a person to read, edit and post (§6.6). Throws a conflict
    * with the reason when no draft can be made (no key, budget used, the model failed or its answer
@@ -269,6 +271,8 @@ export interface StatuspagesServiceDeps {
   ai?: Pick<AiService, "generate" | "configured"> | undefined;
 }
 
+/* An address that never confirmed is forgotten after this: it is personal data nobody asked us to keep. */
+const UNCONFIRMED_KEPT_MS = 7 * 24 * 3_600_000;
 /* How long an unconfirmed subscriber counts toward the page's limit. */
 const PENDING_HOLDS_PLACE_MS = 24 * 3_600_000;
 
@@ -1070,6 +1074,9 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
     },
 
     servesHost: (host) => repo.servesHost(host.trim().toLowerCase()),
+
+    purgeUnconfirmedSubscribers: () =>
+      repo.deleteUnconfirmedBefore(new Date(clock.now().getTime() - UNCONFIRMED_KEPT_MS)),
 
     async checkDomains() {
       const due = await repo.domainsDue(clock.now(), DOMAIN_SWEEP_BATCH);

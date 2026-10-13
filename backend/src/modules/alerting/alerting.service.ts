@@ -349,7 +349,22 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
       await repo.lockGroup(tx, groupId);
       const members = await repo.groupMembers(tx, groupKey, mine.destinationKey);
       const lead = members[0];
-      if (lead === undefined || lead.id !== deliveryId) return [];
+      if (lead === undefined) return [];
+      if (lead.id !== deliveryId) {
+        /*
+         * Not the lead, and the lead hasn't had its turn (all of a window's jobs come due at the
+         * same instant, in any order): this one steps aside now, and the lead names it when it
+         * runs. Sent here, the channel would get it twice over: alone, and missing from the group.
+         */
+        if (lead.status === "pending" && mine.status === "pending") {
+          await repo.skipDeliveries(
+            tx,
+            [deliveryId],
+            "Sent as one message with the other failures in its group.",
+          );
+        }
+        return [];
+      }
       const rest = members.slice(1);
       await repo.skipDeliveries(
         tx,
@@ -877,7 +892,9 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
       if (
         delivery.kind === "triggered" &&
         delivery.channelId !== null &&
-        ctx.incident.status === "resolved"
+        ctx.incident.status === "resolved" &&
+        /* A group's lead still speaks for the others that are down. */
+        alsoDown.length === 0
       ) {
         await finish({
           status: "skipped",

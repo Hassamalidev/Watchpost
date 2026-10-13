@@ -163,8 +163,11 @@ export function createPublicStatusRouter(
 export function createSubscriptionLinksRouter(controller: StatuspagesController): Router {
   const router = Router();
   const token = validate({ query: subscriptionTokenQuery });
-  router.get("/confirm", token, controller.confirmSubscription);
-  router.get("/unsubscribe", token, controller.unsubscribe);
-  router.post("/unsubscribe", token, controller.unsubscribeOneClick);
+  /* Opening a link shows a page with one button; only the button's POST changes anything. */
+  const form = urlencoded({ extended: false, limit: "10kb" });
+  router.get("/confirm", token, controller.askConfirmSubscription);
+  router.post("/confirm", form, token, controller.confirmSubscription);
+  router.get("/unsubscribe", token, controller.askUnsubscribe);
+  router.post("/unsubscribe", form, token, controller.unsubscribe);
   return router;
 }

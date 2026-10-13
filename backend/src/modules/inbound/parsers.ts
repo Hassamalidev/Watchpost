@@ -11,7 +11,6 @@
  */
 import { createHash } from "node:crypto";
 import {
-  MAX_INBOUND_EVENTS,
   genericInboundSchema,
   type InboundEvent,
   type InboundKind,
@@ -77,6 +76,10 @@ function promSeverity(label: string | undefined): Severity {
   return "high";
 }
 
+/* Per request. The body is capped at 512 kB, so these bound the work, not the usual case. */
+const MAX_FIRING = 200;
+const MAX_RESOLVED = 2_000;
+
 function prometheus(payload: unknown, tool: string): InboundEvent[] {
   const parsed = promPayload.safeParse(payload);
   if (!parsed.success) {
@@ -84,10 +87,18 @@ function prometheus(payload: unknown, tool: string): InboundEvent[] {
   }
   /*
    * A big outage arrives as one request with every alert in it, and Alertmanager doesn't retry a
-   * 400: refusing the whole request would mean no incident at all for the worst case. The first
-   * MAX_INBOUND_EVENTS are handled; the rest are covered by the incidents those open.
+   * 400: refusing the whole request would mean no incident at all for the worst case. Recoveries
+   * are all handled (each closes an incident, and one left out would stay open for good); new
+   * alerts open up to MAX_FIRING incidents, and the rest of the burst is covered by those.
    */
-  return parsed.data.alerts.slice(0, MAX_INBOUND_EVENTS).map((alert) => {
+  const isResolved = (alert: { status?: string | undefined }) =>
+    (alert.status ?? parsed.data.status) === "resolved";
+  let firing = 0;
+  let resolved = 0;
+  const kept = parsed.data.alerts.filter((alert) =>
+    isResolved(alert) ? (resolved += 1) <= MAX_RESOLVED : (firing += 1) <= MAX_FIRING,
+  );
+  return kept.map((alert) => {
     const name = alert.labels.alertname ?? "Alert";
     const where = alert.labels.instance ?? alert.labels.job;
     const labelsKey = Object.entries(alert.labels)
@@ -95,7 +106,7 @@ function prometheus(payload: unknown, tool: string): InboundEvent[] {
       .map(([k, v]) => `${k}=${v}`)
       .join(",");
     return {
-      status: (alert.status ?? parsed.data.status) === "resolved" ? "resolve" : "trigger",
+      status: isResolved(alert) ? "resolve" : "trigger",
       key: clip(alert.fingerprint ?? short(labelsKey), 200),
       title: clip(
         alert.annotations.summary ??

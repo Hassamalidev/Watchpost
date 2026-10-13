@@ -1,6 +1,7 @@
 /* HTTP in and out only; no business logic. */
 import type { RequestHandler } from "express";
 import { NotFoundError, UnauthorizedError } from "../../core/errors.js";
+import { isFromLinkPage, linkPage } from "../../middleware/email-link-page.js";
 import { inputOf } from "../../middleware/validate.js";
 import { scopeOf } from "../../middleware/workspace.js";
 import { timingSafeEqual } from "node:crypto";
@@ -43,9 +44,10 @@ export type StatuspagesController = Record<
   | "subscribers"
   | "removeSubscriber"
   | "subscribe"
+  | "askConfirmSubscription"
   | "confirmSubscription"
+  | "askUnsubscribe"
   | "unsubscribe"
-  | "unsubscribeOneClick"
   | "setDomain"
   | "verifyDomain"
   | "setAccess"
@@ -208,6 +210,19 @@ export function createStatuspagesController(
       }
       res.status(202).json({ status: "confirmation_sent" });
     },
+    askConfirmSubscription: (req, res) => {
+      res
+        .status(200)
+        .set("cache-control", "no-store")
+        .type("html")
+        .send(
+          linkPage(req, {
+            title: "Confirm your subscription",
+            text: "Press the button to get this status page's updates by email.",
+            button: "Confirm subscription",
+          }),
+        );
+    },
     confirmSubscription: async (req, res) => {
       const { query } = inputOf<{ query: typeof subscriptionTokenQuery }>(req, res);
       const outcome = await service.confirmSubscription(query.token);
@@ -230,9 +245,30 @@ export function createStatuspagesController(
               ),
         );
     },
+    askUnsubscribe: (req, res) => {
+      res
+        .status(200)
+        .set("cache-control", "no-store")
+        .type("html")
+        .send(
+          linkPage(req, {
+            title: "Unsubscribe from status updates",
+            text: "Press the button and this address gets no more updates from this status page.",
+            button: "Unsubscribe",
+          }),
+        );
+    },
+    /*
+     * The button on that page, and (RFC 8058) the mail app's own "Unsubscribe" button, which posts
+     * to the same address without a person seeing a page.
+     */
     unsubscribe: async (req, res) => {
       const { query } = inputOf<{ query: typeof subscriptionTokenQuery }>(req, res);
       const outcome = await service.unsubscribe(query.token);
+      if (!isFromLinkPage(req)) {
+        res.status(200).json({ status: "unsubscribed" });
+        return;
+      }
       if (outcome.ok) {
         res.redirect(303, `${outcome.pageUrl}?subscribe=removed`);
         return;
@@ -242,12 +278,6 @@ export function createStatuspagesController(
         .status(200)
         .type("html")
         .send(notice("You are unsubscribed", "This address gets no more status updates."));
-    },
-    /* RFC 8058: mail apps post here when the reader presses their own "Unsubscribe" button. */
-    unsubscribeOneClick: async (req, res) => {
-      const { query } = inputOf<{ query: typeof subscriptionTokenQuery }>(req, res);
-      await service.unsubscribe(query.token);
-      res.status(200).json({ status: "unsubscribed" });
     },
     setAccess: async (req, res) => {
       const { body } = inputOf<{ body: typeof setAccessBody }>(req, res);

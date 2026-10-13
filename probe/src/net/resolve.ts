@@ -19,10 +19,34 @@ export const systemResolver: Resolver = async (hostname) => {
   return answers.map((a) => ({ address: a.address, family: a.family === 6 ? 6 : 4 }));
 };
 
+/* A lookup with no deadline of the check's own never waits longer than this. */
+const LOOKUP_MAX_MS = 10_000;
+
+/*
+ * The lookup is part of the check's time. The system resolver has no timeout we control and can
+ * hold on for as long as the operating system likes when a zone's nameservers are dead, so the wait
+ * ends at the check's deadline and the result says what happened: the name didn't resolve in time.
+ */
+function withinDeadline<T>(lookup: Promise<T>, host: string, deadline: number): Promise<T> {
+  const ms = Math.max(1, deadline - Date.now());
+  let timer: NodeJS.Timeout | undefined;
+  const late = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(
+      () => reject(new CheckError("dns_timeout", `${host} did not resolve within ${ms} ms`)),
+      ms,
+    );
+  });
+  /* The lookup may still fail after we stopped waiting; that failure is nobody's to handle. */
+  lookup.catch(() => undefined);
+  return Promise.race([lookup, late]).finally(() => clearTimeout(timer));
+}
+
 export async function resolveVetted(
   hostname: string,
   policy: AddressPolicy,
   resolver: Resolver = systemResolver,
+  /* When the check must be over (epoch ms). */
+  deadline: number = Date.now() + LOOKUP_MAX_MS,
 ): Promise<{ addresses: ResolvedAddress[]; dnsMs: number }> {
   const host = hostname.replace(/^\[|\]$/g, "");
   if (policy.isDeniedHost(host)) {
@@ -34,9 +58,9 @@ export async function resolveVetted(
     addresses = [{ address: host, family: ipaddr.parse(host).kind() === "ipv6" ? 6 : 4 }];
   } else {
     try {
-      addresses = await resolver(host);
+      addresses = await withinDeadline(resolver(host), host, deadline);
     } catch (err) {
-      throw toCheckError(err, "dns");
+      throw err instanceof CheckError ? err : toCheckError(err, "dns");
     }
   }
   const dnsMs = performance.now() - started;

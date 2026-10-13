@@ -9,7 +9,13 @@ import type { OutboundHttp } from "../../../infra/http/outbound.js";
 import { ChannelDeliveryError, type ChannelAdapter } from "../types/adapter.js";
 import { formConfig } from "./config.js";
 import { call, joinUrl, parseJson } from "./http.js";
-import { STATE_EMOJI, renderMarkdownBody, renderPlain, truncate } from "./render.js";
+import {
+  STATE_EMOJI,
+  escapeMarkdown,
+  renderMarkdownBody,
+  renderPlain,
+  truncate,
+} from "./render.js";
 
 /* Zulip caps topics at 60 characters. */
 const TOPIC_MAX = 60;
@@ -29,7 +35,7 @@ export function createZulipAdapter(deps: {
       const plain = renderPlain(event);
       const body: ZulipBody = {
         topic: truncate(event.incident.monitorName ?? "Watchpost", TOPIC_MAX),
-        content: `${STATE_EMOJI[event.kind]} **${plain.title}**\n${renderMarkdownBody(event, plain)}`,
+        content: `${STATE_EMOJI[event.kind]} **${escapeMarkdown(plain.title)}**\n${renderMarkdownBody(event, plain)}`,
       };
       return { ...plain, body };
     },

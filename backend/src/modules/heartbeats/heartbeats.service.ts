@@ -480,6 +480,25 @@ export function createHeartbeatsService(deps: {
           await repo.updateState(tx, state.monitorId, patch);
         }
       });
+
+      /*
+       * A heartbeat deleted or paused while it was down gets no more pings, and a ping is what
+       * resolves its incident: without this the incident stays open and keeps escalating.
+       */
+      await deps.db.transaction(async (tx) => {
+        const down = await repo.down(tx, SWEEP_BATCH);
+        const monitors = await monitorsById(down.map((d) => d.monitorId));
+        for (const state of down) {
+          const found = monitors.get(state.monitorId);
+          if (found !== undefined && !found.monitor.paused) continue;
+          await deps.incidents.resolveForMonitor(tx, {
+            monitorId: state.monitorId,
+            auto: true,
+            onlySource: "heartbeat",
+          });
+          if (found === undefined) await repo.deleteState(tx, state.monitorId);
+        }
+      });
       return outcome;
     },
 

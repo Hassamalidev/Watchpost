@@ -51,6 +51,7 @@ export async function connectVetted(options: {
     options.host,
     options.policy,
     options.resolver ?? systemResolver,
+    deadline,
   );
   const target = preferredAddress(addresses);
   if (target === undefined)
