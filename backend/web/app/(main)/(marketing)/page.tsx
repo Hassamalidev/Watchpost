@@ -139,23 +139,21 @@ export default async function HomePage() {
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
       />
 
-      {/* The whole pitch on the first screen: the words on one side, the product on the other. */}
+      {/* The first screen is the pitch alone; the product has the second screen to itself. */}
       <section className={cn(SCREEN, "relative isolate overflow-hidden")}>
         <div aria-hidden="true" className="landing-grid absolute inset-0 -z-10" />
         <div aria-hidden="true" className="landing-glow absolute inset-0 -z-10" />
-        <div className="mx-auto grid w-full max-w-6xl items-center gap-10 px-4 pt-12 pb-16 sm:px-6 lg:grid-cols-[1fr_1.05fr] lg:gap-10 lg:py-6">
-          <div className="mx-auto flex max-w-3xl flex-col items-center gap-5 text-center lg:mx-0 lg:items-start lg:gap-4 lg:text-start">
+        <div className="mx-auto grid w-full max-w-6xl px-4 pt-12 pb-10 sm:px-6 lg:py-6">
+          <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 text-center">
             <p className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-sm text-muted-foreground">
               <span className="size-2 rounded-full bg-status-up" />
               {l("eyebrow")}
             </p>
-            <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl lg:text-[2.75rem] lg:leading-[1.1] xl:text-5xl">
+            <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-6xl">
               <span className="text-brand">{l("heroLead")}</span> {l("heroRest")}
             </h1>
-            <p className="max-w-2xl text-muted-foreground text-pretty sm:text-lg lg:text-base">
-              {t("subhead")}
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+            <p className="max-w-2xl text-lg text-muted-foreground text-pretty">{t("subhead")}</p>
+            <div className="flex flex-wrap items-center justify-center gap-3">
               <Button asChild className="h-11 px-6 text-base">
                 <Link href="/signup">
                   {t("startFreeNoCard")}
@@ -166,7 +164,7 @@ export default async function HomePage() {
                 <a href="#pricing">{t("seePlans")}</a>
               </Button>
             </div>
-            <ul className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm lg:grid lg:grid-cols-2 lg:justify-start lg:gap-x-6 lg:gap-y-1.5">
+            <ul className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm">
               {HERO_CHECKS.map((key) => (
                 <li key={key} className="flex items-center gap-1.5">
                   <Check aria-hidden className="size-4 text-status-up" />
@@ -181,6 +179,16 @@ export default async function HomePage() {
               </Link>
             </p>
           </div>
+        </div>
+      </section>
+
+      <section
+        id="product"
+        aria-labelledby="product-title"
+        className={cn(SCREEN, "relative isolate overflow-hidden border-t bg-muted/40")}
+      >
+        <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-14 sm:px-6 lg:py-6">
+          <SectionHeading id="product-title" title={l("previewTitle")} intro={l("previewIntro")} />
           <MonitorPreview />
         </div>
       </section>

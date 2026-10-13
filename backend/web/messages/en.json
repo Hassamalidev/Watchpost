@@ -1922,7 +1922,9 @@
       },
       "ctaTitle": "Start monitoring in a few minutes",
       "ctaBody": "Paste a URL, pick where alerts go and send a test alert. No card, nothing to install.",
-      "ctaDocs": "Read the getting started guide"
+      "ctaDocs": "Read the getting started guide",
+      "previewTitle": "Your monitor at a glance",
+      "previewIntro": "Status, uptime, certificate and response time on one page."
     },
     "footerLinks": {
       "website": "Website monitoring",

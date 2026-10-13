@@ -46,18 +46,14 @@ const LINE =
 
 export async function MonitorPreview() {
   const t = await getTranslations("marketing.landing.preview");
-  /*
-   * From `lg` the preview sits beside the headline in half the width, so the whole first screen is
-   * complete: it drops its sidebar and shows its four numbers two by two.
-   */
   return (
     <figure className="mx-auto w-full max-w-5xl">
       <div
         aria-hidden="true"
         className="forced-color-adjust-none overflow-hidden rounded-xl border bg-card text-start text-card-foreground shadow-2xl shadow-brand/10"
       >
-        <div className="grid md:grid-cols-[12rem_1fr] lg:grid-cols-1">
-          <div className="hidden border-r bg-sidebar p-4 text-sidebar-foreground md:block lg:hidden">
+        <div className="grid md:grid-cols-[12rem_1fr]">
+          <div className="hidden border-r bg-sidebar p-4 text-sidebar-foreground md:block">
             <p className="flex items-center gap-2 text-sm font-semibold">
               <Radar className="size-4 text-brand" />
               {SITE_NAME}
@@ -79,7 +75,7 @@ export async function MonitorPreview() {
             </ul>
           </div>
 
-          <div className="grid gap-4 p-4 sm:p-6 lg:gap-3 lg:p-5">
+          <div className="grid gap-4 p-4 sm:p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <span className="grid size-10 place-items-center rounded-full bg-status-up text-background">
@@ -96,7 +92,7 @@ export async function MonitorPreview() {
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               {STATS.map((stat) => (
                 <div key={stat.label} className="grid content-start gap-1 rounded-lg border p-3">
                   <p className="text-xs text-muted-foreground">{t(stat.label)}</p>
@@ -121,17 +117,13 @@ export async function MonitorPreview() {
               ))}
             </div>
 
-            <div className="grid gap-3 lg:grid-cols-[1fr_13rem]">
+            <div className="grid gap-3 lg:grid-cols-[1fr_15rem]">
               <div className="grid gap-2 rounded-lg border p-3">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <p className="text-xs font-medium">{t("responseTime")}</p>
                   <p className="text-xs text-muted-foreground">{t("responseRange")}</p>
                 </div>
-                <svg
-                  viewBox="0 0 600 80"
-                  preserveAspectRatio="none"
-                  className="h-24 w-full lg:h-full lg:min-h-20"
-                >
+                <svg viewBox="0 0 600 80" preserveAspectRatio="none" className="h-24 w-full">
                   <polygon
                     points={`0,80 ${LINE} 600,80`}
                     fill="var(--brand)"
