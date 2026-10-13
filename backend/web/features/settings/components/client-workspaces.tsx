@@ -42,8 +42,8 @@ export function ClientWorkspaces({ ws }: { ws: string }) {
   });
   const clients = list.data?.data ?? [];
   return (
-    <section className="grid gap-3 rounded-lg border p-4" aria-labelledby="clients-heading">
-      <h2 id="clients-heading" className="text-base font-semibold">
+    <section className="grid gap-3" aria-labelledby="clients-heading">
+      <h2 id="clients-heading" className="sr-only">
         {t("title")}
       </h2>
       <p className="text-sm text-muted-foreground">{t("intro")}</p>

@@ -16,8 +16,8 @@ export function CheckRegions({ ws }: { ws: string }) {
   if (regions.data === undefined) return null;
 
   return (
-    <section className="grid gap-2 rounded-lg border p-4" aria-labelledby="regions-heading">
-      <h2 id="regions-heading" className="text-base font-semibold">
+    <section className="grid gap-2" aria-labelledby="regions-heading">
+      <h2 id="regions-heading" className="sr-only">
         {t("title")}
       </h2>
       <p className="text-sm text-muted-foreground">{t("intro")}</p>

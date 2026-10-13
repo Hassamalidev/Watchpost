@@ -245,7 +245,8 @@ describe("channel health", () => {
 });
 
 describe("IntegrationGallery", () => {
-  it("marks what is already connected", () => {
+  it("marks what is already connected", async () => {
+    const user = userEvent.setup();
     renderWithProviders(
       <IntegrationGallery
         ws="ws1"
@@ -258,6 +259,7 @@ describe("IntegrationGallery", () => {
         }
       />,
     );
+    await user.click(screen.getByRole("button", { name: "Show all 26" }));
     expect(
       within(screen.getByRole("link", { name: /^Webhook Automation/ })).getByText("2 connected"),
     ).toBeInTheDocument();
@@ -272,6 +274,11 @@ describe("IntegrationGallery", () => {
   it("lists every integration, filters as you type and by category", async () => {
     const user = userEvent.setup();
     renderWithProviders(<IntegrationGallery ws="ws1" availability={undefined} />);
+    /* A newcomer sees the handful most teams pick; everything else is one click or a search away. */
+    expect(
+      screen.getAllByRole("listitem").map((li) => within(li).getByRole("heading").textContent),
+    ).toEqual(["Slack", "Microsoft Teams", "Discord", "Telegram", "Email", "Webhook"]);
+    await user.click(screen.getByRole("button", { name: "Show all 26" }));
     expect(screen.getAllByRole("listitem")).toHaveLength(INTEGRATIONS.length);
     expect(screen.getByRole("link", { name: /PagerDuty/ })).toHaveAttribute(
       "href",

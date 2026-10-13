@@ -1,7 +1,7 @@
 /* HTTP in and out only; no business logic. */
 import type { RequestHandler } from "express";
 import { NotFoundError } from "../../core/errors.js";
-import { isFromLinkPage, linkPage } from "../../middleware/email-link-page.js";
+import { isFromLinkPage, sendLinkPage } from "../../middleware/email-link-page.js";
 import { inputOf } from "../../middleware/validate.js";
 import { scopeOf } from "../../middleware/workspace.js";
 import type { ReportFile, ReportsService, SlaQuery } from "./reports.service.js";
@@ -90,17 +90,11 @@ export function createReportsController(service: ReportsService): ReportsControl
       sendFile(res, file, "application/pdf");
     },
     askUnsubscribe: (req, res) => {
-      res
-        .status(200)
-        .set("cache-control", "no-store")
-        .type("html")
-        .send(
-          linkPage(req, {
-            title: "Unsubscribe from these reports",
-            text: "Press the button and this address gets no more of these reports.",
-            button: "Unsubscribe",
-          }),
-        );
+      sendLinkPage(req, res, {
+        title: "Unsubscribe from these reports",
+        text: "Press the button and this address gets no more of these reports.",
+        button: "Unsubscribe",
+      });
     },
     /*
      * The button on that page, and (RFC 8058) the mail app's own "Unsubscribe" button, which posts

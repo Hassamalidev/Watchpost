@@ -262,7 +262,6 @@ export function IntegrationsPage() {
         }}
         attention={attention}
       />
-      <p className="-mt-2 text-sm text-muted-foreground">{t(`tabs.hint.${tab}`)}</p>
 
       {tab === "channels" && (
         <div className="grid grid-cols-[minmax(0,1fr)] gap-8">

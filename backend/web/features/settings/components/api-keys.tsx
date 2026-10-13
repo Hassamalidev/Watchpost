@@ -74,9 +74,9 @@ export function ApiKeys({ ws }: { ws: string }) {
   const active = (keys.data ?? []).filter((key) => key.revokedAt === null);
 
   return (
-    <section className="grid gap-4 rounded-lg border p-4" aria-labelledby="api-keys-heading">
+    <section className="grid gap-4" aria-labelledby="api-keys-heading">
       <div className="grid gap-1">
-        <h2 id="api-keys-heading" className="text-base font-semibold">
+        <h2 id="api-keys-heading" className="sr-only">
           {t("title")}
         </h2>
         <p className="text-sm text-muted-foreground">

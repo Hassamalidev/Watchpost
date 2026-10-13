@@ -44,9 +44,9 @@ export function PrivateProbes({ ws, canManage }: { ws: string; canManage: boolea
   const list = probes.data ?? [];
 
   return (
-    <section className="grid gap-4 rounded-lg border p-4" aria-labelledby="private-probes-heading">
+    <section className="grid gap-4" aria-labelledby="private-probes-heading">
       <div className="grid gap-1">
-        <h2 id="private-probes-heading" className="text-base font-semibold">
+        <h2 id="private-probes-heading" className="sr-only">
           {t("title")}
         </h2>
         <p className="text-sm text-muted-foreground">{t("intro")}</p>

@@ -6,6 +6,7 @@
 
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   CONTACT_METHOD_TYPES,
@@ -19,6 +20,7 @@ import { useWorkspace } from "@/components/app/workspace-context";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Disclosure } from "@/components/ui/disclosure";
 import { Field } from "@/components/ui/field";
 import { Input, Select } from "@/components/ui/input";
 import { Loading } from "@/components/ui/skeleton";
@@ -331,6 +333,17 @@ function RulesCard({
   );
 }
 
+/* Opens by itself when the page was reached through a "link my chat account" link. */
+function ChatSection({ ws }: { ws: string }) {
+  const t = useTranslations("notifications");
+  const linking = useSearchParams().get("link") !== null;
+  return (
+    <Disclosure summary={t("chat.title")} hint={t("chat.short")} defaultOpen={linking}>
+      <ChatLinksCard ws={ws} />
+    </Disclosure>
+  );
+}
+
 export function NotificationsPage() {
   const t = useTranslations("notifications");
   const ws = useWorkspace().id;
@@ -360,10 +373,6 @@ export function NotificationsPage() {
       ) : (
         <>
           <MethodsCard ws={ws} methods={methods.data} />
-          <DeviceCard ws={ws} methods={methods.data} />
-          <React.Suspense fallback={null}>
-            <ChatLinksCard ws={ws} />
-          </React.Suspense>
           <section className="grid gap-4" aria-labelledby="rules-heading">
             <div className="grid gap-1">
               <h2 id="rules-heading" className="text-base font-semibold">
@@ -381,6 +390,13 @@ export function NotificationsPage() {
               />
             ))}
           </section>
+          {/* Extra ways to be reached: there when wanted, out of the way otherwise. */}
+          <Disclosure summary={t("device.title")} hint={t("device.short")}>
+            <DeviceCard ws={ws} methods={methods.data} />
+          </Disclosure>
+          <React.Suspense fallback={null}>
+            <ChatSection ws={ws} />
+          </React.Suspense>
         </>
       )}
     </div>

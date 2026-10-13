@@ -26,6 +26,9 @@ test("the gallery lists every integration and narrows by search and category", a
   await page.goto(path("integrations"));
   await expect(page.getByRole("heading", { name: "Add an integration" })).toBeVisible();
   const gallery = page.getByRole("region", { name: "Add an integration" });
+  /* Six popular ones first; the rest on request. */
+  await expect(gallery.getByRole("listitem")).toHaveCount(6);
+  await page.getByRole("button", { name: "Show all 26" }).click();
   await expect(gallery.getByRole("listitem")).toHaveCount(26);
   await expect(gallery.getByRole("link", { name: /^Slack Chat/ })).toContainText(
     "Not set up on this server",

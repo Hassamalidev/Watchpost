@@ -138,7 +138,7 @@ export function DeviceCard({ ws, methods }: { ws: string; methods: ContactMethod
 
   const available = config.data?.available === true;
   return (
-    <Card>
+    <Card className="border-0 bg-transparent shadow-none [&>div]:px-0">
       <CardHeader>
         <CardTitle>{t("title")}</CardTitle>
       </CardHeader>

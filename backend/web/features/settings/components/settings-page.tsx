@@ -1,4 +1,7 @@
-/* Workspace settings: time zone for schedules, reports and dates (admins change it). */
+/*
+ * Workspace settings. The time zone, which everyone needs, is in view; everything else is a folded
+ * section that opens when wanted.
+ */
 "use client";
 
 import * as React from "react";
@@ -13,6 +16,7 @@ import { WorkspaceData } from "./workspace-data";
 import { can, useWorkspace } from "@/components/app/workspace-context";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/input";
 import Link from "next/link";
@@ -38,6 +42,7 @@ export function SettingsPage() {
       api(wsPath(ws, "/settings"), { method: "PATCH", body: { timezone: tz } }),
     onSuccess: () => client.invalidateQueries({ queryKey: ["settings", ws] }),
   });
+  const isAdmin = can(workspace.role, "settings:update");
   const current = timezone ?? settings.data?.timezone ?? "UTC";
   const zones = ZONES.includes(current) ? ZONES : [current, ...ZONES];
 
@@ -75,48 +80,67 @@ export function SettingsPage() {
           </div>
         )}
       </form>
-      {can(workspace.role, "settings:update") && <RequireTwoFactor ws={ws} />}
-      {can(workspace.role, "settings:update") && workspace.parent == null && (
-        <ClientWorkspaces ws={ws} />
-      )}
-      <CheckRegions ws={ws} />
-      <PrivateProbes ws={ws} canManage={can(workspace.role, "settings:update")} />
-      {can(workspace.role, "settings:update") && <ApiKeys ws={ws} />}
-      {can(workspace.role, "settings:update") && (
-        <section className="grid gap-2 rounded-lg border p-4" aria-labelledby="audit-heading">
-          <h2 id="audit-heading" className="text-base font-semibold">
-            {t("audit.title")}
-          </h2>
-          <p className="text-sm text-muted-foreground">{t("audit.intro")}</p>
-          <div>
-            <Link
-              href={`${workspaceHref(ws, "settings")}/audit`}
-              className="text-sm font-medium text-brand underline"
-            >
-              {t("audit.open")}
-            </Link>
-          </div>
-        </section>
-      )}
-      {can(workspace.role, "settings:update") && (
-        <section className="grid gap-2 rounded-lg border p-4" aria-labelledby="import-heading">
-          <h2 id="import-heading" className="text-base font-semibold">
-            {t("importTitle")}
-          </h2>
-          <p className="text-sm text-muted-foreground">{t("importHint")}</p>
-          <div>
-            <Link
-              href={`${workspaceHref(ws, "settings")}/import`}
-              className="text-sm font-medium text-brand underline"
-            >
-              {t("importLink")}
-            </Link>
-          </div>
-        </section>
-      )}
-      {can(workspace.role, "settings:update") && (
-        <WorkspaceData ws={ws} name={workspace.name} isOwner={workspace.role === "owner"} />
-      )}
+      {/*
+       * The rest is used rarely, or by the technical few. Each section is one line until opened, so
+       * the page reads as a short list instead of nine forms.
+       */}
+      <section className="grid gap-2" aria-labelledby="more-settings-heading">
+        <h2 id="more-settings-heading" className="text-sm font-medium text-muted-foreground">
+          {t("more")}
+        </h2>
+        {isAdmin && (
+          <Disclosure summary={t("sections.security")} hint={t("sections.securityHint")}>
+            <RequireTwoFactor ws={ws} />
+          </Disclosure>
+        )}
+        {isAdmin && workspace.parent == null && (
+          <Disclosure summary={t("sections.clients")} hint={t("sections.clientsHint")}>
+            <ClientWorkspaces ws={ws} />
+          </Disclosure>
+        )}
+        <Disclosure summary={t("sections.regions")} hint={t("sections.regionsHint")}>
+          <CheckRegions ws={ws} />
+        </Disclosure>
+        <Disclosure summary={t("sections.probes")} hint={t("sections.probesHint")}>
+          <PrivateProbes ws={ws} canManage={isAdmin} />
+        </Disclosure>
+        {isAdmin && (
+          <Disclosure summary={t("sections.apiKeys")} hint={t("sections.apiKeysHint")}>
+            <ApiKeys ws={ws} />
+          </Disclosure>
+        )}
+        {isAdmin && (
+          <Disclosure summary={t("sections.audit")} hint={t("sections.auditHint")}>
+            <p className="text-sm text-muted-foreground">{t("audit.intro")}</p>
+            <div>
+              <Link
+                href={`${workspaceHref(ws, "settings")}/audit`}
+                className="text-sm font-medium text-brand underline"
+              >
+                {t("audit.open")}
+              </Link>
+            </div>
+          </Disclosure>
+        )}
+        {isAdmin && (
+          <Disclosure summary={t("sections.import")} hint={t("sections.importHint")}>
+            <p className="text-sm text-muted-foreground">{t("importHint")}</p>
+            <div>
+              <Link
+                href={`${workspaceHref(ws, "settings")}/import`}
+                className="text-sm font-medium text-brand underline"
+              >
+                {t("importLink")}
+              </Link>
+            </div>
+          </Disclosure>
+        )}
+        {isAdmin && (
+          <Disclosure summary={t("sections.data")} hint={t("sections.dataHint")}>
+            <WorkspaceData ws={ws} name={workspace.name} isOwner={workspace.role === "owner"} />
+          </Disclosure>
+        )}
+      </section>
     </div>
   );
 }

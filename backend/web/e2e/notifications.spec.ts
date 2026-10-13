@@ -94,6 +94,8 @@ test("the app can be installed, and says so when device notifications aren't set
     "href",
     "/manifest.webmanifest",
   );
+  /* The section is folded until wanted. */
+  await page.getByText("Notifications on this device", { exact: true }).click();
   await expect(page.getByRole("heading", { name: "Notifications on this device" })).toBeVisible();
   /* The test server has no push keys: the page says so instead of offering a dead button. */
   await expect(

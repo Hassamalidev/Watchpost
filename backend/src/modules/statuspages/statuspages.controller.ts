@@ -1,7 +1,7 @@
 /* HTTP in and out only; no business logic. */
 import type { RequestHandler } from "express";
 import { NotFoundError, UnauthorizedError } from "../../core/errors.js";
-import { isFromLinkPage, linkPage } from "../../middleware/email-link-page.js";
+import { isFromLinkPage, sendLinkPage } from "../../middleware/email-link-page.js";
 import { inputOf } from "../../middleware/validate.js";
 import { scopeOf } from "../../middleware/workspace.js";
 import { timingSafeEqual } from "node:crypto";
@@ -211,17 +211,11 @@ export function createStatuspagesController(
       res.status(202).json({ status: "confirmation_sent" });
     },
     askConfirmSubscription: (req, res) => {
-      res
-        .status(200)
-        .set("cache-control", "no-store")
-        .type("html")
-        .send(
-          linkPage(req, {
-            title: "Confirm your subscription",
-            text: "Press the button to get this status page's updates by email.",
-            button: "Confirm subscription",
-          }),
-        );
+      sendLinkPage(req, res, {
+        title: "Confirm your subscription",
+        text: "Press the button to get this status page's updates by email.",
+        button: "Confirm subscription",
+      });
     },
     confirmSubscription: async (req, res) => {
       const { query } = inputOf<{ query: typeof subscriptionTokenQuery }>(req, res);
@@ -246,17 +240,11 @@ export function createStatuspagesController(
         );
     },
     askUnsubscribe: (req, res) => {
-      res
-        .status(200)
-        .set("cache-control", "no-store")
-        .type("html")
-        .send(
-          linkPage(req, {
-            title: "Unsubscribe from status updates",
-            text: "Press the button and this address gets no more updates from this status page.",
-            button: "Unsubscribe",
-          }),
-        );
+      sendLinkPage(req, res, {
+        title: "Unsubscribe from status updates",
+        text: "Press the button and this address gets no more updates from this status page.",
+        button: "Unsubscribe",
+      });
     },
     /*
      * The button on that page, and (RFC 8058) the mail app's own "Unsubscribe" button, which posts

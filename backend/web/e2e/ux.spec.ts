@@ -37,7 +37,7 @@ test("a monitor can be edited, keeping its type", async ({ page }, testInfo) => 
 
   const name = `Health API ${testInfo.project.name}`;
   await page.getByLabel("Name", { exact: true }).fill(name);
-  await page.getByLabel("Availability target").selectOption("99.95");
+  await page.getByLabel("Uptime goal").selectOption("99.95");
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
   await expect(page.getByText("Target: 99.95% availability.")).toBeVisible();
@@ -57,7 +57,9 @@ test("pointing a monitor with saved credentials elsewhere asks to drop them", as
   const { id } = (await created.json()) as { id: string };
   await page.goto(path(`monitors/${id}/edit`));
   await page.getByLabel("URL").fill("https://status.example.net/health");
-  await expect(page.getByText("This monitor has saved credentials")).toBeVisible();
+  await expect(
+    page.getByText("The saved password or token was entered for the old address"),
+  ).toBeVisible();
   await noAxeViolations(page);
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByText("The target changed: confirm removing")).toBeVisible();
@@ -135,6 +137,8 @@ test("the reports page shows an SLA report and offers it as files", async ({ pag
 
 test("an admin makes an API key, sees it once and revokes it", async ({ page }) => {
   await page.goto(path("settings"));
+  /* Settings sections are folded until wanted. */
+  await page.getByText("API keys", { exact: true }).click();
   const section = page.getByRole("region", { name: "API keys" });
   const name = `e2e key ${Date.now()}`;
   await section.getByLabel("Name").fill(name);
@@ -144,6 +148,7 @@ test("an admin makes an API key, sees it once and revokes it", async ({ page }) 
   await noAxeViolations(page);
   /* After a reload only the start of the key is left. */
   await page.reload();
+  await page.getByText("API keys", { exact: true }).click();
   await expect(section.getByLabel("API key")).toHaveCount(0);
   await expect(section.getByText(name)).toBeVisible();
   page.once("dialog", (dialog) => void dialog.accept());
@@ -154,7 +159,12 @@ test("an admin makes an API key, sees it once and revokes it", async ({ page }) 
 test("an admin adds an outgoing webhook, sees its secret once and deletes it", async ({ page }) => {
   await page.goto(path("integrations?tab=webhooks"));
   const name = `e2e hook ${Date.now()}`;
-  await page.getByLabel("Webhook name").fill(name);
+  /* The form is folded once the workspace has a webhook (the other theme's run may have made one). */
+  const nameField = page.getByLabel("Webhook name");
+  await expect(page.getByText("Add a webhook", { exact: true })).toBeVisible();
+  if (!(await nameField.isVisible()))
+    await page.getByText("Add a webhook", { exact: true }).click();
+  await nameField.fill(name);
   await page.getByLabel("Address").fill("https://hooks.example.com/e2e");
   await page.getByRole("button", { name: "Add webhook" }).click();
   await expect(page.getByText(`Webhook "${name}" created`)).toBeVisible();

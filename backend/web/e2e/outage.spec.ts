@@ -79,6 +79,7 @@ test("an outage opens an incident, alerts by webhook and email, and resolves on 
   await page.goto(`/w/${ws}/monitors/new`);
   await page.getByLabel("Name", { exact: true }).fill("Checkout");
   await page.getByLabel("URL").fill(`${TARGET}/switch`);
+  await page.getByText("More options").click();
   await page.getByRole("checkbox", { name: "us-east" }).uncheck();
   await page.getByRole("button", { name: "Create" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Checkout" })).toBeVisible();

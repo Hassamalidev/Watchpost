@@ -23,6 +23,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CopyField } from "@/components/ui/copy-field";
+import { Disclosure } from "@/components/ui/disclosure";
 import { Field } from "@/components/ui/field";
 import { Input, Textarea } from "@/components/ui/input";
 import { Loading } from "@/components/ui/skeleton";
@@ -340,13 +341,12 @@ function EndpointForm({
 
   return (
     <form
-      className={endpoint ? "grid max-w-xl gap-4" : "grid max-w-xl gap-4 border-t pt-4"}
+      className="grid max-w-xl gap-4"
       onSubmit={(event) => {
         event.preventDefault();
         submit();
       }}
     >
-      {endpoint === undefined && <h3 className="text-sm font-semibold">{t("addTitle")}</h3>}
       {problem && <Alert tone="error">{problem}</Alert>}
       <Field label={t("name")} htmlFor={`${prefix}-name`}>
         <Input
@@ -460,8 +460,17 @@ export function OutgoingWebhooks({ ws, canManage }: { ws: string; canManage: boo
             ))}
           </ul>
         )}
-        {canManage && (
-          <EndpointForm ws={ws} onMade={(endpoint) => setMade({ endpoint, rotated: false })} />
+        {/* Shown once the list is known: open when there is nothing yet, folded after that. */}
+        {canManage && !endpoints.isLoading && (
+          <Disclosure
+            summary={t("addTitle")}
+            hint={t("addHint")}
+            bordered={false}
+            className="border-t pt-3"
+            defaultOpen={list.length === 0}
+          >
+            <EndpointForm ws={ws} onMade={(endpoint) => setMade({ endpoint, rotated: false })} />
+          </Disclosure>
         )}
       </CardContent>
     </Card>

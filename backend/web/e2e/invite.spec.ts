@@ -62,7 +62,7 @@ test("the invite form offers every role but owner and says what each may do", as
     "Billing",
   ]);
   await role.selectOption("responder");
-  await expect(page.getByText(/acknowledge, resolve and comment on incidents/)).toBeVisible();
+  await expect(page.getByText(/can acknowledge and resolve incidents/)).toBeVisible();
   await role.selectOption("billing");
   await expect(page.getByText(/Billing pages only/)).toBeVisible();
   await noAxeViolations(page);

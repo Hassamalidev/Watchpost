@@ -34,6 +34,8 @@ test("an admin previews and imports an Uptime Kuma backup", async ({ page }, tes
     ],
   };
   await page.goto(`/w/${workspace()}/settings`);
+  /* Settings sections are folded until wanted. */
+  await page.getByText("Import", { exact: true }).click();
   await page.getByRole("link", { name: "Import from another tool" }).click();
   await expect(
     page.getByRole("heading", { level: 1, name: "Import from another tool" }),

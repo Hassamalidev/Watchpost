@@ -75,8 +75,8 @@ export function WorkspaceData({
   });
   const scheduled = deletion.data?.scheduled === true;
   return (
-    <section className="grid gap-4 rounded-lg border p-4" aria-labelledby="data-heading">
-      <h2 id="data-heading" className="text-base font-semibold">
+    <section className="grid gap-4" aria-labelledby="data-heading">
+      <h2 id="data-heading" className="sr-only">
         {t("title")}
       </h2>
       <div className="grid gap-2">

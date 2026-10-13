@@ -30,8 +30,8 @@ export function RequireTwoFactor({ ws }: { ws: string }) {
   if (settings.data === undefined) return null;
   const on = settings.data.requireTwoFactor;
   return (
-    <section className="grid gap-2 rounded-lg border p-4" aria-labelledby="require-2fa-heading">
-      <h2 id="require-2fa-heading" className="text-base font-semibold">
+    <section className="grid gap-2" aria-labelledby="require-2fa-heading">
+      <h2 id="require-2fa-heading" className="sr-only">
         {t("title")}
       </h2>
       <p className="text-sm text-muted-foreground">{t("intro")}</p>

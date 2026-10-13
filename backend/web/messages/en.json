@@ -152,7 +152,7 @@
     "name": "Name",
     "target": "Target",
     "interval": "Check every",
-    "regions": "Regions",
+    "regions": "Check from",
     "regionsHint": "The Free plan checks from up to 2 regions.",
     "severity": "Severity",
     "url": "URL",
@@ -220,32 +220,32 @@
       "high": "High",
       "low": "Low"
     },
-    "pausedNotice": "Paused: no checks run and no alerts are sent. Resume to start checking again.",
-    "sloTarget": "Availability target",
-    "sloHint": "Sets this monitor's monthly error budget: the downtime you can afford before missing the target.",
+    "pausedNotice": "Paused: no checks and no alerts until you resume.",
+    "sloTarget": "Uptime goal",
+    "sloHint": "How much downtime a month is acceptable.",
     "sloOption": "{target}% (about {allowance} down per month)",
     "dependsOn": "Depends on",
-    "dependsOnHint": "While that monitor is down, this one's failures are recorded but nobody is alerted. If it recovers and this one is still down, you are alerted then.",
+    "dependsOnHint": "No alerts for this one while that monitor is down.",
     "dependsOnNone": "Nothing",
     "group": "Group",
     "groupNone": "No group",
     "groupNew": "New group…",
     "groupName": "Group name",
     "groupNameRequired": "Give the group a name.",
-    "groupAlerts": "Send one message when several monitors in this group fail together",
-    "groupAlertsHint": "Applies to the whole group. Alerts wait up to 15 seconds to collect the failures.",
-    "noChecksYet": "No checks yet. The first results arrive within one interval, or use Test now.",
+    "groupAlerts": "One message when several in this group fail together",
+    "groupAlertsHint": "Applies to the whole group.",
+    "noChecksYet": "No checks yet. Results arrive shortly, or use Test now.",
     "noChecksPaused": "No checks while paused.",
     "editTitle": "Edit monitor",
     "edit": "Edit",
-    "secretsRetarget": "This monitor has saved credentials (a password, token or secret header). They were entered for the old target and won't be sent to the new one.",
+    "secretsRetarget": "The saved password or token was entered for the old address and won't be sent to the new one.",
     "secretsDrop": "Remove the saved credentials and save",
     "secretsRetargetRequired": "The target changed: confirm removing the saved credentials, or keep the old target.",
-    "confirmRegions": "Open an incident when it fails from",
-    "confirmRegionsHint": "A failure in one region is rechecked from the others first. Fewer regions alert sooner; more regions mean fewer false alarms.",
+    "confirmRegions": "Alert when it fails from",
+    "confirmRegionsHint": "More regions mean fewer false alarms.",
     "confirmRegionsOption": "{count, plural, one {# region} other {# regions}}",
-    "alertRegional": "Also alert on regional issues",
-    "alertRegionalHint": "When it fails from fewer regions than that and the others are healthy, open a low-severity incident instead of only showing the monitor as degraded.",
+    "alertRegional": "Also alert when only some regions fail",
+    "alertRegionalHint": "Opens a minor incident.",
     "reducedConfirmation": "Our checks from {regions} aren't reliable right now because of a problem on our side, so they don't count. This monitor is still checked from its other regions, with fewer of them to confirm an outage. You don't need to do anything.",
     "notWatched": "This monitor is only checked from {regions}, and our checks from there aren't working right now because of a problem on our side. It isn't being watched until that is fixed. We have been alerted and are on it.",
     "badges": {
@@ -260,10 +260,10 @@
       "previewAlt": "{kind} badge of {name}",
       "markdown": "Markdown",
       "imageUrl": "Image URL",
-      "hint": "Anyone with the URL can see what the badge shows, so share it only where that is fine. It updates within a minute. Add ?days=7 or ?days=90 to an uptime badge, or ?label=Your text to change the label."
+      "hint": "Anyone with the URL can see the badge. Add ?days=7 or ?days=90 for another period, or ?label=Your text."
     },
     "runOn": "Check from",
-    "runOnHint": "A private probe checks from inside your network; that monitor runs there only.",
+    "runOnHint": "Checks from inside your network only.",
     "runOnRegions": "Our regions",
     "runOnProbe": "Private probe: {name}",
     "useTls": "Connect with TLS",
@@ -275,7 +275,9 @@
     "steps": "Steps (JSON)",
     "stepsHint": "Requests run in order; the first one that fails ends the check and is named in the alert. Each step has a name and a url, and may have method, headers, body, acceptedStatusCodes, extract (take a value from the JSON body with a JSONata expression, or from a header with \"from\": \"header\") and assertions (expression, operator, expected). Later steps use an extracted value or a secret as {{name}}. The host of every url is written out in full.",
     "stepSecrets": "Secrets",
-    "stepSecretsHint": "One per line, as name=value. Use them in steps as {{name}}. Stored encrypted and never shown again; a line left as name=******** keeps the saved value."
+    "stepSecretsHint": "One per line, as name=value. Use them in steps as {{name}}. Stored encrypted and never shown again; a line left as name=******** keeps the saved value.",
+    "moreOptions": "More options",
+    "moreOptionsHint": "Regions, severity, groups, uptime goal"
   },
   "incidents": {
     "title": "Incidents",
@@ -405,7 +407,7 @@
   },
   "integrations": {
     "title": "Integrations",
-    "intro": "Send alerts to the tools your team already uses. Every integration has a test button, its own rules and a health check.",
+    "intro": "Send alerts to the tools your team already uses.",
     "connected": "Connected",
     "empty": "Nothing is connected yet.",
     "emptyHint": "Pick an integration below. Most take about a minute.",
@@ -441,7 +443,7 @@
     "notFound": "We don't have that integration.",
     "adminOnly": "Only workspace admins can change integrations.",
     "name": "Name",
-    "nameHint": "Shown in the list and in each incident's delivery log.",
+    "nameHint": "Shown in lists and delivery logs.",
     "save": "Save",
     "saveAndTest": "Save and send test",
     "saving": "Saving…",
@@ -459,7 +461,7 @@
     "headersSaved": "Values show as ******** and are kept unless you change them.",
     "headersInvalid": "Write each header as Name: value, one per line.",
     "rulesTitle": "What to send here",
-    "rulesIntro": "The alert policy decides which integrations are asked. These rules decide what this one accepts.",
+    "rulesIntro": "Choose what this integration receives.",
     "severityLabel": "Incidents",
     "severity": {
       "low": "All incidents",
@@ -548,108 +550,108 @@
     "telegramCreate": "Save and get the link",
     "catalog": {
       "slack": {
-        "summary": "Install the UptimeWatch app and pick a channel. Follow-ups reply in the alert's thread.",
+        "summary": "Alerts in a Slack channel, with buttons.",
         "steps": "Click Add to Slack and approve the app for your Slack workspace.\nPick the channel alerts should go to.\nFor a private channel, invite the UptimeWatch app to it first."
       },
       "slack-webhook": {
-        "summary": "Post to one Slack channel through an incoming webhook, without installing our app.",
+        "summary": "Alerts in one Slack channel. No app to install.",
         "steps": "At api.slack.com/apps, create an app (From scratch) and turn on Incoming Webhooks.\nClick Add New Webhook to Workspace and pick the channel.\nCopy the webhook URL and paste it below."
       },
       "teams": {
-        "summary": "Adaptive Cards in a Teams channel through a Workflows webhook.",
+        "summary": "Alerts in a Microsoft Teams channel.",
         "steps": "In Teams, open the channel's ⋯ menu and choose Workflows.\nPick “Send webhook alerts to a channel” and finish the wizard.\nCopy the URL it shows and paste it below."
       },
       "discord": {
-        "summary": "Colored embeds in a Discord channel. The first message updates as the incident changes.",
+        "summary": "Alerts in a Discord channel.",
         "steps": "In Discord, open Server Settings → Integrations → Webhooks.\nClick New Webhook and pick the channel.\nCopy the webhook URL and paste it below."
       },
       "telegram": {
-        "summary": "Our bot posts to a chat or group. Follow-ups reply to the first message.",
+        "summary": "Alerts in a Telegram chat or group.",
         "steps": "Give it a name and save.\nOpen the link we show in Telegram and press Start.\nFor a group, add the bot to the group and open the link there."
       },
       "google-chat": {
-        "summary": "Cards in a Google Chat space. An incident's updates stay in one thread.",
+        "summary": "Alerts in a Google Chat space.",
         "steps": "In the space, open its menu → Apps & integrations → Webhooks.\nAdd a webhook named UptimeWatch.\nCopy its URL and paste it below."
       },
       "mattermost": {
-        "summary": "Alerts in a Mattermost channel through an incoming webhook.",
+        "summary": "Alerts in a Mattermost channel.",
         "steps": "In Mattermost, open Integrations → Incoming Webhooks → Add Incoming Webhook.\nPick the channel and save.\nCopy the webhook URL and paste it below. The server must be reachable from the internet over HTTPS."
       },
       "rocketchat": {
-        "summary": "Alerts in a Rocket.Chat channel through an incoming webhook.",
+        "summary": "Alerts in a Rocket.Chat channel.",
         "steps": "In Rocket.Chat, open Administration → Workspace → Integrations → New → Incoming.\nEnable it, pick the channel and the user to post as, and save.\nCopy the Webhook URL and paste it below. The server must be reachable from the internet over HTTPS."
       },
       "zulip": {
-        "summary": "A bot posts to a Zulip channel, with one topic per monitor.",
+        "summary": "Alerts in a Zulip channel.",
         "steps": "In Zulip, open Settings → Personal → Bots and add a bot (the Incoming webhook type is enough).\nCopy the bot's email and API key.\nSubscribe the bot to the channel, then fill in the form."
       },
       "matrix": {
-        "summary": "A bot account posts to a Matrix room. Follow-ups go in a thread.",
+        "summary": "Alerts in a Matrix room.",
         "steps": "Create a Matrix account for the bot, invite it to the room and accept the invite.\nCopy the bot's access token (in Element: Settings → Help & About → Advanced).\nCopy the room's internal ID (Room settings → Advanced). It starts with !."
       },
       "pagerduty": {
-        "summary": "Page your on-call through PagerDuty. Acknowledging or resolving here does the same there.",
+        "summary": "Page your on-call through PagerDuty.",
         "steps": "In PagerDuty, open the service → Integrations → Add an integration → Events API V2.\nCopy the Integration Key.\nPaste it below and pick your account's region."
       },
       "opsgenie": {
-        "summary": "Alerts in Opsgenie, acknowledged and closed in step with the incident.",
+        "summary": "Alerts in Opsgenie, kept in step.",
         "steps": "In Opsgenie, open your team → Integrations → Add integration → API.\nTurn the integration on and copy its API key.\nPaste it below and pick your region.",
         "note": "Opsgenie shuts down on April 5, 2027. After you move to Jira Service Management, switch the region here; the alert format stays the same."
       },
       "jira-service-management": {
-        "summary": "Alerts in Jira Service Management operations, where Opsgenie's alerting now lives.",
+        "summary": "Alerts in Jira Service Management.",
         "steps": "In Jira Service Management, open your team's Operations → Integrations → Add integration → API.\nTurn the integration on and copy its API key.\nPaste it below."
       },
       "splunk-on-call": {
-        "summary": "Page through Splunk On-Call (VictorOps). Acknowledgements and recoveries follow the incident.",
+        "summary": "Page through Splunk On-Call (VictorOps).",
         "steps": "In Splunk On-Call, open Integrations → 3rd Party Integrations → REST – Generic and enable it.\nCopy the endpoint URL.\nReplace $routing_key at its end with a routing key from Settings → Routing Keys, and paste it below."
       },
       "pushover": {
-        "summary": "Push notifications to phones through your own Pushover application.",
+        "summary": "Push notifications through Pushover.",
         "steps": "On pushover.net, create an application and copy its API token.\nCopy your user key, or a delivery group's key, from the dashboard.\nPaste both below."
       },
       "ntfy": {
-        "summary": "Push notifications through ntfy.sh or your own ntfy server.",
+        "summary": "Push notifications through ntfy.",
         "steps": "Pick a topic name that is hard to guess: anyone who knows it can read your alerts.\nSubscribe to the topic in the ntfy app.\nFor a protected topic, or to use your own account's limits on ntfy.sh, add an access token."
       },
       "pushbullet": {
-        "summary": "Pushes to all your devices, or to the subscribers of a Pushbullet channel.",
+        "summary": "Push notifications through Pushbullet.",
         "steps": "On pushbullet.com, open Settings → Account → Create Access Token.\nPaste the token below.\nTo push to a channel instead of your own devices, enter its tag."
       },
       "gotify": {
-        "summary": "Messages to your self-hosted Gotify server.",
+        "summary": "Messages to your Gotify server.",
         "steps": "In Gotify, open Apps → Create Application and copy its token. It is shown once.\nEnter your server's address and the token below.\nThe server must be reachable from the internet over HTTPS."
       },
       "email": {
-        "summary": "Alert emails with one-click acknowledge and resolve links.",
+        "summary": "Alert emails with one-click actions.",
         "steps": "Enter up to 10 addresses, separated by commas.\nEach person gets their own email with their own action links."
       },
       "webhook": {
-        "summary": "Signed JSON for every incident event, to any HTTP endpoint.",
+        "summary": "A signed request to any address.",
         "steps": "Enter the URL that should receive POST requests.\nAdd headers if your endpoint needs them, for example Authorization.\nAfter saving, copy the signing secret to verify the Watchpost-Signature header."
       },
       "zapier": {
-        "summary": "Start a Zap from every incident event with Webhooks by Zapier.",
+        "summary": "Start a Zap from every alert.",
         "steps": "In Zapier, create a Zap with the trigger Webhooks by Zapier → Catch Hook.\nCopy the webhook URL Zapier shows and paste it below.\nSend a test from here, then map the fields in your Zap."
       },
       "make": {
-        "summary": "Start a Make scenario from every incident event.",
+        "summary": "Start a Make scenario from every alert.",
         "steps": "In Make, add a Webhooks → Custom webhook module to a scenario.\nCopy its address and paste it below.\nSend a test from here so Make learns the data structure."
       },
       "n8n": {
-        "summary": "Trigger an n8n workflow from every incident event.",
+        "summary": "Start an n8n workflow from every alert.",
         "steps": "In n8n, add a Webhook node with the method POST.\nCopy its production URL and paste it below.\nIf the node uses header authentication, add that header here."
       },
       "sms": {
-        "summary": "Text messages to a phone. Reply 1 to acknowledge or 2 to resolve. Uses alert credits.",
+        "summary": "Text messages to a phone. Uses credits.",
         "steps": "Enter the number in international format, like +14155550123.\nCheck what a message to that country costs in credits, then send a code to the number.\nEnter the code to verify the number, then save."
       },
       "voice": {
-        "summary": "A phone call that reads the alert aloud. Press 1 to acknowledge. Uses alert credits.",
+        "summary": "A phone call that reads the alert. Uses credits.",
         "steps": "Enter the number in international format, like +14155550123.\nCheck what a call to that country costs in credits, then send a code to the number by SMS.\nEnter the code to verify the number, then save. Calls are placed for new and ongoing incidents only."
       },
       "home-assistant": {
-        "summary": "Fire a Home Assistant automation: flash a light, sound a siren or speak when something goes down.",
+        "summary": "Flash a light or sound a siren at home.",
         "steps": "In Home Assistant, create an automation with a Webhook trigger and copy its webhook ID. Allow it from the internet (untick \"Only accessible from the local network\").\nEnter your Home Assistant address and the webhook ID below.\nIn the automation, read the alert as trigger.json: event is triggered, acknowledged or resolved, and incident.severity says how bad it is."
       }
     },
@@ -840,7 +842,7 @@
     "phoneVerified": "Number verified. You can save now.",
     "inbound": {
       "title": "Inbound alerts",
-      "hint": "Let your other tools open and close incidents here: Prometheus Alertmanager, Grafana, Datadog, anything that can post JSON, or email. A repeat of an open alert adds nothing, and the tool's recovery closes the incident.",
+      "hint": "Let Prometheus, Grafana, Datadog, email or anything that posts JSON open and close incidents here.",
       "empty": "No inbound sources yet.",
       "name": "Name",
       "namePlaceholder": "Production Prometheus",
@@ -875,7 +877,7 @@
     },
     "webhooks": {
       "title": "Outgoing webhooks",
-      "intro": "Send a signed HTTPS request to your own systems when an incident opens, a monitor changes or a status update is published.",
+      "intro": "Get a signed request on your own system when something happens.",
       "docsLink": "How webhooks work",
       "none": "There are no webhooks.",
       "name": "Webhook name",
@@ -915,14 +917,17 @@
       "failed": "failed: {reason}",
       "manual": "sent by hand",
       "replay": "Replay",
-      "replayNamed": "Replay {type} from {when}"
+      "replayNamed": "Replay {type} from {when}",
+      "addHint": "Name, address and events"
     },
     "requestAction": "Tell us you need “{name}”",
-    "requestThanks": "Thanks. “{name}” is on our list."
+    "requestThanks": "Thanks. “{name}” is on our list.",
+    "showAll": "Show all {count}",
+    "popular": "Popular"
   },
   "heartbeats": {
     "title": "Heartbeats",
-    "intro": "Cron jobs and workers ping a URL; we alert when a ping is late or reports a failure.",
+    "intro": "Your scheduled jobs ping a URL; we alert when a ping is late or fails.",
     "new": "New heartbeat",
     "empty": "No heartbeats yet.",
     "period": "Expected every",
@@ -953,23 +958,23 @@
       "billing": "Billing"
     },
     "roleHints": {
-      "admin": "Everything except deleting the workspace: monitors, integrations, alert routing, members and billing.",
-      "member": "Manages monitors, maintenance and incidents. Can't change integrations, members or billing.",
-      "responder": "Sees everything and can acknowledge, resolve and comment on incidents. Can't change monitors.",
+      "admin": "Everything except deleting the workspace.",
+      "member": "Manages monitors, maintenance and incidents.",
+      "responder": "Sees everything; can acknowledge and resolve incidents.",
       "viewer": "Read-only: sees monitors, incidents and maintenance, changes nothing.",
-      "billing": "Billing pages only: the plan, usage, credits and invoices. Sees no monitors or incidents."
+      "billing": "Billing pages only."
     }
   },
   "oncall": {
     "title": "On-call",
-    "lead": "Who gets paged, and when. Each schedule rotates through its people; overrides cover a stretch by hand.",
+    "lead": "Who gets alerted, and when.",
     "new": "New schedule",
     "create": "Create schedule",
     "cancel": "Cancel",
     "schedules": "Schedules",
     "empty": "No schedules yet.",
-    "emptyHintAdmin": "Create one to say who is on call each week. Until then, alerts go to every channel in your alert routes.",
-    "emptyHint": "An admin can create one. Until then, alerts go to every channel in your alert routes.",
+    "emptyHintAdmin": "Create one to say who is on call. Until then, alerts go to every channel.",
+    "emptyHint": "An admin can create one. Until then, alerts go to every channel.",
     "nobody": "Nobody is on call right now",
     "nobodyShort": "Nobody",
     "onCallNow": "On call now: {name}",
@@ -995,7 +1000,7 @@
     "whoOnCall": "On call",
     "override": "override",
     "overrides": "Overrides",
-    "overridesHint": "Put someone on call for a stretch, whatever the rotation says: cover a doctor's appointment, swap a weekend.",
+    "overridesHint": "Put someone on call for a while, whatever the rotation says.",
     "noOverrides": "No overrides ahead.",
     "removeOverride": "Remove",
     "addOverride": "Add an override",
@@ -1009,18 +1014,18 @@
     "overrideTimes": "The override must end after it starts.",
     "feed": {
       "title": "Your on-call calendar",
-      "hint": "Subscribe from Google Calendar, Outlook or Apple Calendar to see your own shifts next to your meetings. The link is private: anyone who has it can see when you are on call.",
+      "hint": "See your shifts in Google Calendar, Outlook or Apple Calendar. Keep the link private.",
       "create": "Create my calendar link",
       "replace": "Replace the link",
       "turnOff": "Turn off",
       "url": "Calendar link",
-      "shownOnce": "Copy it now. It is shown only once; replacing it stops the old link working.",
+      "shownOnce": "Copy it now. It is shown only once.",
       "active": "Your calendar link has been active since {date}."
     },
     "form": {
       "name": "Schedule name",
       "timezone": "Time zone",
-      "timezoneHint": "Handoffs and working hours follow this zone's clock, daylight saving included.",
+      "timezoneHint": "Handoffs follow this zone's clock.",
       "defaultLayer": "Primary",
       "layer": "Layer {number}",
       "layerName": "Layer name",
@@ -1059,7 +1064,7 @@
       "to": "To",
       "removeLayer": "Remove this layer",
       "addLayer": "Add a layer",
-      "layersHint": "Where layers overlap, the last one wins. Outside its hours a layer hands back to the one above it in this list.",
+      "layersHint": "Where layers overlap, the last one wins.",
       "problems": {
         "name": "Give the schedule a name.",
         "start": "Layer {number} needs a first handoff date and time.",
@@ -1070,7 +1075,7 @@
     },
     "escalation": {
       "title": "Escalation policies",
-      "hint": "Who is paged when an incident opens, and who is paged next if nobody acknowledges. Each person is reached through their own notification rules.",
+      "hint": "Who is alerted first, and who is next if nobody responds.",
       "empty": "No escalation policies yet. Alerts go to your channels only.",
       "new": "New escalation policy",
       "create": "Create policy",
@@ -1126,7 +1131,7 @@
       "untilOverride": "by override until {time}.",
       "next": "Your next shifts",
       "noUpcoming": "No shifts in the next five weeks.",
-      "hint": "Times are in your own time zone. When a shift ends you get a handoff report by email: what happened and what is still open."
+      "hint": "Times are in your time zone. You get a summary by email when a shift ends."
     },
     "importFromOpsgenie": "Moving from Opsgenie? Import your schedules and escalation policies."
   },
@@ -1175,9 +1180,9 @@
   },
   "notifications": {
     "title": "My notifications",
-    "lead": "How UptimeWatch reaches you when an incident is yours to handle. These settings are yours alone; teammates set their own.",
+    "lead": "How you are reached when an incident is yours. Each person sets their own.",
     "methods": "Contact methods",
-    "methodsHint": "An address or number is used only after you enter the code we send to it. Your account email is ready to use.",
+    "methodsHint": "A new address or number works after you confirm it with a code.",
     "types": {
       "email": "Email",
       "sms": "SMS",
@@ -1199,7 +1204,7 @@
     "label": "Label (optional)",
     "addButton": "Add and send code",
     "rules": "When to notify me",
-    "rulesHint": "Delays count from the moment an incident reaches you. Later steps are skipped once someone acknowledges it.",
+    "rulesHint": "Later steps are skipped once someone acknowledges.",
     "urgency": {
       "high": {
         "title": "High urgency",
@@ -1220,10 +1225,10 @@
     "rulesSaved": "Rules saved.",
     "kind": "Type",
     "phone": "Phone number",
-    "phoneHint": "International format, like +14155550123. The verification text and every alert text or call use the workspace's alert credits.",
+    "phoneHint": "Like +14155550123. Texts and calls use alert credits.",
     "chat": {
       "title": "Linked chat accounts",
-      "hint": "Link your Slack user so that what you do in Slack (a button on an alert, a /watchpost command) is recorded under your name and with your role.",
+      "hint": "Link your Slack user so your actions in Slack are recorded under your name.",
       "empty": "None yet. In Slack, type /watchpost link and open the link it gives you.",
       "providers": {
         "slack": "Slack",
@@ -1231,24 +1236,26 @@
       },
       "unnamed": "unnamed user",
       "confirm": "Link the {provider} user “{name}” to your account?",
-      "confirmHint": "Only confirm if that is you. Whoever uses that chat account will act as you.",
+      "confirmHint": "Only confirm if that is you.",
       "link": "Yes, link it",
       "notMe": "No, that isn't me",
       "expired": "This link has expired or isn't for this workspace. Type /watchpost link in Slack for a new one.",
       "since": "linked {date}",
-      "unlink": "Unlink"
+      "unlink": "Unlink",
+      "short": "Act from Slack under your name"
     },
     "device": {
       "title": "Notifications on this device",
-      "hint": "Get alerts as notifications on this phone or computer, with an Acknowledge button on them. It is the fastest way to be reached and costs no credits.",
+      "hint": "Alerts as notifications on this device, with an Acknowledge button. Free.",
       "turnOn": "Turn on for this device",
       "turnOff": "Turn off for this device",
       "on": "On for {name}.",
       "thisDevice": "this device",
       "unsupported": "This browser can't show notifications from websites. On iPhone and iPad, add UptimeWatch to the Home Screen first (Share, then Add to Home Screen) and open it from there.",
       "notConfigured": "Notifications on devices aren't set up on this server yet.",
-      "denied": "Notifications are blocked for this site. Allow them in the browser's site settings, then come back.",
-      "install": "Tip: add UptimeWatch to your phone's home screen (the browser menu, then Add to Home screen or Install app) so alerts arrive even when the browser is closed."
+      "denied": "Notifications are blocked for this site. Allow them in the browser's settings.",
+      "install": "Tip: add UptimeWatch to your phone's home screen so alerts arrive when the browser is closed.",
+      "short": "Alerts on this phone or computer"
     }
   },
   "settings": {
@@ -1257,11 +1264,11 @@
     "timezoneHint": "Used for schedules, reports and dates.",
     "saved": "Settings saved.",
     "importTitle": "Moving from another tool?",
-    "importHint": "Bring your monitors from UptimeRobot, Uptime Kuma or Better Stack, and your schedules and escalation policies from Opsgenie or PagerDuty.",
+    "importHint": "Bring monitors, schedules and escalation policies from the tool you use now.",
     "importLink": "Import from another tool",
     "regions": {
       "title": "Check regions",
-      "intro": "Where your monitors are checked from. A region that is not working is left out of confirmation until it is back, so it can't cause a false alarm.",
+      "intro": "A region that isn't working is left out, so it can't cause a false alarm.",
       "empty": "No region is reporting yet.",
       "healthy": "Working",
       "unhealthy": "Not working"
@@ -1293,14 +1300,14 @@
     },
     "privateProbes": {
       "title": "Private probes",
-      "intro": "A private probe runs inside your network and checks what our regions can't reach: internal services, databases, staging. It connects out to us over HTTPS; nothing has to be opened to the internet.",
+      "intro": "Runs inside your network and checks what we can't reach from outside. Nothing has to be opened to the internet.",
       "none": "There are no private probes.",
       "name": "Probe name",
       "nameHint": "Where it runs, for example \"Office rack\" or \"AWS VPC\".",
       "add": "Add private probe",
       "madeTitle": "Probe \"{name}\" added. Run this where it should check from:",
       "commandLabel": "Install command",
-      "commandHint": "It needs Docker. The command holds the probe's token: copy it now, it is not shown again. The probe shows as online here within a minute.",
+      "commandHint": "Needs Docker. Copy the command now: it holds a token that isn't shown again.",
       "online": "Online",
       "offline": "Offline, last seen {when}",
       "neverSeen": "Not connected yet",
@@ -1313,7 +1320,7 @@
     },
     "audit": {
       "title": "Audit log",
-      "intro": "Who changed what in this workspace, and when. Entries are kept for 400 days.",
+      "intro": "Who changed what, and when. Kept for 400 days.",
       "open": "Open the audit log",
       "back": "Back to settings",
       "adminsOnly": "The audit log is for owners and admins.",
@@ -1336,7 +1343,7 @@
     },
     "requireTwoFactor": {
       "title": "Require two-factor sign-in",
-      "intro": "When this is on, a member without two-factor sign-in can't open this workspace until they have set it up. Part of the Business plan.",
+      "intro": "Members must set up two-factor sign-in before they can open this workspace. Business plan.",
       "isOn": "Required for everyone in this workspace.",
       "isOff": "Not required.",
       "switchOn": "Require it",
@@ -1344,20 +1351,20 @@
     },
     "clients": {
       "title": "Client workspaces",
-      "intro": "Give each client a workspace of its own, with its own monitors, status pages and people. Your owners and admins manage every client workspace; people you invite into one see only that one. Client workspaces use your plan. Part of the Business plan.",
+      "intro": "Each client gets its own monitors, status pages and people, on your plan. Business plan.",
       "empty": "No client workspaces yet.",
       "open": "Open {name}",
       "name": "Client name",
-      "nameHint": "Shown to the client's people. You can invite them once the workspace exists.",
+      "nameHint": "Shown to the client's people.",
       "create": "Create client workspace"
     },
     "data": {
       "title": "Your data",
-      "exportIntro": "Download everything your team put into this workspace as one JSON file: monitors, incidents, status pages, people, schedules and settings. Passwords and tokens are masked.",
+      "exportIntro": "Everything in this workspace as one file. Passwords and tokens are masked.",
       "export": "Download workspace data",
       "exporting": "Preparing the file…",
       "deleteTitle": "Delete this workspace",
-      "deleteIntro": "Monitoring stops at once and the workspace is erased after {days} days: monitors, incidents, status pages, people and settings. Until then an owner can cancel. After that nothing can be brought back.",
+      "deleteIntro": "Monitoring stops at once. The workspace is erased after {days} days; until then an owner can cancel.",
       "ownerOnly": "Only an owner can delete the workspace.",
       "confirm": "Workspace name, to confirm",
       "confirmHint": "Type {name} exactly.",
@@ -1365,7 +1372,26 @@
       "scheduled": "This workspace will be erased after {when}. {by} asked for it. Its monitors are paused.",
       "cancel": "Cancel the deletion",
       "ownerCancels": "An owner can cancel the deletion."
-    }
+    },
+    "sections": {
+      "security": "Two-factor sign-in",
+      "securityHint": "Require it for everyone",
+      "clients": "Client workspaces",
+      "clientsHint": "A separate workspace per client",
+      "regions": "Check regions",
+      "regionsHint": "Where checks run from",
+      "probes": "Private probes",
+      "probesHint": "Check things inside your network",
+      "apiKeys": "API keys",
+      "apiKeysHint": "For scripts and other tools",
+      "audit": "Audit log",
+      "auditHint": "Who changed what",
+      "import": "Import",
+      "importHint": "Move from another tool",
+      "data": "Your data",
+      "dataHint": "Download or delete this workspace"
+    },
+    "more": "More settings"
   },
   "billing": {
     "title": "Billing",
@@ -1940,16 +1966,16 @@
   },
   "insights": {
     "loading": "Loading…",
-    "budgetTitle": "Error budget this month",
+    "budgetTitle": "Downtime allowance this month",
     "budgetTarget": "Target: {target}% availability.",
-    "budgetOf": "Error budget of {name}",
-    "budgetUsedPercent": "{percent}% of the budget used",
+    "budgetOf": "Downtime allowance of {name}",
+    "budgetUsedPercent": "{percent}% of the allowance used",
     "budgetLeft": "{left} of {total} downtime left",
-    "budgetOver": "Over budget by {over}",
+    "budgetOver": "Over the allowance by {over}",
     "budgetPaceOk": "On pace to stay within the target this month.",
-    "budgetPaceRisk": "Downtime is using the budget {rate}× faster than the month passes; at this pace it runs out before the month ends.",
-    "budgetPaceGone": "The budget for this month is used up; the target is already missed.",
-    "budgetsEmpty": "Error budgets appear once you have monitors.",
+    "budgetPaceRisk": "At this pace the allowance runs out before the month ends.",
+    "budgetPaceGone": "This month’s allowance is used up.",
+    "budgetsEmpty": "Appears once you have monitors.",
     "budgetStatus": {
       "healthy": "Healthy",
       "at_risk": "At risk",
@@ -1986,33 +2012,33 @@
     "tileAccuracy": "Alert accuracy (30 days)",
     "tileAccuracyNone": "No incidents in the last 30 days.",
     "tileAccuracyNote": "{incidents, plural, one {# incident} other {# incidents}}, {falseAlarms, plural, =0 {no false alarms} one {# false alarm} other {# false alarms}}",
-    "tileResponse": "Acknowledge / resolve",
+    "tileResponse": "Response time",
     "tileResponseNote": "Average times over 30 days.",
-    "tileBudgets": "Error budgets",
+    "tileBudgets": "Downtime allowance",
     "tileBudgetsOk": "Healthy",
     "tileBudgetsOkNote": "Every monitor is within its monthly target.",
     "tileBudgetsRisk": "{count, plural, one {# monitor is} other {# monitors are}} at risk of missing the target.",
     "drillTitle": "Alert drill",
-    "drillIntro": "Opens a labelled test incident that goes through your real alert routes, so you know who gets paged before a real outage. Acknowledge it to finish.",
+    "drillIntro": "Sends a test incident through your real alerts, so you see who gets notified.",
     "drillConfirm": "Start an alert drill? Everyone in your alert routes will be notified.",
     "drillStart": "Run alert drill",
     "drillStarting": "Starting…",
     "drillStarted": "Drill #{number} started.",
     "drillOpen": "Open the incident",
-    "drillBanner": "This is an alert drill, not a real outage. Acknowledge it to see how fast the team responds, then resolve it.",
+    "drillBanner": "This is a drill, not a real outage. Acknowledge it, then resolve it.",
     "whatChanged": "What changed before this",
-    "whatChangedEmpty": "No changes to the address, certificate, settings or response time in the 24 hours before.",
+    "whatChangedEmpty": "Nothing changed in the 24 hours before.",
     "recentChanges": "Recent changes",
     "recentChangesEmpty": "No changes in the last 24 hours.",
     "whoWasTold": "Who was notified",
-    "budgetsTitle": "Error budgets",
+    "budgetsTitle": "Downtime allowance",
     "monitorLink": "Monitor: {name}",
-    "tileBudgetsNone": "Budgets start with your first monitor.",
+    "tileBudgetsNone": "Starts with your first monitor.",
     "tileMonitorsWaiting": "{count, plural, one {# monitor is} other {# monitors are}} waiting for the first check.",
     "deployTitle": "Deploy markers",
-    "deployIntro": "Tell UptimeWatch when you deploy, and incidents will say \"started 2 minutes after deploy abc123\". Deploys also appear in each monitor's recent changes.",
+    "deployIntro": "Tell us when you deploy, and incidents will show the release that came just before.",
     "deployNotConfigured": "No deploy URL yet.",
-    "deployConfigured": "A deploy URL is set up. For security it is only shown when created; rotate it to see a new one.",
+    "deployConfigured": "A deploy URL is set up. Replace it to see a new one.",
     "deployCreate": "Create deploy URL",
     "deployRotate": "Rotate deploy URL",
     "deployRotateConfirm": "Rotate the deploy URL? The current URL and GitHub secret stop working right away.",
@@ -2034,7 +2060,7 @@
   },
   "maintenance": {
     "title": "Maintenance",
-    "intro": "Plan work on your systems. During a window the chosen monitors are still checked, but failures open no incident and send no alert. When it ends, anything still failing alerts as usual.",
+    "intro": "Plan work on your systems. Chosen monitors send no alerts during a window.",
     "planned": "Windows",
     "empty": "No maintenance windows.",
     "emptyHint": "Plan one below before your next deploy or upgrade.",
@@ -2055,7 +2081,7 @@
       "monthly": "Every month"
     },
     "timezone": "Time zone for the repeat",
-    "timezoneHint": "The window keeps its local start time when clocks change. For example Europe/Berlin.",
+    "timezoneHint": "The window keeps its local start time when clocks change.",
     "monitors": "Monitors",
     "allMonitors": "All monitors",
     "someMonitors": "Only these",
@@ -2376,9 +2402,9 @@
   },
   "reports": {
     "title": "Reports",
-    "intro": "Uptime, incidents and response times over a period, to read here or send to the people you answer to.",
+    "intro": "Uptime, incidents and response times for a period.",
     "slaTitle": "SLA report",
-    "slaIntro": "Uptime is worked out from recorded outages, the same way as on monitor pages and status pages.",
+    "slaIntro": "Based on recorded outages.",
     "about": "Report on",
     "kind": {
       "workspace": "All monitors",
@@ -2408,11 +2434,11 @@
     "tableCaption": "Numbers per monitor for the period",
     "noMonitors": "There are no monitors in this report.",
     "truncated": "This report holds 500 monitors; the rest are left out. Report on a group to see them.",
-    "method": "Times to acknowledge and to resolve are means over the period's incidents. Latency is of successful checks. Months and days are in UTC.",
+    "method": "Times are averages. Months and days are in UTC.",
     "downloadPdf": "Download PDF",
     "downloadCsv": "Download CSV",
     "schedulesTitle": "Scheduled reports",
-    "schedulesIntro": "Email a report every week or month to people inside or outside your workspace. Each email has the headline numbers, a link to the PDF and a link to stop it.",
+    "schedulesIntro": "Email this report every week or month to anyone you choose.",
     "noSchedules": "No reports are scheduled.",
     "noRecipients": "nobody (everyone unsubscribed)",
     "deleteSchedule": "Delete the schedule {name}",
@@ -2429,7 +2455,9 @@
     "recipientsInvalid": "Enter one to ten valid email addresses.",
     "brandName": "Name on the PDF (optional)",
     "brandHint": "On the Business plan the PDF carries this name instead of ours.",
-    "addSchedule": "Add schedule"
+    "addSchedule": "Add schedule",
+    "scheduleNew": "Schedule a report",
+    "scheduleNewHint": "Send it by email every week or month"
   },
   "security": {
     "title": "Security",

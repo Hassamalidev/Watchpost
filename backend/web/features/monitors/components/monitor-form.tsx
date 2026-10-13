@@ -20,6 +20,7 @@ import {
 import { usePrivateProbes } from "@/features/settings/private-probes";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 import { Field } from "@/components/ui/field";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { ApiError, errorMessage } from "@/lib/api";
@@ -310,6 +311,8 @@ export function MonitorForm({ ws, monitor }: { ws: string; monitor?: Monitor }) 
   const client = useQueryClient();
   const [formError, setFormError] = React.useState<string | null>(null);
   const [dropSecrets, setDropSecrets] = React.useState(false);
+  /* Editing shows everything; a new monitor starts with the few fields it needs. */
+  const [moreOpen, setMoreOpen] = React.useState(monitor !== undefined);
   const form = useForm<Values>({ defaultValues: monitor ? valuesOf(monitor) : DEFAULTS });
   const groups = useMonitorGroups(ws);
   const others = useMonitors(ws);
@@ -426,6 +429,13 @@ export function MonitorForm({ ws, monitor }: { ws: string; monitor?: Monitor }) 
       setFormError(errorMessage(err));
     }
   });
+
+  /* A problem in a folded field has to be seen: the section opens by itself. */
+  const hasAdvancedError =
+    errors.regions !== undefined ||
+    errors.parentId !== undefined ||
+    errors.groupId !== undefined ||
+    errors.newGroupName !== undefined;
 
   return (
     <form onSubmit={onSubmit} className="grid max-w-xl gap-4" noValidate>
@@ -563,126 +573,6 @@ export function MonitorForm({ ws, monitor }: { ws: string; monitor?: Monitor }) 
           ))}
         </Select>
       </Field>
-      <fieldset className="grid gap-2">
-        <legend className="text-sm font-medium">{t("regions")}</legend>
-        <p className="text-xs text-muted-foreground">{t("regionsHint")}</p>
-        {(privateProbes.data ?? []).length > 0 && (
-          <Field label={t("runOn")} htmlFor="monitor-location" hint={t("runOnHint")}>
-            <Select
-              id="monitor-location"
-              value={privateRegion ?? ""}
-              onChange={(e) =>
-                form.setValue(
-                  "regions",
-                  e.target.value === "" ? ["eu-central", "us-east"] : [e.target.value],
-                  { shouldDirty: true },
-                )
-              }
-            >
-              <option value="">{t("runOnRegions")}</option>
-              {(privateProbes.data ?? []).map((probe) => (
-                <option key={probe.id} value={probe.region}>
-                  {t("runOnProbe", { name: probe.name })}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        )}
-        {privateRegion === undefined && (
-          <div className="flex flex-wrap gap-4">
-            {LAUNCH_REGIONS.map((region) => (
-              <label key={region} className="flex items-center gap-2 text-sm">
-                <input type="checkbox" value={region} {...form.register("regions")} />
-                {region}
-              </label>
-            ))}
-          </div>
-        )}
-        {errors.regions?.message && (
-          <p role="alert" className="text-xs text-status-down">
-            {errors.regions.message}
-          </p>
-        )}
-      </fieldset>
-      {regionCount > 1 && (
-        <>
-          <Field
-            label={t("confirmRegions")}
-            htmlFor="monitor-confirm-regions"
-            hint={t("confirmRegionsHint")}
-          >
-            <Select id="monitor-confirm-regions" {...form.register("minFailingRegions")}>
-              {Array.from({ length: regionCount }, (_, index) => (
-                <option key={index + 1} value={String(index + 1)}>
-                  {t("confirmRegionsOption", { count: index + 1 })}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <label className="flex items-start gap-2 text-sm">
-            <input type="checkbox" className="mt-0.5" {...form.register("alertOnRegionalIssue")} />
-            <span>
-              {t("alertRegional")}
-              <span className="block text-xs text-muted-foreground">{t("alertRegionalHint")}</span>
-            </span>
-          </label>
-        </>
-      )}
-      <Field label={t("severity")} htmlFor="monitor-severity">
-        <Select id="monitor-severity" {...form.register("severity")}>
-          {SEVERITIES.map((s) => (
-            <option key={s} value={s}>
-              {t(`severities.${s}`)}
-            </option>
-          ))}
-        </Select>
-      </Field>
-      <Field
-        label={t("dependsOn")}
-        htmlFor="monitor-parent"
-        hint={t("dependsOnHint")}
-        error={errors.parentId?.message}
-      >
-        <Select id="monitor-parent" {...form.register("parentId")}>
-          <option value="">{t("dependsOnNone")}</option>
-          {(others.data ?? [])
-            .filter((m) => m.id !== monitor?.id)
-            .map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-        </Select>
-      </Field>
-      <Field label={t("group")} htmlFor="monitor-group" error={errors.groupId?.message}>
-        <Select id="monitor-group" {...form.register("groupId")}>
-          <option value="">{t("groupNone")}</option>
-          {(groups.data ?? []).map((g) => (
-            <option key={g.id} value={g.id}>
-              {g.name}
-            </option>
-          ))}
-          <option value={NEW_GROUP}>{t("groupNew")}</option>
-        </Select>
-      </Field>
-      {groupId === NEW_GROUP && (
-        <Field
-          label={t("groupName")}
-          htmlFor="monitor-group-name"
-          error={errors.newGroupName?.message}
-        >
-          <Input id="monitor-group-name" maxLength={100} {...form.register("newGroupName")} />
-        </Field>
-      )}
-      {groupId !== "" && (
-        <label className="flex items-start gap-2 text-sm">
-          <input type="checkbox" className="mt-0.5" {...form.register("groupAlerts")} />
-          <span>
-            {t("groupAlerts")}
-            <span className="block text-xs text-muted-foreground">{t("groupAlertsHint")}</span>
-          </span>
-        </label>
-      )}
       {needsSecretChoice && (
         <div className="grid gap-2 rounded-md border border-status-degraded/40 bg-status-degraded/10 p-3 text-sm">
           <p>{t("secretsRetarget")}</p>
@@ -696,15 +586,153 @@ export function MonitorForm({ ws, monitor }: { ws: string; monitor?: Monitor }) 
           </label>
         </div>
       )}
-      <Field label={t("sloTarget")} htmlFor="monitor-slo" hint={t("sloHint")}>
-        <Select id="monitor-slo" {...form.register("sloTarget")}>
-          {SLO_TARGETS.map((target) => (
-            <option key={target} value={target}>
-              {t("sloOption", { target, allowance: monthlyAllowance(target) })}
-            </option>
-          ))}
-        </Select>
-      </Field>
+      {/*
+       * Everything below has a sensible default. A first monitor needs a name and an address; where
+       * it is checked from, how loud it is and what it belongs to can wait until someone cares.
+       */}
+      <Disclosure
+        summary={t("moreOptions")}
+        hint={t("moreOptionsHint")}
+        bordered={false}
+        open={moreOpen || hasAdvancedError}
+        onOpenChange={setMoreOpen}
+      >
+        <fieldset className="grid gap-2">
+          <legend className="text-sm font-medium">{t("regions")}</legend>
+          <p className="text-xs text-muted-foreground">{t("regionsHint")}</p>
+          {(privateProbes.data ?? []).length > 0 && (
+            <Field label={t("runOn")} htmlFor="monitor-location" hint={t("runOnHint")}>
+              <Select
+                id="monitor-location"
+                value={privateRegion ?? ""}
+                onChange={(e) =>
+                  form.setValue(
+                    "regions",
+                    e.target.value === "" ? ["eu-central", "us-east"] : [e.target.value],
+                    { shouldDirty: true },
+                  )
+                }
+              >
+                <option value="">{t("runOnRegions")}</option>
+                {(privateProbes.data ?? []).map((probe) => (
+                  <option key={probe.id} value={probe.region}>
+                    {t("runOnProbe", { name: probe.name })}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
+          {privateRegion === undefined && (
+            <div className="flex flex-wrap gap-4">
+              {LAUNCH_REGIONS.map((region) => (
+                <label key={region} className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" value={region} {...form.register("regions")} />
+                  {region}
+                </label>
+              ))}
+            </div>
+          )}
+          {errors.regions?.message && (
+            <p role="alert" className="text-xs text-status-down">
+              {errors.regions.message}
+            </p>
+          )}
+        </fieldset>
+        {regionCount > 1 && (
+          <>
+            <Field
+              label={t("confirmRegions")}
+              htmlFor="monitor-confirm-regions"
+              hint={t("confirmRegionsHint")}
+            >
+              <Select id="monitor-confirm-regions" {...form.register("minFailingRegions")}>
+                {Array.from({ length: regionCount }, (_, index) => (
+                  <option key={index + 1} value={String(index + 1)}>
+                    {t("confirmRegionsOption", { count: index + 1 })}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                {...form.register("alertOnRegionalIssue")}
+              />
+              <span>
+                {t("alertRegional")}
+                <span className="block text-xs text-muted-foreground">
+                  {t("alertRegionalHint")}
+                </span>
+              </span>
+            </label>
+          </>
+        )}
+        <Field label={t("severity")} htmlFor="monitor-severity">
+          <Select id="monitor-severity" {...form.register("severity")}>
+            {SEVERITIES.map((s) => (
+              <option key={s} value={s}>
+                {t(`severities.${s}`)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field
+          label={t("dependsOn")}
+          htmlFor="monitor-parent"
+          hint={t("dependsOnHint")}
+          error={errors.parentId?.message}
+        >
+          <Select id="monitor-parent" {...form.register("parentId")}>
+            <option value="">{t("dependsOnNone")}</option>
+            {(others.data ?? [])
+              .filter((m) => m.id !== monitor?.id)
+              .map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+          </Select>
+        </Field>
+        <Field label={t("group")} htmlFor="monitor-group" error={errors.groupId?.message}>
+          <Select id="monitor-group" {...form.register("groupId")}>
+            <option value="">{t("groupNone")}</option>
+            {(groups.data ?? []).map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+            <option value={NEW_GROUP}>{t("groupNew")}</option>
+          </Select>
+        </Field>
+        {groupId === NEW_GROUP && (
+          <Field
+            label={t("groupName")}
+            htmlFor="monitor-group-name"
+            error={errors.newGroupName?.message}
+          >
+            <Input id="monitor-group-name" maxLength={100} {...form.register("newGroupName")} />
+          </Field>
+        )}
+        {groupId !== "" && (
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-0.5" {...form.register("groupAlerts")} />
+            <span>
+              {t("groupAlerts")}
+              <span className="block text-xs text-muted-foreground">{t("groupAlertsHint")}</span>
+            </span>
+          </label>
+        )}
+        <Field label={t("sloTarget")} htmlFor="monitor-slo" hint={t("sloHint")}>
+          <Select id="monitor-slo" {...form.register("sloTarget")}>
+            {SLO_TARGETS.map((target) => (
+              <option key={target} value={target}>
+                {t("sloOption", { target, allowance: monthlyAllowance(target) })}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </Disclosure>
       <div>
         <Button type="submit" disabled={form.formState.isSubmitting}>
           {form.formState.isSubmitting ? tc("saving") : monitor ? tc("save") : tc("create")}

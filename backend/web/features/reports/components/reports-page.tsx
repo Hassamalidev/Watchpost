@@ -22,6 +22,7 @@ import {
 import { can, useWorkspace } from "@/components/app/workspace-context";
 import { Alert, EmptyState } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Input, Select } from "@/components/ui/input";
@@ -231,64 +232,71 @@ function Schedules({
         )}
         {remove.isError && <Alert tone="error">{errorMessage(remove.error)}</Alert>}
         {canManage && (
-          <form
-            className="grid max-w-xl gap-4 border-t pt-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              submit();
-            }}
+          <Disclosure
+            summary={t("scheduleNew")}
+            hint={t("scheduleNewHint")}
+            bordered={false}
+            className="border-t pt-3"
           >
-            <p className="text-sm text-muted-foreground">
-              {t("scheduleCovers", { target: targetName })}
-            </p>
-            {problem && <Alert tone="error">{problem}</Alert>}
-            <Field label={t("scheduleName")} htmlFor="report-name">
-              <Input
-                id="report-name"
-                value={name}
-                maxLength={80}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </Field>
-            <Field label={t("frequencyLabel")} htmlFor="report-frequency">
-              <Select
-                id="report-frequency"
-                value={frequency}
-                onChange={(e) => setFrequency(e.target.value as ReportFrequency)}
-              >
-                {REPORT_FREQUENCIES.map((f) => (
-                  <option key={f} value={f}>
-                    {t(`frequency.${f}`)}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field
-              label={t("recipients")}
-              htmlFor="report-recipients"
-              hint={t("recipientsHint", { max: REPORT_MAX_RECIPIENTS })}
+            <form
+              className="grid max-w-xl gap-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                submit();
+              }}
             >
-              <Input
-                id="report-recipients"
-                value={recipients}
-                placeholder="client@example.com, boss@example.com"
-                onChange={(e) => setRecipients(e.target.value)}
-              />
-            </Field>
-            <Field label={t("brandName")} htmlFor="report-brand" hint={t("brandHint")}>
-              <Input
-                id="report-brand"
-                value={brandName}
-                maxLength={80}
-                onChange={(e) => setBrandName(e.target.value)}
-              />
-            </Field>
-            <div>
-              <Button type="submit" disabled={create.isPending}>
-                {create.isPending ? tc("saving") : t("addSchedule")}
-              </Button>
-            </div>
-          </form>
+              <p className="text-sm text-muted-foreground">
+                {t("scheduleCovers", { target: targetName })}
+              </p>
+              {problem && <Alert tone="error">{problem}</Alert>}
+              <Field label={t("scheduleName")} htmlFor="report-name">
+                <Input
+                  id="report-name"
+                  value={name}
+                  maxLength={80}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </Field>
+              <Field label={t("frequencyLabel")} htmlFor="report-frequency">
+                <Select
+                  id="report-frequency"
+                  value={frequency}
+                  onChange={(e) => setFrequency(e.target.value as ReportFrequency)}
+                >
+                  {REPORT_FREQUENCIES.map((f) => (
+                    <option key={f} value={f}>
+                      {t(`frequency.${f}`)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field
+                label={t("recipients")}
+                htmlFor="report-recipients"
+                hint={t("recipientsHint", { max: REPORT_MAX_RECIPIENTS })}
+              >
+                <Input
+                  id="report-recipients"
+                  value={recipients}
+                  placeholder="client@example.com, boss@example.com"
+                  onChange={(e) => setRecipients(e.target.value)}
+                />
+              </Field>
+              <Field label={t("brandName")} htmlFor="report-brand" hint={t("brandHint")}>
+                <Input
+                  id="report-brand"
+                  value={brandName}
+                  maxLength={80}
+                  onChange={(e) => setBrandName(e.target.value)}
+                />
+              </Field>
+              <div>
+                <Button type="submit" disabled={create.isPending}>
+                  {create.isPending ? tc("saving") : t("addSchedule")}
+                </Button>
+              </div>
+            </form>
+          </Disclosure>
         )}
       </CardContent>
     </Card>

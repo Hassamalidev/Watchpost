@@ -23,6 +23,7 @@ async function createMonitor(page: Page, name: string, path: string): Promise<st
   await page.goto(`/w/${workspace()}/monitors/new`);
   await page.getByLabel("Name", { exact: true }).fill(name);
   await page.getByLabel("URL").fill(`${TARGET}${path}`);
+  await page.getByText("More options").click();
   await page.getByRole("checkbox", { name: "us-east" }).uncheck();
   await page.getByRole("button", { name: "Create" }).click();
   await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
@@ -149,11 +150,17 @@ test("a status page is public at once, follows its monitor within 10 s, and show
     await expect(visitor.getByText("Check your inbox: we sent a link")).toBeVisible();
     expect(new URL(visitor.url()).pathname).toBe(`/s/${slug}`);
     const confirmUrl = new URL(await emailLink(subscriber, "status-confirm"));
-    const confirmed = await visitor.request.get(`${confirmUrl.pathname}${confirmUrl.search}`, {
-      maxRedirects: 0,
-    });
-    expect(confirmed.status()).toBe(303);
-    expect(confirmed.headers().location).toContain("?subscribe=confirmed");
+    /*
+     * The link opens a page with one button, and only the button confirms: a mail scanner that
+     * fetches the link subscribes nobody.
+     */
+    await visitor.goto(`${confirmUrl.pathname}${confirmUrl.search}`);
+    /* The answer sends the reader to the page's own address, which doesn't resolve in this test. */
+    const sentOn = visitor.waitForRequest(/subscribe=confirmed/);
+    await visitor.getByRole("button", { name: "Confirm subscription" }).click();
+    await sentOn;
+    /* Let that navigation end (in an error page here) before going to the page by its test address. */
+    await visitor.waitForURL((url) => !url.pathname.includes("status-subscriptions"));
     await visitor.goto(`/s/${slug}?subscribe=confirmed`);
     await expect(visitor.getByText("You are subscribed.")).toBeVisible();
 

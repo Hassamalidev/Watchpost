@@ -26,8 +26,8 @@ const post = (page: Page, apiPath: string, data: object) =>
 test("the overview shows health tiles and error budgets", async ({ page }) => {
   await page.goto(path("overview"));
   await expect(page.getByText("Alert accuracy (30 days)")).toBeVisible();
-  await expect(page.getByText("Acknowledge / resolve")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Error budgets" })).toBeVisible();
+  await expect(page.getByText("Response time", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Downtime allowance" })).toBeVisible();
   await noAxeViolations(page);
 });
 
@@ -40,9 +40,9 @@ test("a monitor shows its error budget and recent changes", async ({ page }, tes
   const { id } = (await created.json()) as { id: string };
 
   await page.goto(path(`monitors/${id}`));
-  await expect(page.getByRole("heading", { name: "Error budget this month" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Downtime allowance this month" })).toBeVisible();
   await expect(page.getByText("Target: 99.5% availability.")).toBeVisible();
-  await expect(page.getByRole("meter", { name: "Error budget this month" })).toBeVisible();
+  await expect(page.getByRole("meter", { name: "Downtime allowance this month" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Recent changes" })).toBeVisible();
   await expect(page.getByText("Monitor created")).toBeVisible();
   await noAxeViolations(page);
@@ -54,7 +54,7 @@ test("an alert drill is labelled and shows who was notified", async ({ page }) =
   const { number } = (await drill.json()) as { number: number };
 
   await page.goto(path(`incidents/${number}`));
-  await expect(page.getByText("This is an alert drill, not a real outage.")).toBeVisible();
+  await expect(page.getByText("This is a drill, not a real outage.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Who was notified" })).toBeVisible();
   await noAxeViolations(page);
   await page.getByRole("button", { name: "Resolve" }).click();

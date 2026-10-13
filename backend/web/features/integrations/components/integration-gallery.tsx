@@ -10,7 +10,6 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ArrowRight, CircleCheck, Search } from "lucide-react";
 import {
-  CHANNEL_CAPABILITIES,
   INTEGRATION_CATEGORIES,
   type ChannelType,
   type IntegrationDefinition,
@@ -26,6 +25,15 @@ import { searchIntegrations, type CategoryFilter } from "../catalog";
 import { IntegrationTile } from "./parts";
 
 const FILTERS: readonly CategoryFilter[] = ["all", ...INTEGRATION_CATEGORIES];
+/* What most teams connect first; shown before the full list. */
+const POPULAR: readonly IntegrationId[] = [
+  "email",
+  "slack",
+  "teams",
+  "discord",
+  "telegram",
+  "webhook",
+];
 
 function IntegrationCard({
   ws,
@@ -40,18 +48,13 @@ function IntegrationCard({
   connected: number;
 }) {
   const t = useTranslations("integrations");
-  const { followUps } = CHANNEL_CAPABILITIES[integration.type];
-  const footer = !available
-    ? t("unavailable")
-    : followUps === "separate"
-      ? null
-      : t(`followUps.${followUps}`);
+  const footer = available ? null : t("unavailable");
   return (
     <li>
       <Link
         href={workspaceHref(ws, `integrations/new/${integration.id}`)}
         className={cn(
-          "group flex h-full flex-col gap-3 rounded-lg border bg-card p-4 shadow-xs transition-colors hover:border-foreground/30 hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+          "group flex h-full flex-col gap-2 rounded-lg border bg-card p-4 shadow-xs transition-colors hover:border-foreground/30 hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
           !available && "border-dashed",
         )}
       >
@@ -59,8 +62,10 @@ function IntegrationCard({
           <IntegrationTile id={integration.id} />
           <div className="min-w-0">
             <h3 className="truncate font-medium">{integration.name}</h3>
-            <p className="text-xs text-muted-foreground">
-              {t(`categories.${integration.category}`)}
+            {/* Read by screen readers and search; one line of text per card is enough to see. */}
+            <p className="sr-only">{t(`categories.${integration.category}`)}</p>
+            <p className="text-sm text-muted-foreground">
+              {t(`catalog.${integration.id}.summary`)}
             </p>
           </div>
           <ArrowRight
@@ -68,7 +73,6 @@ function IntegrationCard({
             className="ml-auto size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
           />
         </div>
-        <p className="text-sm text-muted-foreground">{t(`catalog.${integration.id}.summary`)}</p>
         {(footer !== null || connected > 0) && (
           <p className="mt-auto flex flex-wrap items-center justify-between gap-2 text-xs font-medium">
             <span>{footer}</span>
@@ -139,11 +143,18 @@ export function IntegrationGallery({
   const t = useTranslations("integrations");
   const [query, setQuery] = React.useState("");
   const [category, setCategory] = React.useState<CategoryFilter>("all");
-  const results = searchIntegrations(
+  const [showAll, setShowAll] = React.useState(false);
+  const found = searchIntegrations(
     query,
     category,
     (i) => `${t(`categories.${i.category}`)} ${t(`catalog.${i.id}.summary`)}`,
   );
+  /*
+   * Twenty-six cards are a lot to read for someone who wants "email" or "Slack". Until they search,
+   * filter or ask for everything, the gallery shows the handful most people pick.
+   */
+  const browsing = query.trim() === "" && category === "all" && !showAll;
+  const results = browsing ? found.filter((i) => POPULAR.includes(i.id)) : found;
 
   return (
     <section className="grid grid-cols-[minmax(0,1fr)] gap-3" aria-labelledby="gallery-heading">
@@ -185,7 +196,9 @@ export function IntegrationGallery({
         </div>
       </div>
       <p aria-live="polite" className="text-xs text-muted-foreground">
-        {results.length > 0 && t("resultCount", { count: results.length })}
+        {browsing
+          ? t("popular")
+          : results.length > 0 && t("resultCount", { count: results.length })}
       </p>
       {results.length === 0 ? (
         <EmptyState title={t("noResults", { query: query.trim() })}>
@@ -209,6 +222,13 @@ export function IntegrationGallery({
             />
           ))}
         </ul>
+      )}
+      {browsing && (
+        <div>
+          <Button variant="outline" size="sm" onClick={() => setShowAll(true)}>
+            {t("showAll", { count: found.length })}
+          </Button>
+        </div>
       )}
     </section>
   );
