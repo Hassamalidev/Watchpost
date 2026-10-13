@@ -27,6 +27,17 @@ export async function call(
   }
 }
 
+/*
+ * What the other side said, when a person can read it. A provider's error is usually a short line
+ * or a little JSON and helps; a web page (an error page, a login page, the wrong address entirely)
+ * is markup nobody wants in the middle of a sentence, so the status code speaks alone.
+ */
+export function readableDetail(body: string): string {
+  const text = body.trim();
+  if (/^<|<html|<!doctype/i.test(text.slice(0, 300))) return "";
+  return text.slice(0, 200);
+}
+
 /* Throws unless the status is 2xx; `permanentStatuses` won't be retried. */
 export function expectOk(
   res: OutboundResponse,
@@ -34,7 +45,7 @@ export function expectOk(
   permanentStatuses: readonly number[],
 ): void {
   if (res.status >= 200 && res.status < 300) return;
-  const detail = res.body.trim().slice(0, 200);
+  const detail = readableDetail(res.body);
   throw new ChannelDeliveryError(
     `${label} answered HTTP ${res.status}${detail ? `: ${detail}` : ""}`,
     permanentStatuses.includes(res.status),

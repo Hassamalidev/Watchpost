@@ -81,7 +81,15 @@ test("on a small phone the page fits and the menu reaches every section", async 
 
   const nav = page.getByRole("navigation", { name: "Site" });
   await expect(nav.getByRole("link", { name: "Sign up" })).toBeVisible();
-  await nav.getByRole("button", { name: "Open menu" }).click();
+  /*
+   * A tap that lands before the page's scripts have started does nothing (the button is there, its
+   * handler isn't yet), so tap until the menu says it is open.
+   */
+  await expect(async () => {
+    const open = nav.getByRole("button", { name: "Open menu" });
+    if (await open.isVisible()) await open.click();
+    await expect(nav.getByRole("button", { name: "Close menu" })).toBeVisible({ timeout: 1_000 });
+  }).toPass();
   await expect(nav.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login");
   await expect(nav.getByRole("link", { name: "Pricing" })).toBeVisible();
   const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();

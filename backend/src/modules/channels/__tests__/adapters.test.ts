@@ -13,6 +13,7 @@ import {
   type OutboundResponse,
 } from "../../../infra/http/outbound.js";
 import { createDiscordAdapter } from "../adapters/discord.js";
+import { expectOk } from "../adapters/http.js";
 import { escapeMarkdown, renderMarkdownBody, renderPlain } from "../adapters/render.js";
 import { createSlackAdapter, slackBlocks } from "../adapters/slack.js";
 import { createTeamsAdapter } from "../adapters/teams.js";
@@ -327,6 +328,27 @@ describe("Slack adapter", () => {
     await expect(
       adapter.prepare!(config, { workspaceId: "other", previous: undefined }),
     ).rejects.toThrow(/doesn't belong/);
+  });
+});
+
+describe("what a failed delivery says", () => {
+  it("quotes a provider's short answer, and leaves a web page out of the sentence", () => {
+    const fails = (body: string) => {
+      try {
+        expectOk({ status: 405, headers: {}, body } as never, "The webhook", []);
+        return "no error";
+      } catch (err) {
+        return (err as Error).message;
+      }
+    };
+    expect(fails('{"error":"invalid token"}')).toBe(
+      'The webhook answered HTTP 405: {"error":"invalid token"}',
+    );
+    expect(fails("<!doctype html><html><head><title>Example Domain</title></head></html>")).toBe(
+      "The webhook answered HTTP 405",
+    );
+    expect(fails("  <div>Sign in</div>")).toBe("The webhook answered HTTP 405");
+    expect(fails("")).toBe("The webhook answered HTTP 405");
   });
 });
 
