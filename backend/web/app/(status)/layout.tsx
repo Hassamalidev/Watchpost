@@ -37,7 +37,8 @@ export default function StatusLayout({ children }: { children: React.ReactNode }
       <head>
         <script dangerouslySetInnerHTML={{ __html: FOLLOW_SYSTEM_THEME }} />
       </head>
-      <body>
+      {/* Browser extensions (Grammarly and others) add attributes to <body> before React loads. */}
+      <body suppressHydrationWarning>
         <main>{children}</main>
       </body>
     </html>
