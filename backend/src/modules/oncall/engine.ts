@@ -102,20 +102,45 @@ function insideRestrictions(restrictions: Restriction[], zone: string, at: Date)
   });
 }
 
-function layerOnCall(layer: EngineLayer, zone: string, at: Date): string | undefined {
+/* Says who can be paged right now; everyone, when nothing is known. */
+export type CanPage = (userId: string) => boolean;
+
+function layerOnCall(
+  layer: EngineLayer,
+  zone: string,
+  at: Date,
+  canPage?: CanPage,
+): string | undefined {
   const ms = at.getTime();
   if (ms < layer.startsAt.getTime()) return undefined;
   if (layer.endsAt !== null && ms >= layer.endsAt.getTime()) return undefined;
   if (layer.participants.length === 0) return undefined;
   if (!insideRestrictions(layer.restrictions, zone, at)) return undefined;
   const k = shiftIndex(layer, zone, at);
-  return layer.participants[k % layer.participants.length];
+  const n = layer.participants.length;
+  if (canPage === undefined) return layer.participants[k % n];
+  /* Whoever's turn it is, or the next in the rotation who can still be paged. */
+  for (let j = 0; j < n; j += 1) {
+    const userId = layer.participants[(k + j) % n];
+    if (userId !== undefined && canPage(userId)) return userId;
+  }
+  return undefined;
 }
 
-export function whoIsOnCall(schedule: EngineSchedule, at: Date): OnCallResult | null {
+/*
+ * `canPage` is for paging: a schedule is checked when it is saved, but people leave the workspace
+ * afterwards. Someone who left is passed over (the next in their rotation, then a lower layer) so
+ * the page reaches a person. Without it the answer is the schedule as written, as calendars show it.
+ */
+export function whoIsOnCall(
+  schedule: EngineSchedule,
+  at: Date,
+  canPage?: CanPage,
+): OnCallResult | null {
   const ms = at.getTime();
   const override = schedule.overrides
     .filter((o) => o.startsAt.getTime() <= ms && ms < o.endsAt.getTime())
+    .filter((o) => canPage === undefined || canPage(o.userId))
     /* Where overrides overlap, the one made last wins. */
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id.localeCompare(a.id))[0];
   if (override !== undefined) {
@@ -123,7 +148,7 @@ export function whoIsOnCall(schedule: EngineSchedule, at: Date): OnCallResult | 
   }
   for (let i = schedule.layers.length - 1; i >= 0; i -= 1) {
     const layer = schedule.layers[i] as EngineLayer;
-    const userId = layerOnCall(layer, schedule.timezone, at);
+    const userId = layerOnCall(layer, schedule.timezone, at, canPage);
     if (userId !== undefined) {
       return { userId, source: "layer", layerId: layer.id, layerName: layer.name };
     }

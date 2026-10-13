@@ -91,7 +91,19 @@ export function unstorableInput(input: unknown): string | undefined {
   return undefined;
 }
 
+/*
+ * Better Auth's own roster answers. They ask only for membership, while the roster here needs
+ * `roster:read` and, where the workspace requires it, two-factor sign-in (`/api/w/:id/members`).
+ * The app doesn't use them, so they are closed rather than taught our rules a second time.
+ */
+const CLOSED_PATHS: ReadonlySet<string> = new Set([
+  "/organization/list-members",
+  "/organization/get-full-organization",
+  "/organization/list-invitations",
+]);
+
 const rejectUnstorableInput = createAuthMiddleware(async (ctx) => {
+  if (CLOSED_PATHS.has((ctx as { path?: string }).path ?? "")) throw new APIError("NOT_FOUND");
   const problem =
     unstorableInput((ctx as { body?: unknown }).body) ??
     unstorableInput((ctx as { query?: unknown }).query);
@@ -150,6 +162,12 @@ export function createAuth(options: AuthOptions) {
         roles: workspaceRoles,
         creatorRole: "owner",
         allowUserToCreateOrganization: true,
+        /*
+         * A workspace is deleted only through `/privacy/deletion`: the 30-day wait, the refusal while
+         * a subscription or client workspaces exist, and the erasure of stored evidence all live
+         * there. Better Auth's endpoint would drop the rows at once and skip every one of them.
+         */
+        disableOrganizationDeletion: true,
         membershipLimit: async (_user, organization) =>
           (await options.memberLimit?.(organization.id)) ?? DEFAULT_MEMBER_LIMIT,
         requireEmailVerificationOnInvitation: true,

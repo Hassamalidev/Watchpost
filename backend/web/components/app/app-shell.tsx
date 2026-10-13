@@ -56,7 +56,7 @@ export async function AppShell({
           <header className="flex h-14 items-center gap-2 border-b px-4">
             <MobileNav workspace={workspace} />
             <CommandPalette workspace={workspace} />
-            <div className="ml-auto flex items-center gap-1">
+            <div className="ml-auto flex shrink-0 items-center gap-1">
               <ThemeToggle />
               <SecurityLink />
               <SignOutButton />

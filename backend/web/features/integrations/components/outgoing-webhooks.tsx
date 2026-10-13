@@ -31,6 +31,14 @@ import { formatDateTime } from "@/lib/format";
 
 const key = (ws: string) => ["webhooks", ws] as const;
 const deliveriesKey = (ws: string, id: string) => ["webhooks", ws, id, "deliveries"] as const;
+
+/* The workspace's webhook endpoints; the page header counts them and this section lists them. */
+export function useWebhookEndpoints(ws: string) {
+  return useQuery({
+    queryKey: key(ws),
+    queryFn: async () => (await api<{ data: WebhookEndpointView[] }>(wsPath(ws, "/webhooks"))).data,
+  });
+}
 const PATTERNS: readonly WebhookEventPattern[] = [
   ...WEBHOOK_EVENT_GROUPS.filter((group) => group !== "*"),
   ...WEBHOOK_EVENT_TYPES,
@@ -143,15 +151,27 @@ function EndpointRow({
   ws,
   endpoint,
   canManage,
+  onSecret,
 }: {
   ws: string;
   endpoint: WebhookEndpointView;
   canManage: boolean;
+  /* A new signing secret was made; it is shown once, like a new endpoint's. */
+  onSecret: (made: WebhookEndpointWithSecret) => void;
 }) {
   const t = useTranslations("integrations.webhooks");
   const tc = useTranslations("common");
   const client = useQueryClient();
   const [open, setOpen] = React.useState(false);
+  const [editing, setEditing] = React.useState(false);
+  const rotate = useMutation({
+    mutationFn: () =>
+      api<WebhookEndpointWithSecret>(wsPath(ws, `/webhooks/${endpoint.id}/secret`), {
+        method: "POST",
+        body: {},
+      }),
+    onSuccess: onSecret,
+  });
   const refresh = () => client.invalidateQueries({ queryKey: key(ws) });
   const toggle = useMutation({
     mutationFn: () =>
@@ -169,7 +189,7 @@ function EndpointRow({
     <li className="grid gap-3 p-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-medium">
+          <p className="font-medium break-words">
             {endpoint.name}{" "}
             {!endpoint.enabled && (
               <span className="rounded border px-1.5 py-0.5 text-xs font-normal">{t("off")}</span>
@@ -184,6 +204,27 @@ function EndpointRow({
           </Button>
           {canManage && (
             <>
+              <Button
+                size="sm"
+                variant="outline"
+                aria-expanded={editing}
+                aria-label={t("editNamed", { name: endpoint.name })}
+                onClick={() => setEditing(!editing)}
+              >
+                {t("edit")}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={rotate.isPending}
+                aria-label={t("newSecretNamed", { name: endpoint.name })}
+                onClick={() => {
+                  if (globalThis.confirm(t("confirmNewSecret", { name: endpoint.name })))
+                    rotate.mutate();
+                }}
+              >
+                {t("newSecret")}
+              </Button>
               <Button
                 size="sm"
                 variant="outline"
@@ -211,38 +252,64 @@ function EndpointRow({
       {endpoint.disabledReason && (
         <Alert tone="error">{t("disabled", { reason: endpoint.disabledReason })}</Alert>
       )}
-      {(toggle.isError || remove.isError) && (
-        <Alert tone="error">{errorMessage(toggle.error ?? remove.error)}</Alert>
+      {(toggle.isError || remove.isError || rotate.isError) && (
+        <Alert tone="error">{errorMessage(toggle.error ?? remove.error ?? rotate.error)}</Alert>
       )}
+      {editing && <EndpointForm ws={ws} endpoint={endpoint} onDone={() => setEditing(false)} />}
       {open && <Deliveries ws={ws} endpoint={endpoint} canManage={canManage} />}
     </li>
   );
 }
 
-function NewEndpoint({
+/* One form for a new endpoint and for changing one: name, address, events and the body template. */
+function EndpointForm({
   ws,
+  endpoint,
   onMade,
+  onDone,
 }: {
   ws: string;
-  onMade: (made: WebhookEndpointWithSecret) => void;
+  /* Set when editing. */
+  endpoint?: WebhookEndpointView;
+  /* A new endpoint was created; its secret is in the answer. */
+  onMade?: (made: WebhookEndpointWithSecret) => void;
+  /* Editing ended (saved or cancelled). */
+  onDone?: () => void;
 }) {
   const t = useTranslations("integrations.webhooks");
   const tc = useTranslations("common");
   const client = useQueryClient();
-  const [name, setName] = React.useState("");
-  const [url, setUrl] = React.useState("");
-  const [events, setEvents] = React.useState<WebhookEventPattern[]>(["incident.*"]);
-  const [template, setTemplate] = React.useState("");
+  const [name, setName] = React.useState(endpoint?.name ?? "");
+  const [url, setUrl] = React.useState(endpoint?.url ?? "");
+  const [events, setEvents] = React.useState<WebhookEventPattern[]>(
+    endpoint?.events ?? ["incident.*"],
+  );
+  const [template, setTemplate] = React.useState(endpoint?.bodyTemplate ?? "");
   const [problem, setProblem] = React.useState<string | null>(null);
-  const create = useMutation({
+  const prefix = endpoint ? `webhook-${endpoint.id}` : "webhook";
+  const save = useMutation({
     mutationFn: (body: CreateWebhookInput) =>
-      api<WebhookEndpointWithSecret>(wsPath(ws, "/webhooks"), { method: "POST", body }),
-    onSuccess: async (made) => {
-      onMade(made);
-      setName("");
-      setUrl("");
-      setTemplate("");
+      endpoint
+        ? api<WebhookEndpointView>(wsPath(ws, `/webhooks/${endpoint.id}`), {
+            method: "PATCH",
+            body: {
+              name: body.name,
+              /* An unchanged address isn't sent: changing it has rules of its own. */
+              ...(body.url === endpoint.url ? {} : { url: body.url }),
+              events: body.events,
+              bodyTemplate: body.bodyTemplate,
+            },
+          })
+        : api<WebhookEndpointWithSecret>(wsPath(ws, "/webhooks"), { method: "POST", body }),
+    onSuccess: async (saved) => {
+      if (endpoint === undefined) {
+        onMade?.(saved as WebhookEndpointWithSecret);
+        setName("");
+        setUrl("");
+        setTemplate("");
+      }
       await client.invalidateQueries({ queryKey: key(ws) });
+      onDone?.();
     },
     onError: (err) => setProblem(errorMessage(err)),
   });
@@ -262,33 +329,36 @@ function NewEndpoint({
           ? t("nameRequired")
           : field === "url"
             ? t("urlInvalid")
-            : t("eventsRequired"),
+            : field === "bodyTemplate"
+              ? t("templateInvalid")
+              : t("eventsRequired"),
       );
       return;
     }
-    create.mutate(parsed.data);
+    save.mutate(parsed.data);
   }
 
   return (
     <form
-      className="grid max-w-xl gap-4 border-t pt-4"
+      className={endpoint ? "grid max-w-xl gap-4" : "grid max-w-xl gap-4 border-t pt-4"}
       onSubmit={(event) => {
         event.preventDefault();
         submit();
       }}
     >
+      {endpoint === undefined && <h3 className="text-sm font-semibold">{t("addTitle")}</h3>}
       {problem && <Alert tone="error">{problem}</Alert>}
-      <Field label={t("name")} htmlFor="webhook-name">
+      <Field label={t("name")} htmlFor={`${prefix}-name`}>
         <Input
-          id="webhook-name"
+          id={`${prefix}-name`}
           value={name}
           maxLength={80}
           onChange={(e) => setName(e.target.value)}
         />
       </Field>
-      <Field label={t("url")} htmlFor="webhook-url" hint={t("urlHint")}>
+      <Field label={t("url")} htmlFor={`${prefix}-url`} hint={t("urlHint")}>
         <Input
-          id="webhook-url"
+          id={`${prefix}-url`}
           type="url"
           value={url}
           placeholder="https://example.com/hooks/monitoring"
@@ -314,9 +384,9 @@ function NewEndpoint({
           ))}
         </div>
       </fieldset>
-      <Field label={t("template")} htmlFor="webhook-template" hint={t("templateHint")}>
+      <Field label={t("template")} htmlFor={`${prefix}-template`} hint={t("templateHint")}>
         <Textarea
-          id="webhook-template"
+          id={`${prefix}-template`}
           rows={4}
           className="font-mono text-xs"
           value={template}
@@ -324,10 +394,15 @@ function NewEndpoint({
           onChange={(e) => setTemplate(e.target.value)}
         />
       </Field>
-      <div>
-        <Button type="submit" disabled={create.isPending}>
-          {create.isPending ? tc("saving") : t("add")}
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" disabled={save.isPending}>
+          {save.isPending ? tc("saving") : endpoint ? tc("save") : t("add")}
         </Button>
+        {endpoint && (
+          <Button type="button" variant="outline" onClick={() => onDone?.()}>
+            {tc("cancel")}
+          </Button>
+        )}
       </div>
     </form>
   );
@@ -335,12 +410,12 @@ function NewEndpoint({
 
 export function OutgoingWebhooks({ ws, canManage }: { ws: string; canManage: boolean }) {
   const t = useTranslations("integrations.webhooks");
-  const endpoints = useQuery({
-    queryKey: key(ws),
-    queryFn: async () => (await api<{ data: WebhookEndpointView[] }>(wsPath(ws, "/webhooks"))).data,
-  });
-  /* The endpoint just made: its secret is shown until the page is left, and never again. */
-  const [made, setMade] = React.useState<WebhookEndpointWithSecret | null>(null);
+  const endpoints = useWebhookEndpoints(ws);
+  /* The endpoint just made or re-keyed: its secret is shown until the page is left, and never again. */
+  const [made, setMade] = React.useState<{
+    endpoint: WebhookEndpointWithSecret;
+    rotated: boolean;
+  } | null>(null);
   const list = endpoints.data ?? [];
 
   return (
@@ -358,8 +433,10 @@ export function OutgoingWebhooks({ ws, canManage }: { ws: string; canManage: boo
         {made && (
           <Alert tone="info">
             <div className="grid gap-2">
-              <p className="font-medium">{t("madeTitle", { name: made.name })}</p>
-              <CopyField label={t("secretLabel")} value={made.secret} />
+              <p className="font-medium">
+                {t(made.rotated ? "rotatedTitle" : "madeTitle", { name: made.endpoint.name })}
+              </p>
+              <CopyField label={t("secretLabel")} value={made.endpoint.secret} />
               <p className="text-sm">{t("secretHint")}</p>
             </div>
           </Alert>
@@ -373,11 +450,19 @@ export function OutgoingWebhooks({ ws, canManage }: { ws: string; canManage: boo
         ) : (
           <ul className="divide-y rounded-lg border">
             {list.map((endpoint) => (
-              <EndpointRow key={endpoint.id} ws={ws} endpoint={endpoint} canManage={canManage} />
+              <EndpointRow
+                key={endpoint.id}
+                ws={ws}
+                endpoint={endpoint}
+                canManage={canManage}
+                onSecret={(secret) => setMade({ endpoint: secret, rotated: true })}
+              />
             ))}
           </ul>
         )}
-        {canManage && <NewEndpoint ws={ws} onMade={setMade} />}
+        {canManage && (
+          <EndpointForm ws={ws} onMade={(endpoint) => setMade({ endpoint, rotated: false })} />
+        )}
       </CardContent>
     </Card>
   );

@@ -468,3 +468,39 @@ describe("automatic incidents", () => {
     expect(await fanOut()).toBe(0);
   }, 60_000);
 });
+
+describe("a script at the subscribe form", () => {
+  it("is slowed down before it can mail many strangers or fill the list", async () => {
+    await api("patch", `/status-pages/${page.id}`).send({
+      settings: { ...page.settings, subscribers: true },
+    });
+    const statuses: number[] = [];
+    for (let i = 0; i < 14; i += 1) {
+      const res = await request(ctx.app)
+        .post(`/api/public/status/${slug}/subscribers`)
+        .set("X-Forwarded-For", "203.0.113.77")
+        .send({ email: `stranger-${i}-${randomBytes(3).toString("hex")}@example.org` });
+      statuses.push(res.status);
+    }
+    expect(statuses.filter((s) => s === 202).length).toBeLessThanOrEqual(10);
+    expect(statuses.at(-1)).toBe(429);
+  });
+
+  it("gives an unconfirmed name its place on the list for a day only", async () => {
+    const repoCount = async () =>
+      (
+        await ctx.container.infra.db.execute<{ pending: number; recent: number }>(sql`
+          select count(*) filter (where confirmed_at is null)::int as pending,
+                 count(*) filter (where confirmed_at is null and created_at >= now() - interval '24 hours')::int as recent
+          from status_subscribers where page_id = ${page.id}`)
+      ).rows[0];
+    const before = await repoCount();
+    expect(before?.pending).toBeGreaterThan(0);
+    await ctx.container.infra.db.execute(sql`
+      update status_subscribers set created_at = now() - interval '2 days'
+      where page_id = ${page.id} and confirmed_at is null`);
+    const after = await repoCount();
+    expect(after?.pending).toBe(before?.pending);
+    expect(after?.recent).toBe(0);
+  });
+});

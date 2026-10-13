@@ -7,11 +7,13 @@
  */
 import { NETWORK_DIAGNOSTICS_EVENT, diagnosticsReportSchema, isNetworkCause } from "@app/shared";
 import {
+  PROBE_MAX_BATCH_RESULTS,
+  checkResultSchema,
   effectiveRecoverySuccesses,
-  resultsBatchSchema,
   type CheckResult,
   type EvidenceRef,
 } from "@app/shared";
+import { z } from "zod";
 import type { Clock } from "../../core/clock.js";
 import { ValidationError } from "../../core/errors.js";
 import type { WorkspaceScope } from "../../core/workspace-scope.js";
@@ -187,6 +189,25 @@ export function engineMonitor(m: MonitorForDetection): EngineMonitor {
   };
 }
 
+/* The batch as sent; its results are validated one by one (see `ingest`). */
+const batchEnvelopeSchema = z.object({
+  batchId: z.uuid(),
+  results: z.array(z.unknown()).min(1).max(PROBE_MAX_BATCH_RESULTS),
+});
+
+/* Postgres can't store U+0000 in text or jsonb; a value that carries one loses just that character. */
+function withoutNul(value: unknown): unknown {
+  if (typeof value === "string")
+    return value.includes("\u0000") ? value.replaceAll("\u0000", "") : value;
+  if (Array.isArray(value)) return value.map(withoutNul);
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, inner]) => [withoutNul(key), withoutNul(inner)]),
+    );
+  }
+  return value;
+}
+
 export function createDetectionService(deps: DetectionServiceDeps): DetectionService {
   const { repository: repo, clock } = deps;
 
@@ -261,12 +282,76 @@ export function createDetectionService(deps: DetectionServiceDeps): DetectionSer
     return ids.size;
   }
 
+  /*
+   * A monitor that was deleted while it was down: nothing will ever report on it again, so its
+   * incident is resolved and its outage ends here. Otherwise the incident stays open for good and
+   * keeps escalating, and the outage keeps growing in every report.
+   */
+  async function closeForDeleted(monitorId: string): Promise<void> {
+    await deps.db.transaction(async (tx) => {
+      const state = await repo.lockState(tx, monitorId);
+      if (state === undefined) return;
+      const now = clock.now();
+      await deps.incidents.resolveForMonitor(tx, { monitorId, auto: true, onlySource: "monitor" });
+      const open = await repo.findOpenDowntime(tx, monitorId);
+      if (open !== undefined) await repo.closeDowntime(tx, open.id, now);
+      await repo.updateState(tx, monitorId, {
+        status: "paused",
+        since: now,
+        reason: null,
+        verifyRequestedAt: null,
+        openIncidentId: null,
+      });
+    });
+  }
+
+  /*
+   * Pausing or deleting a monitor stops its results, and evaluations run on results: a monitor
+   * paused or deleted while down would keep its incident and its outage open. Each sweep settles
+   * the ones it finds, within a minute of the change.
+   */
+  async function pausedOrDeletedSweep(): Promise<number> {
+    const ids = await repo.unsettled(deps.db, SWEEP_BATCH);
+    if (ids.length === 0) return 0;
+    const known = new Map((await deps.monitors.getForDetection(ids)).map((m) => [m.id, m]));
+    let settled = 0;
+    for (const id of ids) {
+      const monitor = known.get(id);
+      if (monitor !== undefined && !monitor.paused) continue;
+      try {
+        if (monitor === undefined) await closeForDeleted(id);
+        else await service.evaluateMonitor(id);
+        settled += 1;
+      } catch (err) {
+        deps.logger.warn({ err, monitorId: id }, "paused or deleted monitor not settled");
+      }
+    }
+    return settled;
+  }
+
   const service: DetectionService = {
     async ingest(probe, body) {
-      const parsed = resultsBatchSchema.safeParse(body);
-      if (!parsed.success)
-        throw new ValidationError(`Invalid results batch: ${parsed.error.message}`);
-      const batch = parsed.data;
+      const envelope = batchEnvelopeSchema.safeParse(body);
+      if (!envelope.success)
+        throw new ValidationError(`Invalid results batch: ${envelope.error.message}`);
+      /*
+       * Each result is read by itself. A batch holds many customers' checks, and one result we can't
+       * store (a status code outside 100 to 599, a NUL character in a value a customer's server
+       * sent) must cost that result only: refusing the batch made the probe drop all of it.
+       */
+      const readable: CheckResult[] = [];
+      for (const raw of envelope.data.results) {
+        const one = checkResultSchema.safeParse(withoutNul(raw));
+        if (one.success) readable.push(one.data);
+      }
+      const unreadable = envelope.data.results.length - readable.length;
+      if (unreadable > 0) {
+        deps.logger.warn(
+          { probeId: probe.id, unreadable, batchId: envelope.data.batchId },
+          "skipped results that can't be stored",
+        );
+      }
+      const batch = { batchId: envelope.data.batchId, results: readable };
 
       const monitors = new Map(
         (await deps.monitors.getForProbes([...new Set(batch.results.map((r) => r.monitorId))])).map(
@@ -321,7 +406,7 @@ export function createDetectionService(deps: DetectionServiceDeps): DetectionSer
 
       return {
         accepted: outcome.accepted,
-        duplicates: outcome.duplicates + refused + outcome.rejected,
+        duplicates: outcome.duplicates + refused + outcome.rejected + unreadable,
       };
     },
 
@@ -536,7 +621,7 @@ export function createDetectionService(deps: DetectionServiceDeps): DetectionSer
       for (const p of pending) {
         await evaluateJob(p.monitorId, `sweep-${p.lastResultAt.getTime()}`);
       }
-      return pending.length + (await maintenanceSweep());
+      return pending.length + (await maintenanceSweep()) + (await pausedOrDeletedSweep());
     },
 
     state: (monitorId) => repo.findState(deps.db, monitorId),

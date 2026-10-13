@@ -30,6 +30,15 @@ import { relativeTime } from "@/lib/format";
 type Created = InboundSourceView & { url: string };
 const key = (ws: string) => ["inbound-sources", ws] as const;
 
+/* The workspace's inbound sources; the page header counts them and this section lists them. */
+export function useInboundSources(ws: string) {
+  return useQuery({
+    queryKey: key(ws),
+    queryFn: async () =>
+      (await api<{ data: InboundSourceView[] }>(wsPath(ws, "/inbound-sources"))).data,
+  });
+}
+
 function Tester({ ws, source }: { ws: string; source: InboundSourceView }) {
   const t = useTranslations("integrations.inbound");
   const tMonitors = useTranslations("monitors");
@@ -121,11 +130,7 @@ export function InboundSources({ ws, canManage }: { ws: string; canManage: boole
   const [kind, setKind] = React.useState<InboundKind>("generic");
   const [shown, setShown] = React.useState<Created | undefined>();
   const [testing, setTesting] = React.useState<string | undefined>();
-  const sources = useQuery({
-    queryKey: key(ws),
-    queryFn: async () =>
-      (await api<{ data: InboundSourceView[] }>(wsPath(ws, "/inbound-sources"))).data,
-  });
+  const sources = useInboundSources(ws);
   const refresh = () => client.invalidateQueries({ queryKey: key(ws) });
   const create = useMutation({
     mutationFn: () =>
@@ -191,7 +196,7 @@ export function InboundSources({ ws, canManage }: { ws: string; canManage: boole
               <li key={source.id} className="grid gap-3 px-3 py-3">
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium">{source.name}</p>
+                    <p className="truncate font-medium">{source.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {INBOUND_KIND_LABELS[source.kind]} · {source.tokenHint}… ·{" "}
                       {source.lastReceivedAt === null
@@ -215,7 +220,11 @@ export function InboundSources({ ws, canManage }: { ws: string; canManage: boole
                         size="sm"
                         variant="outline"
                         disabled={rotate.isPending}
-                        onClick={() => rotate.mutate(source.id)}
+                        onClick={() => {
+                          /* The old URL stops working at once, so whatever posts to it goes quiet. */
+                          if (window.confirm(t("confirmNewUrl", { name: source.name })))
+                            rotate.mutate(source.id);
+                        }}
                       >
                         {t("newUrl")}
                       </Button>
@@ -225,7 +234,10 @@ export function InboundSources({ ws, canManage }: { ws: string; canManage: boole
                         variant="outline"
                         disabled={remove.isPending}
                         aria-label={t("deleteNamed", { name: source.name })}
-                        onClick={() => remove.mutate(source.id)}
+                        onClick={() => {
+                          if (window.confirm(t("confirmDelete", { name: source.name })))
+                            remove.mutate(source.id);
+                        }}
                       >
                         {t("delete")}
                       </Button>

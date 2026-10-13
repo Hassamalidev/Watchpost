@@ -82,10 +82,12 @@ function prometheus(payload: unknown, tool: string): InboundEvent[] {
   if (!parsed.success) {
     throw fail(`This doesn't look like a ${tool} webhook: there is no "alerts" list.`);
   }
-  if (parsed.data.alerts.length > MAX_INBOUND_EVENTS) {
-    throw fail(`At most ${MAX_INBOUND_EVENTS} alerts per request.`);
-  }
-  return parsed.data.alerts.map((alert) => {
+  /*
+   * A big outage arrives as one request with every alert in it, and Alertmanager doesn't retry a
+   * 400: refusing the whole request would mean no incident at all for the worst case. The first
+   * MAX_INBOUND_EVENTS are handled; the rest are covered by the incidents those open.
+   */
+  return parsed.data.alerts.slice(0, MAX_INBOUND_EVENTS).map((alert) => {
     const name = alert.labels.alertname ?? "Alert";
     const where = alert.labels.instance ?? alert.labels.job;
     const labelsKey = Object.entries(alert.labels)

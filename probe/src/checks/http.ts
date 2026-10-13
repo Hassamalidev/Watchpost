@@ -22,9 +22,17 @@ function authHeader(config: HttpLike): Array<{ name: string; value: string }> {
   return [];
 }
 
+/*
+ * Servers do answer with codes outside 100 to 599 (LinkedIn's 999). The result schema has no place
+ * for them, and a result the API can't read is lost, so the number is left out of the field.
+ */
+export function reportableStatus(status: number): { httpStatus?: number } {
+  return Number.isInteger(status) && status >= 100 && status <= 599 ? { httpStatus: status } : {};
+}
+
 function baseOutcome(res: HttpResponse): Omit<CheckOutcome, "ok"> {
   return {
-    httpStatus: res.status,
+    ...reportableStatus(res.status),
     latencyMs: res.timings.total,
     timings: res.timings,
     ip: res.ip,

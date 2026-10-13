@@ -133,6 +133,8 @@ export function createPublicStatusRouter(
   controller: StatuspagesController,
   /* Slows down guessing a page's password. */
   unlockLimit: RequestHandler,
+  /* Each subscribe request can send an email to an address the visitor chose. */
+  subscribeLimit: RequestHandler,
 ): Router {
   const router = Router();
   const ref = validate({ params: publicRefParams });
@@ -149,6 +151,7 @@ export function createPublicStatusRouter(
   /* The page's subscribe form posts as a plain HTML form; API clients post JSON. */
   router.post(
     "/:ref/subscribers",
+    subscribeLimit,
     urlencoded({ extended: false, limit: "10kb" }),
     validate({ params: publicRefParams, body: subscribeBody }),
     controller.subscribe,

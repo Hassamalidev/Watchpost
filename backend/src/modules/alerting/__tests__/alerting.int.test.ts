@@ -207,6 +207,52 @@ describe("planning", () => {
     await useChannels([hook], { acknowledged: true });
   });
 
+  it("closes the alert in tools that mirror the incident, whatever the policy says now", async () => {
+    const chat = await channel("Sync chat");
+    const pager = await channel("Sync pager");
+    await db().execute(sql`update channels set type = 'pagerduty' where id = ${pager}`);
+    await useChannels([chat, pager]);
+    const incident = await openIncident(await createMonitor("Sync"));
+    const plan = (kind: "triggered" | "acknowledged" | "resolved") =>
+      service.planIncidentEvent({ kind, incidentId: incident.id, eventKey: `evt-sync-${kind}` });
+    expect(await plan("triggered")).toBe(2);
+
+    /* The policy stops announcing recoveries, and the pager leaves it (as an escalation-only target is). */
+    await useChannels([chat], { acknowledged: false, resolved: false });
+    expect(await plan("acknowledged")).toBe(1);
+    expect(await plan("resolved")).toBe(1);
+    const followUps = (await service.deliveriesFor(incident.id)).filter(
+      (d) => d.kind !== "triggered",
+    );
+    expect(followUps.map((d) => [d.kind, d.channelId])).toEqual([
+      ["acknowledged", pager],
+      ["resolved", pager],
+    ]);
+    await useChannels([chat], { acknowledged: true, resolved: true });
+    await db().execute(sql`update channels set type = 'webhook' where id = ${pager}`);
+  });
+
+  it("doesn't send a waiting down alert after the incident recovered", async () => {
+    const hook = await channel("Late hook");
+    await useChannels([hook]);
+    const incident = await openIncident(await createMonitor("Late"));
+    expect(
+      await service.planIncidentEvent({
+        kind: "triggered",
+        incidentId: incident.id,
+        eventKey: "evt-late",
+      }),
+    ).toBe(1);
+    const waiting = (await service.deliveriesFor(incident.id)).at(-1);
+    await db().execute(
+      sql`update incidents set status = 'resolved', resolved_at = now() where id = ${incident.id}`,
+    );
+    const before = fake.sent.length;
+    expect(await service.deliver(waiting?.id ?? "")).toBe("skipped");
+    expect(fake.sent).toHaveLength(before);
+    expect((await service.deliveriesFor(incident.id)).at(-1)).toMatchObject({ status: "skipped" });
+  });
+
   it("asks only channels whose own rules accept the event and the severity", async () => {
     const chat = await channel("Everything hook");
     const pager = await channels.service.create(scope, {

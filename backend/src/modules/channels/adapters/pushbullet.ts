@@ -8,7 +8,7 @@ import type { OutboundHttp } from "../../../infra/http/outbound.js";
 import type { AlertEvent, ChannelAdapter } from "../types/adapter.js";
 import { formConfig } from "./config.js";
 import { parseJson, postJson } from "./http.js";
-import { renderPlain } from "./render.js";
+import { renderPlain, truncate } from "./render.js";
 
 export const PUSHBULLET_API = "https://api.pushbullet.com/v2/pushes";
 /* A malformed push, a revoked token or an unknown channel tag. */
@@ -32,7 +32,7 @@ export function createPushbulletAdapter(deps: {
         body: {
           type: "link",
           title: message.title,
-          body: message.text,
+          body: truncate(message.text, 4_000),
           url: event.incident.url,
           guid: meta.idempotencyKey,
           ...(config.channelTag ? { channel_tag: config.channelTag } : {}),

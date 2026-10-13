@@ -81,6 +81,11 @@ export interface BillingService {
 
   /* The workspace's paid subscription, if a collected payment covers now. */
   paidSubscription(scope: WorkspaceScope): Promise<PaidSubscription | null>;
+  /*
+   * True while Paddle still holds a subscription for the workspace: active, past due or paused,
+   * whether or not a payment covers today. Paddle can charge any of these again.
+   */
+  hasSubscription(scope: WorkspaceScope): Promise<boolean>;
   /* System: every paid subscription, paged by ID (monthly credit grants). */
   paidSubscriptions(options: {
     afterId?: string | undefined;
@@ -486,6 +491,10 @@ export function createBillingService(deps: {
     async paidSubscription(scope) {
       const live = await repo.liveSubscription(deps.db, scope);
       return live === undefined ? null : toPaid(live, clock.now());
+    },
+
+    async hasSubscription(scope) {
+      return (await repo.liveSubscription(deps.db, scope)) !== undefined;
     },
 
     async paidSubscriptions({ afterId, limit }) {

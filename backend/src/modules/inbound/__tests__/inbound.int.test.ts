@@ -74,11 +74,17 @@ describe("parsers", () => {
     expect(() => parseInbound("alertmanager", { hello: "world" })).toThrow(/"alerts"/);
     expect(() => parseInbound("datadog", { title: "x" })).toThrow(/template/);
     expect(() => parseInbound("email", {})).toThrow(/subject/);
-    expect(() =>
-      parseInbound("alertmanager", {
-        alerts: Array.from({ length: 51 }, (_, i) => ({ labels: { alertname: `A${i}` } })),
-      }),
-    ).toThrow(/At most 50/);
+  });
+
+  it("handles the first 50 alerts of an oversized request instead of refusing them all", () => {
+    const events = parseInbound("alertmanager", {
+      alerts: Array.from({ length: 80 }, (_, i) => ({
+        status: "firing",
+        labels: { alertname: `A${i}` },
+      })),
+    });
+    expect(events).toHaveLength(50);
+    expect(events[0]?.title).toContain("A0");
   });
 });
 

@@ -207,9 +207,19 @@ export function occurrenceAt(spec: WindowSpec, at: Date): Occurrence | null {
   return hit ?? null;
 }
 
-/* The next occurrence that starts after `after`, within a year. */
+/*
+ * The next occurrence that starts after `after`. The search reaches a year ahead, or one whole
+ * period of the rule when that is longer: "every 24 months" has its next occurrence two years out,
+ * and a shorter look would call the window over after its first occurrence.
+ */
 export function nextOccurrence(spec: WindowSpec, after: Date): Occurrence | null {
-  const horizon = new Date(after.getTime() + 366 * 86_400_000);
+  let days = 366;
+  if (spec.rrule !== null) {
+    const rule = parseRule(spec.rrule);
+    const unitDays = rule.freq === "DAILY" ? 1 : rule.freq === "WEEKLY" ? 7 : 31;
+    days = Math.max(days, rule.interval * unitDays + 31);
+  }
+  const horizon = new Date(after.getTime() + days * 86_400_000);
   return occurrencesBetween(spec, after, horizon, 8).find((o) => o.start > after) ?? null;
 }
 

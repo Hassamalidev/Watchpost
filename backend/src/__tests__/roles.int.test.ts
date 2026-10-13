@@ -136,6 +136,22 @@ describe("six roles in one workspace", () => {
     await expectAllowed("get", "/members", ADMINS);
   });
 
+  it("keeps Better Auth's own roster answers and its instant delete closed", async () => {
+    for (const role of WORKSPACE_ROLES) {
+      for (const path of ["list-members", "get-full-organization", "list-invitations"]) {
+        const res = await agents[role]
+          .get(`/api/auth/organization/${path}?organizationId=${ws}`)
+          .set("Origin", WEB_ORIGIN);
+        expect(res.status, `${role} ${path}: ${res.text}`).toBe(404);
+        expect(res.text).not.toContain(emailOf("owner"));
+      }
+    }
+    /* Deleting a workspace goes through /privacy/deletion and its 30-day wait, never this. */
+    const gone = await authPost("owner", "/delete", { organizationId: ws });
+    expect(gone.status, gone.text).toBe(404);
+    expect((await call("owner", "get", "/me")).status).toBe(200);
+  });
+
   it("shows the plan and its meters to everyone, and lets owners, admins and billing change it", async () => {
     for (const path of [
       "/me",

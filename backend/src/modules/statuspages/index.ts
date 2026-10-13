@@ -80,6 +80,18 @@ export function createStatuspagesModule(deps: StatuspagesModuleDeps): Statuspage
     keyOf: (req) => `${clientIpKey(req)}:${String(req.params.ref).toLowerCase()}`,
   });
   /*
+   * Subscribing sends a confirmation email to whatever address is typed, from our sending domain.
+   * Ten in ten minutes per visitor and page is plenty for people and stops a script from using
+   * the form to mail strangers.
+   */
+  const subscribeLimit = createRateLimiter({
+    name: "status-subscribe",
+    redis: deps.infra.redis,
+    windowMs: 10 * 60_000,
+    limit: 10,
+    keyOf: (req) => `${clientIpKey(req)}:${String(req.params.ref).toLowerCase()}`,
+  });
+  /*
    * Someone typing into the page's own form gets the page back with a line to wait, not a raw
    * error. Only the path of where they came from is used, so this can't send anyone elsewhere.
    */
@@ -109,7 +121,10 @@ export function createStatuspagesModule(deps: StatuspagesModuleDeps): Statuspage
     publicRoutes: statuspagesPublicRoutes(service),
     routers: [
       { path: "/api/w/:workspaceId", router: createStatuspagesRouter(controller, deps.guards) },
-      { path: "/api/public/status", router: createPublicStatusRouter(controller, unlockLimit) },
+      {
+        path: "/api/public/status",
+        router: createPublicStatusRouter(controller, unlockLimit, subscribeLimit),
+      },
       {
         path: "/api/public/status-subscriptions",
         router: createSubscriptionLinksRouter(controller),

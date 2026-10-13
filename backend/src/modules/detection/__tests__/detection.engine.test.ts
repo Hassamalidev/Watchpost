@@ -449,6 +449,42 @@ describe("detection engine scenarios", () => {
   });
 });
 
+describe("when an outage is recorded as starting and ending", () => {
+  it("ends when the failing regions came back, not when a healthy region was last seen", () => {
+    const decision = run({
+      monitor: THREE,
+      state: { status: "down", since: at(300), hasOpenIncident: true },
+      results: {
+        [EU]: [ok(240), fail(300), fail(360), fail(420), ok(480), ok(540)],
+        [US]: [ok(245), fail(305), fail(365), fail(425), fail(485), ok(545)],
+        [AP]: [ok(0), ok(60), ok(120), ok(180), ok(250), ok(310), ok(370), ok(430), ok(490)],
+      },
+    });
+    expect(decision).toMatchObject({ status: "up", resolveIncident: true });
+    /* US was the last to recover; AP's healthy streak from 0 s says nothing about the outage. */
+    expect(decision.transitionAt).toEqual(at(545));
+  });
+
+  it("never ends before it began", () => {
+    const decision = run({
+      monitor: MULTI,
+      state: { status: "down", since: at(500), hasOpenIncident: true },
+      results: { [EU]: [fail(300), ok(400), ok(560)], [US]: [fail(310), ok(410), ok(565)] },
+    });
+    expect(decision.status).toBe("up");
+    expect(decision.transitionAt).toEqual(at(500));
+  });
+
+  it("starts at the end of a maintenance window when it is still failing then", () => {
+    const decision = run({
+      state: { status: "maintenance", since: at(0) },
+      results: { [EU]: [ok(100), fail(300), fail(400), fail(500)] },
+    });
+    expect(decision).toMatchObject({ status: "down", downtime: "outage" });
+    expect(decision.transitionAt).toEqual(at(NOW));
+  });
+});
+
 describe("flapping", () => {
   const changes = (...seconds: number[]) => seconds.map(at);
 

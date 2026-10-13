@@ -8,12 +8,13 @@
 import * as React from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { ArrowRight, Search } from "lucide-react";
+import { ArrowRight, CircleCheck, Search } from "lucide-react";
 import {
   CHANNEL_CAPABILITIES,
   INTEGRATION_CATEGORIES,
   type ChannelType,
   type IntegrationDefinition,
+  type IntegrationId,
 } from "@app/shared";
 import { EmptyState } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -30,10 +31,13 @@ function IntegrationCard({
   ws,
   integration,
   available,
+  connected,
 }: {
   ws: string;
   integration: IntegrationDefinition;
   available: boolean;
+  /* How many channels of this kind the workspace already has. */
+  connected: number;
 }) {
   const t = useTranslations("integrations");
   const { followUps } = CHANNEL_CAPABILITIES[integration.type];
@@ -65,7 +69,17 @@ function IntegrationCard({
           />
         </div>
         <p className="text-sm text-muted-foreground">{t(`catalog.${integration.id}.summary`)}</p>
-        {footer && <p className="mt-auto text-xs font-medium">{footer}</p>}
+        {(footer !== null || connected > 0) && (
+          <p className="mt-auto flex flex-wrap items-center justify-between gap-2 text-xs font-medium">
+            <span>{footer}</span>
+            {connected > 0 && (
+              <span className="inline-flex items-center gap-1 text-status-up">
+                <CircleCheck aria-hidden className="size-3.5" />
+                {t("connectedMark", { count: connected })}
+              </span>
+            )}
+          </p>
+        )}
       </Link>
     </li>
   );
@@ -114,10 +128,13 @@ function RequestIntegration({ ws, name }: { ws: string; name: string }) {
 export function IntegrationGallery({
   ws,
   availability,
+  connected,
 }: {
   ws: string;
   /* Types this server can deliver to; undefined while loading (everything shows as available). */
   availability: ReadonlyMap<ChannelType, boolean> | undefined;
+  /* Channels the workspace already has, per gallery entry. */
+  connected?: ReadonlyMap<IntegrationId, number>;
 }) {
   const t = useTranslations("integrations");
   const [query, setQuery] = React.useState("");
@@ -129,7 +146,7 @@ export function IntegrationGallery({
   );
 
   return (
-    <section className="grid gap-3" aria-labelledby="gallery-heading">
+    <section className="grid grid-cols-[minmax(0,1fr)] gap-3" aria-labelledby="gallery-heading">
       <h2 id="gallery-heading" className="text-base font-semibold">
         {t("gallery")}
       </h2>
@@ -188,6 +205,7 @@ export function IntegrationGallery({
               ws={ws}
               integration={integration}
               available={availability?.get(integration.type) ?? true}
+              connected={connected?.get(integration.id) ?? 0}
             />
           ))}
         </ul>

@@ -41,6 +41,46 @@ const schedule = (
 
 const who = (s: EngineSchedule, when: Date) => whoIsOnCall(s, when)?.userId ?? null;
 
+describe("paging someone who has left", () => {
+  const zone = "UTC";
+  const start = utc("2026-06-01T00:00:00Z");
+  const during = utc("2026-06-02T12:00:00Z");
+  const without = (gone: string) => (userId: string) => userId !== gone;
+
+  it("passes over them to the next in the rotation, then to a lower layer", () => {
+    const s = schedule(zone, [
+      layer({ id: "backup", name: "Backup", startsAt: start, participants: [C] }),
+      layer({ startsAt: start, participants: [A, B] }),
+    ]);
+    /* As written, and as the calendar shows it. */
+    expect(whoIsOnCall(s, during)?.userId).toBe(A);
+    expect(whoIsOnCall(s, during, without(A))?.userId).toBe(B);
+    expect(whoIsOnCall(s, during, (userId) => userId === C)).toMatchObject({
+      userId: C,
+      layerName: "Backup",
+    });
+    expect(whoIsOnCall(s, during, () => false)).toBeNull();
+  });
+
+  it("ignores an override that names them", () => {
+    const s = schedule(
+      zone,
+      [layer({ startsAt: start, participants: [A] })],
+      [
+        {
+          id: "o1",
+          userId: B,
+          startsAt: start,
+          endsAt: utc("2026-06-08T00:00:00Z"),
+          createdAt: start,
+        },
+      ],
+    );
+    expect(whoIsOnCall(s, during)?.userId).toBe(B);
+    expect(whoIsOnCall(s, during, without(B))?.userId).toBe(A);
+  });
+});
+
 describe("rotations", () => {
   it("rotates weekly from the first handoff and wraps around", () => {
     const zone = "Asia/Karachi";

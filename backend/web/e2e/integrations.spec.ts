@@ -184,6 +184,11 @@ test("an inbound source shows its URL once, checks a payload, and opens an incid
   test.setTimeout(90_000);
   const name = `Prometheus ${testInfo.project.name} ${Date.now()}`;
   await page.goto(path("integrations"));
+  await page
+    .getByRole("navigation", { name: "Integration sections" })
+    .getByRole("link", { name: /^Inbound alerts/ })
+    .click();
+  await expect(page).toHaveURL(/tab=inbound/);
   await expect(page.getByRole("heading", { name: "Inbound alerts" })).toBeVisible();
   await page.getByLabel("Name", { exact: true }).fill(name);
   await page.getByLabel("Sends").selectOption("alertmanager");

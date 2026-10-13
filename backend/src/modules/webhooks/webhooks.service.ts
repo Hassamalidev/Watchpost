@@ -90,6 +90,14 @@ export interface WebhooksService {
   purgeDeliveries(): Promise<number>;
 }
 
+function originOf(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return url;
+  }
+}
+
 export function createWebhooksService(deps: {
   repository: WebhooksRepository;
   http: OutboundHttp;
@@ -324,6 +332,24 @@ export function createWebhooksService(deps: {
       const events = input.events ?? current.events;
       const template = input.bodyTemplate === undefined ? current.bodyTemplate : input.bodyTemplate;
       checkTemplate(template, events);
+      /*
+       * Header values are write-only, and whoever moves the endpoint may not be who entered them:
+       * they don't follow it to another server unless they are sent again (D-048 for channels).
+       */
+      if (
+        input.url !== undefined &&
+        input.headers === undefined &&
+        current.headers !== null &&
+        originOf(input.url) !== originOf(current.url)
+      ) {
+        throw new ValidationError("The address moved to another server.", [
+          {
+            path: "body.headers",
+            message:
+              "This webhook sends custom headers. Send them again with the new address, or an empty object to remove them.",
+          },
+        ]);
+      }
       /* Switching one back on is where a workspace without the plan is stopped. */
       if (input.enabled === true && !current.enabled) await requirePlan(scope);
       const row = await repo.update(scope, id, {

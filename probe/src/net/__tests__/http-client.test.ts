@@ -40,6 +40,21 @@ function handler(req: http.IncomingMessage, res: http.ServerResponse) {
     case "/slow":
       setTimeout(() => res.end("late"), 2_000);
       return;
+    case "/stall":
+      /* Headers and the first bytes, then nothing. */
+      res.writeHead(200, { "content-type": "text/plain" });
+      res.write("the first part");
+      return;
+    case "/stall-gzip":
+      res.writeHead(200, { "content-encoding": "gzip" });
+      res.write(zlib.gzipSync("the first part").subarray(0, 12));
+      return;
+    case "/cut":
+      /* The connection dies in the middle of a body that promised more. */
+      res.writeHead(200, { "content-length": "1000" });
+      res.write("the first part");
+      setTimeout(() => res.socket?.destroy(), 50);
+      return;
     case "/redirect":
       res.writeHead(302, { location: url.searchParams.get("to") ?? "/ok" });
       res.end();
@@ -282,6 +297,23 @@ describe("limits", () => {
     );
     const res = await request({ url: `http://target.test:${port}/many-headers` });
     expect(Object.keys(res.headers).length).toBeLessThanOrEqual(100);
+  });
+
+  it("a body that stalls or is cut off is a failure, not a short success", async () => {
+    const started = Date.now();
+    expect(await codeOf(request({ url: `http://target.test:${port}/stall`, timeoutMs: 400 }))).toBe(
+      "response_timeout",
+    );
+    expect(
+      await codeOf(request({ url: `http://target.test:${port}/stall-gzip`, timeoutMs: 400 })),
+    ).toBe("response_timeout");
+    expect(Date.now() - started).toBeLessThan(3_000);
+    expect(await codeOf(request({ url: `http://target.test:${port}/cut`, timeoutMs: 2_000 }))).toBe(
+      "connect_reset",
+    );
+    /* Hitting our own size cap is still a (truncated) answer. */
+    const big = await request({ url: `http://target.test:${port}/big` });
+    expect(big.truncated).toBe(true);
   });
 
   it("maps a refused connection", async () => {

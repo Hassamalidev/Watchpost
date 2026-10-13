@@ -292,6 +292,50 @@ describe("schedules and alerts", () => {
   });
 });
 
+describe("maintenance", () => {
+  beforeAll(async () => {
+    await newWorkspace();
+    /* Earlier tests jump the fake clock, which records worker gaps; start clean. */
+    await db().execute(sql`delete from platform_gaps`);
+    await db().execute(sql`delete from platform_ticks`);
+  });
+  it("a deadline missed during planned work is judged again afterwards, and alerts then", async () => {
+    let quiet = true;
+    const find = <T>(name: string) => ctx.container.modules.find((m) => m.name === name) as T;
+    const withWindows = createHeartbeatsService({
+      db: db(),
+      repository: createHeartbeatsRepository(),
+      monitors: find<MonitorsModule>("monitors").service,
+      incidents: find<IncidentsModule>("incidents").service,
+      maintenance: { inMaintenance: async () => quiet },
+      outbox: ctx.container.infra.outbox,
+      clock,
+      logger: ctx.container.infra.logger,
+      newId,
+      baseUrl: "http://localhost:4000/api/hb",
+    });
+    const { monitorId, token } = await heartbeat("Nightly during work");
+    const t0 = Date.now();
+    clock.set(at(t0, 0));
+    await withWindows.ping(token, { kind: "success" });
+
+    /* The job is stopped for the work: nobody is told, and the heartbeat isn't left down for good. */
+    await advanceTo(at(t0, 95));
+    await withWindows.sweep();
+    expect((await state(monitorId))?.status).toBe("up");
+    expect(await incidents(monitorId)).toEqual([]);
+
+    /* The window is over and the job was never switched back on. */
+    quiet = false;
+    await advanceTo(at(t0, 200));
+    await withWindows.sweep();
+    expect((await state(monitorId))?.status).toBe("down");
+    expect(await incidents(monitorId)).toEqual([
+      { status: "triggered", cause_code: "heartbeat_missed", source: "heartbeat" },
+    ]);
+  });
+});
+
 describe("platform gap guard", () => {
   beforeAll(async () => {
     await newWorkspace();

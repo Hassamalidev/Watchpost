@@ -253,6 +253,16 @@ export function createDetectionRepository() {
       return rows.map((r) => r.monitorId);
     },
 
+    /* System: monitors a check has found failing or is still judging, across workspaces. */
+    async unsettled(tx: DbOrTx, limit: number): Promise<string[]> {
+      const rows = await tx
+        .select({ monitorId: monitorState.monitorId })
+        .from(monitorState)
+        .where(inArray(monitorState.status, ["down", "degraded", "verifying"]))
+        .limit(limit);
+      return rows.map((r) => r.monitorId);
+    },
+
     async unevaluated(
       tx: DbOrTx,
       limit: number,

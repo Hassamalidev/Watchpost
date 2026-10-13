@@ -751,11 +751,15 @@ export function createOncallService(deps: OncallServiceDeps): OncallService {
     async whoIsOnCall(scope, scheduleId, at) {
       const schedule = await repo.findSchedule(deps.db, scope, scheduleId);
       if (schedule === undefined) return undefined;
-      const [layers, overrides] = await Promise.all([
+      const [layers, overrides, { pageable }] = await Promise.all([
         repo.layersOf(deps.db, scope, [scheduleId]),
         repo.overridesOf(deps.db, scope, [scheduleId], at, new Date(at.getTime() + 1)),
+        people(scope),
       ]);
-      return engineWhoIsOnCall(engineOf(schedule, layers, overrides), at)?.userId;
+      /* This answer is who gets paged: someone who has left the workspace since is passed over. */
+      return engineWhoIsOnCall(engineOf(schedule, layers, overrides), at, (userId) =>
+        pageable.has(userId),
+      )?.userId;
     },
   };
   return service;

@@ -12,7 +12,7 @@ import { createResultBuffer } from "../report/buffer.js";
 import { createReporter } from "../report/reporter.js";
 import { createExecutor } from "../executor/executor.js";
 import { createAddressPolicy } from "../net/address-policy.js";
-import { ApiUnavailableError, type ProbeClient } from "../transport/client.js";
+import { ApiRejectedError, ApiUnavailableError, type ProbeClient } from "../transport/client.js";
 
 const ID = "0190a3b2-7c1d-7e3f-8a9b-0c1d2e3f4a5b";
 const silent = pino({ level: "silent" });
@@ -105,6 +105,19 @@ describe("scheduler", () => {
     expect(scheduler.due(now).map((m) => m.id)).toEqual(["a"]);
   });
 
+  it("after a freeze, runs a monitor once, not once per slot it missed", () => {
+    let now = 1_000_000;
+    const scheduler = createScheduler({ region: "eu-central", now: () => now });
+    scheduler.upsert(monitor("a", 30));
+    /* The host slept for an hour. */
+    now += 3_600_000;
+    expect(scheduler.due(now).map((m) => m.id)).toEqual(["a"]);
+    expect(scheduler.due(now)).toEqual([]);
+    expect(scheduler.nextDueMs()).toBeGreaterThan(now);
+    now += 30_000;
+    expect(scheduler.due(now).map((m) => m.id)).toEqual(["a"]);
+  });
+
   it("ignores stale updates and stops running removed monitors", () => {
     let now = 0;
     const scheduler = createScheduler({ region: "eu-central", now: () => now });
@@ -179,6 +192,29 @@ describe("reporter", () => {
     await reporter.flush();
     expect(batches).toEqual([3, 3, 1]);
     expect(reporter.stats()).toMatchObject({ buffered: 0, sent: 7, dropped: 0 });
+  });
+});
+
+describe("reporter and results the API refuses", () => {
+  it("loses only the result the API can't take, not the batch it came in", async () => {
+    const BAD = "0190a3b2-0000-7000-8000-000000000003";
+    const stored: string[] = [];
+    const client: ProbeClient = {
+      request: async (_method, _path, { body }) => {
+        const ids = (body as { results: Array<{ id: string }> }).results.map((r) => r.id);
+        if (ids.includes(BAD)) throw new ApiRejectedError(400, "Invalid results batch");
+        stored.push(...ids);
+        return { accepted: ids.length, duplicates: 0 } as never;
+      },
+    };
+    const buffer = createResultBuffer({ maxAgeMs: 600_000 });
+    const reporter = createReporter({ client, buffer, logger: silent, batchSize: 5 });
+    for (let i = 0; i < 8; i += 1) buffer.push(result(`0190a3b2-0000-7000-8000-00000000000${i}`));
+
+    await reporter.flush();
+    expect(stored).toHaveLength(7);
+    expect(stored).not.toContain(BAD);
+    expect(reporter.stats()).toMatchObject({ buffered: 0, sent: 7, dropped: 1 });
   });
 });
 

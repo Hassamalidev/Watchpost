@@ -9,9 +9,12 @@ import type { OutboundHttp } from "../../../infra/http/outbound.js";
 import { ChannelDeliveryError, type AlertEvent, type ChannelAdapter } from "../types/adapter.js";
 import { parseConfigWith } from "./config.js";
 import { call, parseJson } from "./http.js";
-import { renderPlain } from "./render.js";
+import { renderPlain, truncate } from "./render.js";
 
 export const TELEGRAM_API = "https://api.telegram.org";
+
+/* Telegram refuses a message over 4,096 characters for good; a cut alert beats none. */
+const TEXT_MAX = 4_000;
 
 /* `ack:<incident>` and `res:<incident>` fit Telegram's 64 bytes of callback data. */
 export const TELEGRAM_ACK = "ack";
@@ -86,7 +89,7 @@ export function createTelegramAdapter(deps: {
       const replyTo = Number(meta.threadRef?.split(":")[1]);
       const result = await deps.api.call("sendMessage", {
         chat_id: config.chatId,
-        text: message.text,
+        text: truncate(message.text, TEXT_MAX),
         link_preview_options: { is_disabled: true },
         /* Only the first message acts: it is the one edited to the latest state. */
         ...(Number.isInteger(replyTo)
@@ -115,7 +118,7 @@ export function createTelegramAdapter(deps: {
         await deps.api.call("editMessageText", {
           chat_id: chatId,
           message_id: Number(messageId),
-          text: message.text,
+          text: truncate(message.text, TEXT_MAX),
           link_preview_options: { is_disabled: true },
           reply_markup: inlineKeyboard(message.body as AlertEvent | undefined),
         });

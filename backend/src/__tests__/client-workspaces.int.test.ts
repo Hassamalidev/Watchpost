@@ -131,12 +131,11 @@ describe("agency client workspaces", () => {
     expect(invited.status, invited.text).toBe(200);
 
     /* Demoted in the agency: out of the client, without anyone touching the client. */
-    const listed = await owner
-      .get(`/api/auth/organization/list-members?organizationId=${agency}`)
-      .set("Origin", WEB_ORIGIN);
-    const adminMember = (
-      listed.body.members as Array<{ id: string; user: { email: string } }>
-    ).find((m) => m.user.email === `agency-admin-${run}@example.com`);
+    const { rows: listed } = await ctx.container.infra.db.execute<{ id: string }>(sql`
+      select m.id from member m join "user" u on u.id = m.user_id
+      where m.organization_id = ${agency} and u.email = ${`agency-admin-${run}@example.com`}`);
+    const adminMember = listed[0];
+    expect(adminMember).toBeDefined();
     const demoted = await auth(owner, "organization/update-member-role", {
       memberId: adminMember?.id,
       role: "member",

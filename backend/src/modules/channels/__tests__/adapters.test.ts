@@ -13,7 +13,8 @@ import {
   type OutboundResponse,
 } from "../../../infra/http/outbound.js";
 import { createDiscordAdapter } from "../adapters/discord.js";
-import { createSlackAdapter } from "../adapters/slack.js";
+import { renderPlain } from "../adapters/render.js";
+import { createSlackAdapter, slackBlocks } from "../adapters/slack.js";
 import { createTeamsAdapter } from "../adapters/teams.js";
 import { createTelegramAdapter, createTelegramApi } from "../adapters/telegram.js";
 import { createWebhookAdapter } from "../adapters/webhook.js";
@@ -326,6 +327,42 @@ describe("Slack adapter", () => {
     await expect(
       adapter.prepare!(config, { workspaceId: "other", previous: undefined }),
     ).rejects.toThrow(/doesn't belong/);
+  });
+});
+
+describe("what customers and other tools put in an alert", () => {
+  it("can't ping a Slack channel or forge a link", () => {
+    const hostile = event();
+    hostile.incident.title = "<!channel> see <http://evil.example|the fix> & more";
+    const text = JSON.stringify(slackBlocks(hostile, renderPlain(hostile)));
+    expect(text).not.toContain("<!channel>");
+    expect(text).not.toContain("<http://evil.example");
+    expect(text).toContain("&lt;!channel&gt;");
+    expect(text).toContain("&amp; more");
+  });
+
+  it("lists a big burst in part, and stays inside Telegram's message size", async () => {
+    const burst = event();
+    burst.group = {
+      name: "Edge",
+      others: Array.from({ length: 80 }, (_, i) => ({
+        number: 500 + i,
+        title: `${"Very long monitor name ".repeat(8)}${i} is down`,
+        monitorName: null,
+        url: "https://app.example.com/i",
+      })),
+    };
+    const plain = renderPlain(burst).text;
+    expect(plain).toContain("and 65 more");
+    expect(plain.split("\n").filter((line) => line.startsWith("#5")).length).toBe(15);
+
+    const provider = stub(() => ({ body: '{"ok":true,"result":{"message_id":41}}' }));
+    const adapter = createTelegramAdapter({
+      api: createTelegramApi({ http: provider.http, botToken: "123:abc" }),
+    });
+    const huge = { ...renderPlain(burst), text: "x".repeat(9_000) };
+    await adapter.send({ chatId: "-100200", chatTitle: "Ops" }, huge, meta());
+    expect((provider.body(0).text as string).length).toBeLessThanOrEqual(4_000);
   });
 });
 

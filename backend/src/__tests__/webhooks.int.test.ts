@@ -463,6 +463,23 @@ describe("deliveries", () => {
     });
     expect(last?.headers?.["X-Team"]).toBe("ops");
 
+    /* The header's value doesn't follow the endpoint to another server unless it is sent again. */
+    const moved = await api("patch", `/webhooks/${incidentsOnly.id}`).send({
+      url: "https://elsewhere.example.net/hook",
+    });
+    expect(moved.status, moved.text).toBe(400);
+    expect(moved.text).toContain("custom headers");
+    const samePlace = await api("patch", `/webhooks/${incidentsOnly.id}`).send({
+      url: `${new URL(incidentsOnly.url).origin}/another-path`,
+    });
+    expect(samePlace.status, samePlace.text).toBe(200);
+    const cleared = await api("patch", `/webhooks/${incidentsOnly.id}`).send({
+      url: "https://elsewhere.example.net/hook",
+      headers: {},
+    });
+    expect(cleared.status, cleared.text).toBe(200);
+    expect(cleared.body.headerNames).toEqual([]);
+
     expect((await api("patch", `/webhooks/${incidentsOnly.id}`).send({})).status).toBe(400);
     expect((await api("delete", `/webhooks/${incidentsOnly.id}`)).status).toBe(204);
     expect((await api("delete", `/webhooks/${incidentsOnly.id}`)).status).toBe(404);

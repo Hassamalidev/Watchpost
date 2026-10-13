@@ -19,12 +19,15 @@ import { renderWithProviders } from "@/test/render";
 import {
   DEFAULT_RULES,
   MONOGRAMS,
+  channelHealth,
+  connectedCounts,
   defaultRulesFor,
   fieldOfPath,
   initialValues,
   parseHeaderLines,
   rulesSummary,
   searchIntegrations,
+  tabOf,
   toConfig,
 } from "@/features/integrations/catalog";
 import { ChannelForm } from "@/features/integrations/components/channel-form";
@@ -212,7 +215,60 @@ describe("channel rules", () => {
   });
 });
 
+describe("channel health", () => {
+  const at = (minute: number) => `2026-10-13T10:${String(minute).padStart(2, "0")}:00.000Z`;
+  it("doesn't call a channel healthy before it delivered, or after its newest attempt failed", () => {
+    const base = { status: "healthy" as const, lastSuccessAt: null, lastFailureAt: null };
+    expect(channelHealth(base)).toBe("untested");
+    expect(channelHealth({ ...base, lastFailureAt: at(1) })).toBe("lastFailed");
+    expect(channelHealth({ ...base, lastSuccessAt: at(1), lastFailureAt: at(2) })).toBe(
+      "lastFailed",
+    );
+    expect(channelHealth({ ...base, lastSuccessAt: at(3), lastFailureAt: at(2) })).toBe("healthy");
+    expect(channelHealth({ ...base, lastSuccessAt: at(3) })).toBe("healthy");
+    expect(channelHealth({ ...base, status: "failing", lastSuccessAt: at(3) })).toBe("failing");
+  });
+
+  it("counts channels per gallery entry and reads the section from the address", () => {
+    const counts = connectedCounts([
+      { integration: "webhook" },
+      { integration: "zapier" },
+      { integration: "webhook" },
+    ]);
+    expect(counts.get("webhook")).toBe(2);
+    expect(counts.get("zapier")).toBe(1);
+    expect(counts.get("slack")).toBeUndefined();
+    expect(tabOf("inbound")).toBe("inbound");
+    expect(tabOf(null)).toBe("channels");
+    expect(tabOf("<script>")).toBe("channels");
+  });
+});
+
 describe("IntegrationGallery", () => {
+  it("marks what is already connected", () => {
+    renderWithProviders(
+      <IntegrationGallery
+        ws="ws1"
+        availability={undefined}
+        connected={
+          new Map([
+            ["webhook", 2],
+            ["discord", 1],
+          ])
+        }
+      />,
+    );
+    expect(
+      within(screen.getByRole("link", { name: /^Webhook Automation/ })).getByText("2 connected"),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("link", { name: /^Discord Chat/ })).getByText("Connected"),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("link", { name: /^PagerDuty/ })).queryByText(/connected/i),
+    ).toBeNull();
+  });
+
   it("lists every integration, filters as you type and by category", async () => {
     const user = userEvent.setup();
     renderWithProviders(<IntegrationGallery ws="ws1" availability={undefined} />);

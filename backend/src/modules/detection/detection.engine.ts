@@ -165,6 +165,24 @@ export function evaluate(input: EngineInput): Decision {
     return earliest;
   };
 
+  /*
+   * When an outage ended: the moment the last failing region came back. A region that never failed
+   * has nothing to say about it; its good results reach back before the outage began, and taking
+   * the earliest of them would end the outage before it started (a zero-second outage in reports).
+   */
+  const recoveredAt = (): Date => {
+    let last: Date | null = null;
+    for (const region of withData) {
+      const list = byRegion.get(region) ?? [];
+      const n = okStreak(region);
+      if (n >= list.length) continue;
+      const first = list[n - 1];
+      if (first !== undefined && (last === null || first.checkedAt > last)) last = first.checkedAt;
+    }
+    const at = last ?? now;
+    return at < state.since ? state.since : at;
+  };
+
   /* An outage begins when the required number of regions were all failing. */
   const downSince = (list: string[], needed: number): Date => {
     const starts = list
@@ -203,14 +221,23 @@ export function evaluate(input: EngineInput): Decision {
   } else if (failing.length >= required) {
     status = "down";
     evidence = newestFailure();
-    transitionAt = state.status === "down" ? state.since : downSince(failing, required);
+    /*
+     * Still failing when a maintenance window ends: the outage starts now, not at the first failure
+     * inside the window, which would turn planned minutes into downtime.
+     */
+    transitionAt =
+      state.status === "down"
+        ? state.since
+        : state.status === "maintenance"
+          ? now
+          : downSince(failing, required);
     verifyRequestedAt = null;
   } else if (state.status === "down") {
     /* Down stays down until every region with data has `recoverySuccesses` good results. */
     const recovered = withData.every((r) => okStreak(r) >= monitor.recoverySuccesses);
     if (recovered) {
       status = slow.length >= required ? "degraded" : "up";
-      transitionAt = streakStart(withData, (r) => okStreak(r));
+      transitionAt = recoveredAt();
     }
   } else if (failedOnce.length > 0) {
     const others = regions.filter((r) => !failedOnce.includes(r));

@@ -300,6 +300,27 @@ describe("/api/v1", () => {
     expect(refused.status).toBe(400);
     expect((await send("Fixed", `retry-${run}`)).status).toBe(201);
 
+    /*
+     * A first request that never recorded its answer (the API restarted under it) doesn't lock the
+     * key for a day: it is "still being handled" for two minutes, then the retry goes through.
+     */
+    /* The answer is recorded just after the response is sent; wait for it before undoing it. */
+    await expect
+      .poll(async () => {
+        const { rows } = await ctx.container.infra.db.execute<{ status: number | null }>(
+          sql`select status from idempotency_keys where key = ${`retry-${run}`}`,
+        );
+        return rows[0]?.status;
+      })
+      .toBe(201);
+    const { rows: stuck } = await ctx.container.infra.db.execute<{ fingerprint: string }>(sql`
+      update idempotency_keys set status = null, response = null
+      where key = ${`retry-${run}`} returning fingerprint`);
+    expect(stuck).toHaveLength(1);
+    expect((await send("Fixed", `retry-${run}`)).status).toBe(409);
+    clock.advance(3 * 60_000);
+    expect((await send("Fixed", `retry-${run}`)).status).toBe(201);
+
     /* Deletes replay too, with their empty answer. */
     const target = (await send("To delete", `make-${run}`)).body.id as string;
     const remove = () =>

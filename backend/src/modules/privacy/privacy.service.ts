@@ -61,7 +61,7 @@ export interface PrivacyServiceDeps {
     WorkspacesService,
     "workspaceName" | "getSettings" | "listMembers" | "listClients" | "parentOf"
   >;
-  billing: Pick<BillingService, "paidSubscription">;
+  billing: Pick<BillingService, "hasSubscription">;
   monitors: Pick<MonitorsService, "list" | "setPaused">;
   incidents: Pick<IncidentsService, "list">;
   maintenance: Pick<MaintenanceService, "list">;
@@ -172,7 +172,7 @@ export function createPrivacyService(deps: PrivacyServiceDeps): PrivacyService {
       if (confirm.trim() !== name.trim()) {
         throw new ValidationError("Type the workspace's name exactly to confirm.");
       }
-      if ((await deps.billing.paidSubscription(scope)) !== null) {
+      if (await deps.billing.hasSubscription(scope)) {
         throw new ConflictError(
           "This workspace has a subscription. Cancel it on the Billing page first; the workspace can be deleted once the subscription has ended.",
         );
@@ -241,7 +241,7 @@ export function createPrivacyService(deps: PrivacyServiceDeps): PrivacyService {
         const { workspaceId } = request;
         const scope = createWorkspaceScope({ workspaceId });
         /* A subscription started or a client added during the wait: a person has to look. */
-        if ((await deps.billing.paidSubscription(scope)) !== null) {
+        if (await deps.billing.hasSubscription(scope)) {
           deps.logger.warn({ workspaceId }, "workspace not erased: it has a subscription");
           continue;
         }

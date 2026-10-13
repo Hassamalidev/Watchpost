@@ -77,6 +77,9 @@ export interface ApikeysService {
   purgeIdempotencyKeys(): Promise<number>;
 }
 
+/* Longer than any request is allowed to take. */
+const IDEMPOTENCY_IN_PROGRESS_MS = 2 * 60_000;
+
 export function createApikeysService(deps: {
   repository: ApikeysRepository;
   hasFeature: (scope: WorkspaceScope, feature: PlanFeature) => Promise<boolean>;
@@ -162,7 +165,21 @@ export function createApikeysService(deps: {
       /* It was released between our two reads: the caller may simply try again. */
       if (row === undefined) return { state: "in_progress" };
       if (row.fingerprint !== fingerprint) return { state: "mismatch" };
-      if (row.status === null) return { state: "in_progress" };
+      if (row.status === null) {
+        /*
+         * No request is handled for this long. The first one never got to record its answer (the
+         * API restarted under it, or the connection went away), and without this the retry the key
+         * exists for would be refused until the key is forgotten a day later.
+         */
+        const stale = clock.now().getTime() - row.createdAt.getTime() > IDEMPOTENCY_IN_PROGRESS_MS;
+        if (stale) {
+          await repo.releaseIdempotencyKey(scope, key);
+          if (await repo.claimIdempotencyKey(scope, key, fingerprint, clock.now())) {
+            return { state: "new" };
+          }
+        }
+        return { state: "in_progress" };
+      }
       return { state: "replay", status: row.status, response: row.response };
     },
 

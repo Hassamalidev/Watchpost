@@ -20,7 +20,9 @@ import { Loading } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import { workspaceHref } from "@/lib/navigation";
+import { cn } from "@/lib/utils";
 import { integrationKeys, integrationsApi, type ChannelDetail, type SetupOutcome } from "../api";
+import { channelHealth } from "../catalog";
 import { ChannelForm } from "./channel-form";
 import { BackToIntegrations, HealthBadge, IntegrationTile, SendTestButton } from "./parts";
 
@@ -153,6 +155,7 @@ export function ChannelView({ channelId }: { channelId: string }) {
 
   const channel = detail.data;
   const integration = integrationForChannel(channel.type, channel.config);
+  const health = channelHealth(channel);
   const secret = typeof channel.config.secret === "string" ? channel.config.secret : null;
   const slackChannel =
     typeof channel.config.channelName === "string" ? channel.config.channelName : null;
@@ -189,8 +192,15 @@ export function ChannelView({ channelId }: { channelId: string }) {
               </>
             )}
           </dl>
-          {channel.status !== "healthy" && channel.lastError && (
-            <p className="break-words text-status-down">{channel.lastError}</p>
+          {(health === "failing" || health === "lastFailed") && channel.lastError && (
+            <p
+              className={cn(
+                "break-words",
+                health === "failing" ? "text-status-down" : "text-status-degraded",
+              )}
+            >
+              {channel.lastError}
+            </p>
           )}
           {slackChannel && <p>{t("slackPostsTo", { channel: slackChannel })}</p>}
           {CHANNEL_CAPABILITIES[channel.type].testPages && (

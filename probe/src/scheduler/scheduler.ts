@@ -78,7 +78,12 @@ export function createScheduler(options: {
         if (top === undefined) break;
         const entry = entries.get(top.value.id);
         if (entry === undefined || entry.version !== top.value.version) continue;
-        schedule(entry, top.key + 1);
+        /*
+         * The next slot after now, not after the slot that just came due: when the process was
+         * frozen (a laptop asleep, a paused VM, a clock step) every missed slot would come due at
+         * once and the target would get them all as one burst.
+         */
+        schedule(entry, Math.max(top.key + 1, nowMs));
         if (running.has(entry.monitor.id)) continue;
         out.push(entry.monitor);
       }

@@ -211,6 +211,42 @@ describe("single-region outage lifecycle", () => {
   });
 });
 
+describe("a monitor paused or deleted while it is down", () => {
+  async function down(name: string) {
+    const monitorId = await createMonitor(name);
+    await report(monitorId, [
+      { ok: false, secondsAgo: 60 },
+      { ok: false, secondsAgo: 30 },
+    ]);
+    expect((await detection.service.evaluateMonitor(monitorId))?.decision.status).toBe("down");
+    expect((await incidentsFor(monitorId)).map((i) => i.status)).toEqual(["triggered"]);
+    return monitorId;
+  }
+
+  it("pausing resolves the incident and ends the outage at the next sweep", async () => {
+    const monitorId = await down("Paused while down");
+    const paused = await post(`/api/w/${ws}/monitors/${monitorId}/pause`, {});
+    expect(paused.status, paused.text).toBe(200);
+    await detection.service.sweep();
+    expect((await incidentsFor(monitorId)).map((i) => i.status)).toEqual(["resolved"]);
+    const [outage] = await downtimesFor(monitorId);
+    expect(outage).toMatchObject({ kind: "outage" });
+    expect(outage?.ended_at).not.toBeNull();
+    expect((await detection.service.state(monitorId))?.status).toBe("paused");
+  });
+
+  it("deleting does the same, although the monitor is gone", async () => {
+    const monitorId = await down("Deleted while down");
+    const gone = await owner.delete(`/api/w/${ws}/monitors/${monitorId}`).set("Origin", WEB_ORIGIN);
+    expect(gone.status, gone.text).toBe(204);
+    await detection.service.sweep();
+    expect((await incidentsFor(monitorId)).map((i) => i.status)).toEqual(["resolved"]);
+    expect((await downtimesFor(monitorId)).every((d) => d.ended_at !== null)).toBe(true);
+    /* And it is settled: the next sweep has nothing left to do for it. */
+    expect((await detection.service.state(monitorId))?.status).toBe("paused");
+  });
+});
+
 describe("multi-region verification", () => {
   let monitorId: string;
 
@@ -389,6 +425,44 @@ describe("concurrency", () => {
     expect(attempts.filter((a) => a.created)).toHaveLength(1);
     expect(new Set(attempts.map((a) => a.incident.id)).size).toBe(1);
     expect(await incidentsFor(monitorId)).toHaveLength(1);
+  });
+});
+
+describe("a batch with a result that can't be stored", () => {
+  it("keeps the other results, and stores a value with a NUL character without it", async () => {
+    const monitorId = await createMonitor("Odd answers");
+    const base = { monitorId, region: "eu-central", latencyMs: 20 };
+    const good = uuidv7();
+    const withNul = uuidv7();
+    const res = await probeClient(ctx.app, euProbe).call("POST", "/results", {
+      batchId: uuidv7(),
+      results: [
+        { ...base, id: good, checkedAt: new Date(Date.now() - 3_000).toISOString(), ok: true },
+        /* A status outside 100 to 599 (LinkedIn answers 999). */
+        {
+          ...base,
+          id: uuidv7(),
+          checkedAt: new Date(Date.now() - 2_000).toISOString(),
+          ok: false,
+          errorCode: "http_status_unexpected",
+          httpStatus: 999,
+        },
+        {
+          ...base,
+          id: withNul,
+          checkedAt: new Date(Date.now() - 1_000).toISOString(),
+          ok: true,
+          details: { value: "before\u0000after" },
+        },
+      ],
+    });
+    expect(res.status, res.text).toBe(202);
+    expect(res.body).toEqual({ accepted: 2, duplicates: 1 });
+    const stored = await rows<{ id: string; details: { value?: string } | null }>(
+      sql`select id, details from check_results where monitor_id = ${monitorId} order by checked_at`,
+    );
+    expect(stored.map((r) => r.id)).toEqual([good, withNul]);
+    expect(stored[1]?.details?.value).toBe("beforeafter");
   });
 });
 

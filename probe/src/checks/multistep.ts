@@ -16,7 +16,7 @@ import type { CheckContext, CheckOutcome } from "../executor/executor.js";
 import { CheckError } from "../net/errors.js";
 import { httpRequest, type HttpResponse } from "../net/http-client.js";
 import { evidenceOf } from "./evidence.js";
-import { compare } from "./http.js";
+import { compare, reportableStatus } from "./http.js";
 
 type Multistep = Extract<MonitorConfig, { type: "multistep" }>;
 type Step = Multistep["steps"][number];
@@ -83,7 +83,11 @@ export async function runMultistep(
     latencyMs: elapsed(),
     ...(res === undefined
       ? {}
-      : { httpStatus: res.status, ip: res.ip, evidence: redactEvidence(evidenceOf(res)) }),
+      : {
+          ...reportableStatus(res.status),
+          ip: res.ip,
+          evidence: redactEvidence(evidenceOf(res)),
+        }),
     details: { steps: done, failedStep: index + 1 },
   });
 
@@ -217,7 +221,7 @@ export async function runMultistep(
     latencyMs: elapsed(),
     ...(last === undefined
       ? {}
-      : { httpStatus: last.status, ip: last.ip, ...(last.tls ? { tls: last.tls } : {}) }),
+      : { ...reportableStatus(last.status), ip: last.ip, ...(last.tls ? { tls: last.tls } : {}) }),
     details: { steps: done },
   };
 }

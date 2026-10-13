@@ -43,12 +43,12 @@ export function CommandPalette({ workspace }: { workspace: string }) {
       <Button
         variant="outline"
         size="sm"
-        className="w-full max-w-xs justify-start text-muted-foreground"
+        className="w-full max-w-xs min-w-0 shrink justify-start text-muted-foreground"
         onClick={() => setOpen(true)}
       >
         <Search aria-hidden />
-        <span className="flex-1 text-left">{t("command.open")}</span>
-        <kbd className="rounded border bg-muted px-1.5 font-mono text-xs">⌘K</kbd>
+        <span className="min-w-0 flex-1 truncate text-left">{t("command.open")}</span>
+        <kbd className="hidden rounded border bg-muted px-1.5 font-mono text-xs sm:inline">⌘K</kbd>
       </Button>
       <CommandDialog open={open} onOpenChange={setOpen} title={t("command.title")}>
         <CommandInput placeholder={t("command.placeholder")} />

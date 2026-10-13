@@ -118,6 +118,9 @@ describe("required two-factor sign-in", () => {
     expect(refused.status).toBe(403);
     expect(refused.body.detail).toContain("requires two-factor sign-in");
     expect((await api(member, "get", "/settings")).status).toBe(403);
+    /* Only the path counts: an address that merely ends in "/me" is no way around it. */
+    expect((await api(member, "get", "/monitors?x=/me")).status).toBe(403);
+    expect((await api(member, "get", "/members?next=/me/")).status).toBe(403);
     const me = await api(member, "get", "/me");
     expect(me.status).toBe(200);
     expect(me.body).toMatchObject({

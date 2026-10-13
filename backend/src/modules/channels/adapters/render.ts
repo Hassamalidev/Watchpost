@@ -51,6 +51,9 @@ export function alertTitle(event: AlertEvent): string {
   }
 }
 
+/* A burst that takes a whole group down lists this many incidents; the rest are counted. */
+const GROUP_LINES_MAX = 15;
+
 export function renderPlain(event: AlertEvent): RenderedMessage {
   const { incident } = event;
   if (event.kind === "test") {
@@ -62,7 +65,12 @@ export function renderPlain(event: AlertEvent): RenderedMessage {
   const lines = [alertTitle(event), ""];
   if (event.group) {
     lines.push(`#${incident.number} ${incident.title}`);
-    for (const other of event.group.others) lines.push(`#${other.number} ${other.title}`);
+    for (const other of event.group.others.slice(0, GROUP_LINES_MAX)) {
+      lines.push(`#${other.number} ${truncate(other.title, 120)}`);
+    }
+    if (event.group.others.length > GROUP_LINES_MAX) {
+      lines.push(`and ${event.group.others.length - GROUP_LINES_MAX} more`);
+    }
     lines.push("", "The first of them:");
   }
   if (incident.monitorName) lines.push(`Monitor: ${incident.monitorName}`);

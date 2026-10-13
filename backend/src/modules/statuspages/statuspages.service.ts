@@ -269,6 +269,9 @@ export interface StatuspagesServiceDeps {
   ai?: Pick<AiService, "generate" | "configured"> | undefined;
 }
 
+/* How long an unconfirmed subscriber counts toward the page's limit. */
+const PENDING_HOLDS_PLACE_MS = 24 * 3_600_000;
+
 export function createStatuspagesService(deps: StatuspagesServiceDeps): StatuspagesService {
   const { repository: repo, clock } = deps;
   const system = (workspaceId: string) => createWorkspaceScope({ workspaceId });
@@ -1202,8 +1205,16 @@ export function createStatuspagesService(deps: StatuspagesServiceDeps): Statuspa
           return;
         }
         /* A full list takes no new names; the visitor still gets the same answer. */
-        const { confirmed, pending } = await repo.countSubscribers(tx, page.id);
-        if (confirmed + pending >= limit) return;
+        /*
+         * Names nobody confirmed hold a place for a day only. Counted for ever, a script posting
+         * made-up addresses would fill the list once and keep every real visitor out for good.
+         */
+        const { confirmed, recentPending } = await repo.countSubscribers(
+          tx,
+          page.id,
+          new Date(clock.now().getTime() - PENDING_HOLDS_PLACE_MS),
+        );
+        if (confirmed + recentPending >= limit) return;
         const created = await repo.insertSubscriber(tx, {
           id: deps.newId(),
           pageId: page.id,

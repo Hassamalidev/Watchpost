@@ -43,7 +43,7 @@ watchpost-signature: t=1793610848,v1=5f2b…
 ```
 
 - `id` (and the `watchpost-event-id` header) is the same for every attempt at one event at one endpoint, and for a replay. Use it to drop duplicates: delivery is at least once.
-- Up to 10 headers of your own can be set on an endpoint (an `Authorization` header, a routing key). Their values are stored encrypted and never shown again.
+- Up to 10 headers of your own can be set on an endpoint (an `Authorization` header, a routing key). Their values are stored encrypted and never shown again. They stay with the server they were entered for: changing an endpoint's address to another host needs `headers` sent again in the same request (an empty object removes them).
 
 ## Signature
 

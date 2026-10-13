@@ -75,25 +75,34 @@ const HEADER = {
   test: "🧪 TEST",
 } as const;
 
+/*
+ * Names and titles come from customers and from other tools' alerts. In mrkdwn, `<!channel>` would
+ * ping everyone and `<http://…|text>` would make a link, so the three control characters are escaped
+ * the way Slack asks.
+ */
+export function escapeMrkdwn(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 export function slackBlocks(event: AlertEvent, message: RenderedMessage): unknown[] {
   const { incident } = event;
   if (event.kind === "test") {
     return [
       { type: "header", text: { type: "plain_text", text: `${HEADER.test} · Watchpost` } },
-      { type: "section", text: { type: "mrkdwn", text: message.text } },
+      { type: "section", text: { type: "mrkdwn", text: escapeMrkdwn(message.text) } },
     ];
   }
   const subject = alertSubject(event);
   const since = Math.floor(Date.parse(incident.startedAt) / 1_000);
   const fields = [
-    `*Incident*\n#${incident.number} ${incident.title}`,
+    `*Incident*\n#${incident.number} ${escapeMrkdwn(incident.title)}`,
     `*Severity*\n${incident.severity}`,
-    ...(incident.causeCode ? [`*Cause*\n${incident.causeCode}`] : []),
+    ...(incident.causeCode ? [`*Cause*\n${escapeMrkdwn(incident.causeCode)}`] : []),
     ...(incident.failingRegions.length > 0
       ? [`*Failing regions*\n${incident.failingRegions.join(", ")}`]
       : []),
     `*Since*\n<!date^${since}^{date_short_pretty} {time}|${incident.startedAt}>`,
-    ...(event.actor ? [`*By*\n${event.actor}`] : []),
+    ...(event.actor ? [`*By*\n${escapeMrkdwn(event.actor)}`] : []),
   ].map((text) => ({ type: "mrkdwn", text }));
   return [
     {
@@ -108,8 +117,8 @@ export function slackBlocks(event: AlertEvent, message: RenderedMessage): unknow
             text: {
               type: "mrkdwn",
               text: [
-                `*Likely cause:* ${event.explanation.headline}`,
-                ...event.explanation.nextSteps.slice(0, 2).map((step) => `• ${step}`),
+                `*Likely cause:* ${escapeMrkdwn(event.explanation.headline)}`,
+                ...event.explanation.nextSteps.slice(0, 2).map((step) => `• ${escapeMrkdwn(step)}`),
               ].join("\n"),
             },
           },

@@ -475,18 +475,26 @@ export function createStatuspagesRepository(db: DbOrTx) {
       return rows.length > 0;
     },
 
+    /* `recentPending`: unconfirmed and asked for since `pendingSince` (all of them without it). */
     async countSubscribers(
       tx: DbOrTx,
       pageId: string,
-    ): Promise<{ confirmed: number; pending: number }> {
+      pendingSince?: Date,
+    ): Promise<{ confirmed: number; pending: number; recentPending: number }> {
+      const since = (pendingSince ?? new Date(0)).toISOString();
       const [row] = await tx
         .select({
           confirmed: sql<number>`count(*) filter (where ${statusSubscribers.confirmedAt} is not null)::int`,
           pending: sql<number>`count(*) filter (where ${statusSubscribers.confirmedAt} is null)::int`,
+          recentPending: sql<number>`count(*) filter (where ${statusSubscribers.confirmedAt} is null and ${statusSubscribers.createdAt} >= ${since}::timestamptz)::int`,
         })
         .from(statusSubscribers)
         .where(eq(statusSubscribers.pageId, pageId));
-      return { confirmed: row?.confirmed ?? 0, pending: row?.pending ?? 0 };
+      return {
+        confirmed: row?.confirmed ?? 0,
+        pending: row?.pending ?? 0,
+        recentPending: row?.recentPending ?? 0,
+      };
     },
 
     async listSubscribers(scope: WorkspaceScope, pageId: string, limit: number) {

@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, CircleCheck, CircleX, Send } from "lucide-react";
+import { ArrowLeft, CircleCheck, CircleDashed, CircleX, Send, TriangleAlert } from "lucide-react";
 import {
   CHANNEL_CAPABILITIES,
   CHANNEL_LABELS,
@@ -16,7 +16,7 @@ import { errorMessage } from "@/lib/api";
 import { workspaceHref } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import { integrationKeys, integrationsApi, type Channel, type TestResult } from "../api";
-import { MONOGRAMS, rulesSummary } from "../catalog";
+import { MONOGRAMS, channelHealth, rulesSummary } from "../catalog";
 
 export function BackToIntegrations({ ws }: { ws: string }) {
   const t = useTranslations("integrations");
@@ -46,17 +46,25 @@ export function IntegrationTile({ id, className }: { id: IntegrationId; classNam
   );
 }
 
-export function HealthBadge({ channel }: { channel: Pick<Channel, "status" | "lastError"> }) {
+const HEALTH = {
+  healthy: { icon: CircleCheck, className: "text-status-up" },
+  failing: { icon: CircleX, className: "text-status-down" },
+  lastFailed: { icon: TriangleAlert, className: "text-status-degraded" },
+  untested: { icon: CircleDashed, className: "text-muted-foreground" },
+} as const;
+
+export function HealthBadge({
+  channel,
+}: {
+  channel: Pick<Channel, "status" | "lastSuccessAt" | "lastFailureAt">;
+}) {
   const t = useTranslations("integrations");
-  return channel.status === "healthy" ? (
-    <span className="inline-flex items-center gap-1 text-xs text-status-up">
-      <CircleCheck aria-hidden className="size-3.5" />
-      {t("healthy")}
-    </span>
-  ) : (
-    <span className="inline-flex items-center gap-1 text-xs text-status-down">
-      <CircleX aria-hidden className="size-3.5" />
-      {t("failing")}
+  const health = channelHealth(channel);
+  const { icon: Icon, className } = HEALTH[health];
+  return (
+    <span className={cn("inline-flex items-center gap-1 text-xs whitespace-nowrap", className)}>
+      <Icon aria-hidden className="size-3.5" />
+      {t(`health.${health}`)}
     </span>
   );
 }

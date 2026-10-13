@@ -418,6 +418,26 @@ export function createHeartbeatsService(deps: {
             continue;
           }
 
+          /*
+           * Planned work: nobody is told now, so the heartbeat isn't marked down either. A row that
+           * went down quietly would never be looked at again (the sweep reads only up and degraded)
+           * and a job left switched off after the window would never alert. The next deadline is
+           * judged afresh.
+           */
+          const quiet = await deps.maintenance?.inMaintenance(
+            { id: monitor.id, workspaceId: monitor.workspaceId },
+            now,
+          );
+          if (quiet === true) {
+            outcome.suppressed += 1;
+            await repo.updateState(tx, state.monitorId, {
+              nextExpectedAt: nextExpectedAt(config.schedule, now),
+              schedule: config.schedule,
+              graceSeconds: config.graceSeconds,
+            });
+            continue;
+          }
+
           outcome.missed += 1;
           const patch = await transition(
             tx,

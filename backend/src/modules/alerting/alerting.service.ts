@@ -11,6 +11,7 @@ import {
   CHANNEL_LABELS,
   alertPolicyRulesSchema,
   channelAccepts,
+  STATE_SYNC_EVENTS,
   describeEvidenceTiming,
   type AlertEventKind,
   type AlertPolicyInput,
@@ -604,18 +605,42 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
       /* A parent monitor's incident already told people; this one stays quiet (§9.6). */
       if (ctx.incident.suppressedByIncidentId !== null) return 0;
       const policy = await policyFor(ctx);
-      if (policy === undefined || !policy.rules.events[kind]) return 0;
+      if (policy === undefined) return 0;
+      const policyAsks = policy.rules.events[kind];
+      /*
+       * Channels this incident's alert already went to: through the policy, or because an escalation
+       * step named them. An acknowledgement or recovery follows the alert there, or a tool that
+       * mirrors the incident (PagerDuty, Opsgenie) keeps its alert open and keeps paging. For those
+       * tools that holds even when the policy has the event switched off for everyone else.
+       */
+      const closes = STATE_SYNC_EVENTS.includes(kind);
+      const told = new Set<string>();
+      if (closes) {
+        for (const d of await repo.deliveriesForIncident(deps.db, incidentId)) {
+          if (
+            d.kind === "triggered" &&
+            d.channelId !== null &&
+            d.status !== "skipped" &&
+            d.status !== "failed"
+          ) {
+            told.add(d.channelId);
+          }
+        }
+      }
+      if (!policyAsks && told.size === 0) return 0;
+      const inPolicy = new Set(policy.rules.channelIds);
       /* The policy says which channels to ask; each channel's own rules say what it accepts. */
       const channels = (
-        await deps.channels.existing(system(ctx.workspaceId), policy.rules.channelIds)
-      ).filter((c) =>
-        channelAccepts(
-          c.rules,
-          kind,
-          ctx.incident.severity,
-          CHANNEL_CAPABILITIES[c.type].followUps === "sync",
-        ),
-      );
+        await deps.channels.existing(system(ctx.workspaceId), [...new Set([...inPolicy, ...told])])
+      ).filter((c) => {
+        const syncs = CHANNEL_CAPABILITIES[c.type].followUps === "sync";
+        if (closes && syncs && told.has(c.id)) return true;
+        return (
+          policyAsks &&
+          (inPolicy.has(c.id) || told.has(c.id)) &&
+          channelAccepts(c.rules, kind, ctx.incident.severity, syncs)
+        );
+      });
       if (channels.length === 0) return 0;
 
       const actorId = actorUserId ?? (kind === "resolved" ? ctx.incident.resolvedBy : null) ?? null;
@@ -842,6 +867,23 @@ export function createAlertingService(deps: AlertingServiceDeps): AlertingServic
       const event = eventFor(delivery.kind, ctx, workspaceName, delivery.actorName);
       if (alsoDown.length > 0 && ctx.monitor?.alertGroup) {
         event.group = { name: ctx.monitor.alertGroup.name, others: alsoDown };
+      }
+
+      /*
+       * A "down" alert that waited (a group's window, a retry) for an incident that has recovered
+       * since: the recovery has gone out already, and sending this after it would say "down" last
+       * and open an alert in PagerDuty or Opsgenie that nothing closes.
+       */
+      if (
+        delivery.kind === "triggered" &&
+        delivery.channelId !== null &&
+        ctx.incident.status === "resolved"
+      ) {
+        await finish({
+          status: "skipped",
+          error: "Not needed: the incident was resolved before this alert was due.",
+        });
+        return "skipped";
       }
 
       /* To a person, through one of their own contact methods. */

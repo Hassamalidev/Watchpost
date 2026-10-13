@@ -159,6 +159,44 @@ export function fieldOfPath(path: string): string | undefined {
   return match?.[1];
 }
 
+export type ChannelHealth = "healthy" | "failing" | "lastFailed" | "untested";
+
+/*
+ * What to say about a channel's health. The API's status turns "failing" only when an alert was given
+ * up on, so a channel whose newest attempt failed (a test, a delivery still retrying) or that never
+ * delivered anything would otherwise read "Healthy".
+ */
+export function channelHealth(channel: {
+  status: "healthy" | "failing";
+  lastSuccessAt: string | null;
+  lastFailureAt: string | null;
+}): ChannelHealth {
+  if (channel.status === "failing") return "failing";
+  const { lastSuccessAt, lastFailureAt } = channel;
+  if (lastFailureAt !== null && (lastSuccessAt === null || lastFailureAt > lastSuccessAt)) {
+    return "lastFailed";
+  }
+  return lastSuccessAt === null ? "untested" : "healthy";
+}
+
+/* How many channels each gallery entry already has, for its "connected" mark. */
+export function connectedCounts(
+  channels: ReadonlyArray<{ integration: IntegrationId }>,
+): Map<IntegrationId, number> {
+  const counts = new Map<IntegrationId, number>();
+  for (const { integration } of channels)
+    counts.set(integration, (counts.get(integration) ?? 0) + 1);
+  return counts;
+}
+
+export const INTEGRATION_TABS = ["channels", "inbound", "webhooks", "deploys"] as const;
+export type IntegrationTab = (typeof INTEGRATION_TABS)[number];
+
+/* The section a `?tab=` value names; anything else is the first one. */
+export function tabOf(value: string | null | undefined): IntegrationTab {
+  return INTEGRATION_TABS.find((tab) => tab === value) ?? "channels";
+}
+
 export const DEFAULT_RULES: ChannelRules = {
   events: { triggered: true, acknowledged: true, resolved: true, reminder: true, flapping: true },
   minSeverity: "low",

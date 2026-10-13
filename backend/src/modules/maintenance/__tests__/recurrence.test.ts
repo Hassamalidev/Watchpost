@@ -122,6 +122,16 @@ describe("rules", () => {
     ]);
   });
 
+  it("a rule with a period longer than a year is not over after its first occurrence", () => {
+    const rare: WindowSpec = { ...base, rrule: "FREQ=MONTHLY;INTERVAL=24", timezone: "UTC" };
+    const afterFirst = new Date(base.endsAt.getTime() + 86_400_000);
+    expect(isOver(rare, afterFirst)).toBe(false);
+    const next = nextOccurrence(rare, afterFirst);
+    expect(next?.start.getUTCFullYear()).toBe(base.startsAt.getUTCFullYear() + 2);
+    const weekly: WindowSpec = { ...base, rrule: "FREQ=WEEKLY;INTERVAL=60", timezone: "UTC" };
+    expect(isOver(weekly, afterFirst)).toBe(false);
+  });
+
   it("COUNT and UNTIL end the series", () => {
     const counted: WindowSpec = { ...base, rrule: "FREQ=DAILY;COUNT=3", timezone: "UTC" };
     expect(

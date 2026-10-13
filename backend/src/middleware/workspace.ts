@@ -53,7 +53,7 @@ export function requireWorkspace(
     if (
       !session.twoFactorEnabled &&
       options.requiresTwoFactor !== undefined &&
-      !(req.method === "GET" && /\/me\/?(\?.*)?$/.test(req.originalUrl)) &&
+      !(req.method === "GET" && isWhoAmI(req.originalUrl, workspaceId)) &&
       (await options.requiresTwoFactor(workspaceId.toLowerCase()))
     ) {
       next(new ForbiddenError(TWO_FACTOR_REQUIRED));
@@ -62,6 +62,15 @@ export function requireWorkspace(
     res.locals.scope = createWorkspaceScope({ workspaceId, actorUserId: session.userId, role });
     next();
   };
+}
+
+/*
+ * True for `…/<workspace>/me` itself. Only the path is looked at: the query string is the caller's to
+ * write, and `/monitors?x=/me` must not pass as the question "who am I here?".
+ */
+function isWhoAmI(originalUrl: string, workspaceId: string): boolean {
+  const path = (originalUrl.split("?")[0] ?? "").toLowerCase().replace(/\/+$/, "");
+  return path.endsWith(`/${workspaceId.toLowerCase()}/me`);
 }
 
 /* For handlers behind requireWorkspace. */

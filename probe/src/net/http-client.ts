@@ -156,12 +156,30 @@ function readBody(
       size += chunk.length;
     });
     source.on("end", () => finish(false));
-    source.on("error", (err) => {
+    /*
+     * Only our own cap makes a short body an answer (`stop(true)` above). A body that stalls until
+     * the deadline, or a connection that dies before the body is complete, is a failed check: a
+     * server that sends its headers and then hangs is down for the people using it.
+     */
+    const fail = (err: Error) => {
       if (done) return;
       done = true;
-      reject(new CheckError("connect_reset", `body read failed: ${err.message}`));
+      decoder?.destroy();
+      reject(
+        err instanceof CheckError
+          ? err
+          : new CheckError("connect_reset", `body read failed: ${err.message}`),
+      );
+    };
+    source.on("error", fail);
+    /* Errors on the response don't travel through `pipe` to a decoder; listen there too. */
+    if (decoder) res.on("error", fail);
+    res.on("aborted", () => {
+      /* The deadline's own error arrives a tick later and says more; let it win. */
+      setImmediate(() =>
+        fail(new CheckError("connect_reset", "the connection closed before the body was complete")),
+      );
     });
-    res.on("aborted", () => finish(true));
   });
 }
 

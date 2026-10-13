@@ -219,6 +219,19 @@ describe("workspace deletion", () => {
     });
     expect(subscribed.status).toBe(409);
     expect(subscribed.body.detail).toContain("Cancel it on the Billing page");
+    /* Paused or past due is still a subscription Paddle can charge: the paid period being over changes nothing. */
+    for (const status of ["paused", "past_due"]) {
+      await ctx.container.infra.db.execute(sql`
+        update subscriptions set status = ${status}, paid_period_end = ${start}::timestamptz
+        where workspace_id = ${other}`);
+      const still = await api(owner, "post", "/privacy/deletion", other).send({
+        confirm: "Staying Co",
+      });
+      expect(still.status, `${status}: ${still.text}`).toBe(409);
+    }
+    await ctx.container.infra.db.execute(sql`
+      update subscriptions set status = 'active', paid_period_end = ${end}::timestamptz
+      where workspace_id = ${other}`);
 
     const client = await api(owner, "post", "/client-workspaces", other).send({ name: "A client" });
     expect(client.status, client.text).toBe(201);

@@ -37,6 +37,8 @@ export function createReporter(options: {
   let sent = 0;
   let dropped = 0;
   let failures = 0;
+  /* How many of the next results are sent alone (see the 400 handling below). */
+  let singly = 0;
 
   async function sendBatches(): Promise<void> {
     const expired = buffer.expire(now());
@@ -46,7 +48,8 @@ export function createReporter(options: {
     }
     while (buffer.size() > 0) {
       if (now() < retryAt) return;
-      const batch = buffer.peek(batchSize);
+      /* After a refusal, results go one at a time until the one the API can't take is found. */
+      const batch = buffer.peek(singly > 0 ? 1 : batchSize);
       try {
         await options.client.request("POST", "/results", {
           body: { batchId: uuidv7(), results: batch.map((b) => b.result) },
@@ -54,15 +57,28 @@ export function createReporter(options: {
         });
         buffer.ack(new Set(batch.map((b) => b.result.id)));
         sent += batch.length;
+        if (singly > 0) singly -= 1;
         backoffMs = 0;
         retryAt = 0;
       } catch (err) {
         failures += 1;
         if (err instanceof ApiRejectedError && err.status === 400) {
-          /* A batch the API will never accept (a probe bug): drop it rather than block the queue. */
+          if (batch.length > 1) {
+            /*
+             * One result the API will never accept must not take the others with it: they belong
+             * to other monitors and other customers. Send this batch again, one result at a time.
+             */
+            singly = batch.length;
+            continue;
+          }
+          /* A result the API will never accept (a probe bug): drop it rather than block the queue. */
           buffer.ack(new Set(batch.map((b) => b.result.id)));
           dropped += batch.length;
-          logger.error({ err: err.message }, "API rejected a result batch; dropped it");
+          if (singly > 0) singly -= 1;
+          logger.error(
+            { err: err.message, monitorId: batch[0]?.result.monitorId },
+            "API rejected a result; dropped it",
+          );
           continue;
         }
         backoffMs = Math.min(30_000, backoffMs === 0 ? 1_000 : backoffMs * 2);
