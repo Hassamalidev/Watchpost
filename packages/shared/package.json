@@ -21,9 +21,9 @@
     "schemas:generate": "tsx scripts/generate-json-schema.ts"
   },
   "dependencies": {
-    "cron-parser": "5.10.1",
+    "cron-parser": "5.10.2",
     "ipaddr.js": "2.5.0",
-    "zod": "4.6.5"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "tsx": "4.23.15"
