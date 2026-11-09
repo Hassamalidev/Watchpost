@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "selfsigned": "5.5.0",
-    "ws": "8.22.0"
+    "ws": "8.22.1"
   },
   "devDependencies": {
     "@types/node": "24.19.0",
